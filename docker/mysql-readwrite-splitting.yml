@@ -1,0 +1,132 @@
+# MySQL读写分离 - Docker Compose配置
+# 1主2从 + ProxySQL
+
+version: '3.8'
+
+services:
+  # ========== MySQL Master (主库) ==========
+  mysql-master:
+    image: mysql:8.4.5
+    container_name: zker-mysql-master
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-master-data:/var/lib/mysql
+      - ./mysql/master.cnf:/etc/mysql/conf.d/master.cnf
+      - ./mysql/init:/docker-entrypoint-initdb.d
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== MySQL Slave 1 (从库1) ==========
+  mysql-slave1:
+    image: mysql:8.4.5
+    container_name: zker-mysql-slave1
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-slave1-data:/var/lib/mysql
+      - ./mysql/slave1.cnf:/etc/mysql/conf.d/slave.cnf
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== MySQL Slave 2 (从库2) ==========
+  mysql-slave2:
+    image: mysql:8.4.5
+    container_name: zker-mysql-slave2
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+    volumes:
+      - mysql-slave2-data:/var/lib/mysql
+      - ./mysql/slave2.cnf:/etc/mysql/conf.d/slave.cnf
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== ProxySQL (读写路由代理) ==========
+  proxysql:
+    image: proxysql/proxysql:latest
+    container_name: zker-proxysql
+    ports:
+      - "6033:6033"   # MySQL协议端口
+      - "6032:6032"   # Admin接口
+    volumes:
+      - ./proxysql/proxysql.cnf:/etc/proxysql.cnf
+      - proxysql-data:/var/lib/proxysql
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-P", "6033"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ========== Prometheus Exporter (MySQL监控) ==========
+  mysql-exporter-master:
+    image: prom/mysqld-exporter:latest
+    container_name: zker-mysql-exporter-master
+    ports:
+      - "9104:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD}@(mysql-master:3306)/"
+    networks:
+      - mysql-network
+
+  mysql-exporter-slave1:
+    image: prom/mysqld-exporter:latest
+    container_name: zker-mysql-exporter-slave1
+    ports:
+      - "9105:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD}@(mysql-slave1:3306)/"
+    networks:
+      - mysql-network
+
+  mysql-exporter-slave2:
+    image: prom/mysqld-exporter:latest
+    container_name: zker-mysql-exporter-slave2
+    ports:
+      - "9106:9104"
+    environment:
+      DATA_SOURCE_NAME: "root:${MYSQL_ROOT_PASSWORD}@(mysql-slave2:3306)/"
+    networks:
+      - mysql-network
+
+networks:
+  mysql-network:
+    driver: bridge
+
+volumes:
+  mysql-master-data:
+    driver: local
+  mysql-slave1-data:
+    driver: local
+  mysql-slave2-data:
+    driver: local
+  proxysql-data:
+    driver: local

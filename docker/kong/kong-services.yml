@@ -1,0 +1,366 @@
+# Kong API Gateway 完整服务配置
+# 包含所有微服务的路由、插件和限流策略
+
+_format_version: "3.0"
+
+# ============================================
+# 服务定义
+# ============================================
+
+services:
+  # 租户服务
+  - name: tenant-service
+    url: http://tenant-service:8001
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    protocol: http
+
+  # 配额服务
+  - name: quota-service
+    url: http://quota-service:8002
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    protocol: http
+
+  # 订阅服务
+  - name: subscription-service
+    url: http://subscription-service:8003
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    protocol: http
+
+  # 认证服务
+  - name: auth-service
+    url: http://auth-service:8004
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    protocol: http
+
+  # Bot服务
+  - name: bot-service
+    url: http://bot-service:8005
+    connect_timeout: 60000
+    write_timeout: 60000
+    read_timeout: 60000
+    retries: 3
+    protocol: http
+
+# ============================================
+# 路由定义
+# ============================================
+
+routes:
+  # 租户服务路由
+  - name: tenant-routes
+    service: tenant-service
+    paths:
+      - /api/v1/tenants
+      - /api/v1/tenants/(?<tenant_id>[^/]+)
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - PATCH
+    strip_path: false
+    preserve_host: false
+
+  # 配额服务路由
+  - name: quota-routes
+    service: quota-service
+    paths:
+      - /api/v1/quota
+    methods:
+      - GET
+      - POST
+    strip_path: false
+    preserve_host: false
+
+  # 订阅服务路由
+  - name: subscription-routes
+    service: subscription-service
+    paths:
+      - /api/v1/subscriptions
+    methods:
+      - GET
+      - POST
+      - PUT
+    strip_path: false
+    preserve_host: false
+
+  # 认证服务路由
+  - name: auth-routes
+    service: auth-service
+    paths:
+      - /api/v1/auth/login
+      - /api/v1/auth/logout
+      - /api/v1/auth/refresh
+    methods:
+      - POST
+    strip_path: false
+    preserve_host: false
+
+  # Bot服务路由
+  - name: bot-routes
+    service: bot-service
+    paths:
+      - /api/v1/bots
+    methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+    strip_path: false
+    preserve_host: false
+
+# ============================================
+# 插件配置 - 全局插件
+# ============================================
+
+plugins:
+  # CORS 跨域配置
+  - name: cors
+    config:
+      origins:
+        - "*"
+      methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - PATCH
+        - OPTIONS
+      headers:
+        - Accept
+        - Accept-Version
+        - Content-Length
+        - Content-MD5
+        - Content-Type
+        - Date
+        - Authorization
+        - X-Request-ID
+        - X-Tenant-ID
+      exposed_headers:
+        - X-Request-ID
+        - X-Tenant-ID
+      max_age: 3600
+      credentials: true
+
+  # 请求ID生成
+  - name: request-termination
+    config:
+      status_code: 200
+
+  # 请求大小限制
+  - name: request-size-limiting
+    config:
+      allowed_payload_size: 100  # 100MB
+
+  # JWT认证（应用于所有需要认证的路由）
+  - name: jwt
+    config:
+      uri_param_names:
+        - jwt
+      cookie_names:
+        - jwt
+      claims_to_verify:
+        - exp
+
+# ============================================
+# 消费者定义（用于API密钥认证）
+# ============================================
+
+consumers:
+  - username: api-consumer-free
+    custom_id: free-tier-consumer
+    tags:
+      - free
+
+  - username: api-consumer-basic
+    custom_id: basic-tier-consumer
+    tags:
+      - basic
+
+  - username: api-consumer-premium
+    custom_id: premium-tier-consumer
+    tags:
+      - premium
+
+  - username: api-consumer-enterprise
+    custom_id: enterprise-tier-consumer
+    tags:
+      - enterprise
+
+# ============================================
+# API密钥认证
+# ============================================
+
+keyauth_credentials:
+  - consumer: api-consumer-free
+    key: free_k8JxHm3PqL9nVc2W
+  - consumer: api-consumer-basic
+    key: basic_R7sT4vY9nB2fG6hK
+  - consumer: api-consumer-premium
+    key: premium_M3jK8pL6nQ4vR2sT
+  - consumer: api-consumer-enterprise
+    key: enterprise_X9cV7bN5mK3jH8gF
+
+# ============================================
+# 限流和流控插件配置
+# ============================================
+
+# 按消费者限流
+rate_limiting:
+  # Free套餐：100 req/min
+  - name: rate-limiting
+    consumer: api-consumer-free
+    config:
+      minute: 100
+      hour: 1000
+      policy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 0
+      fault_tolerant: true
+
+  # Basic套餐：500 req/min
+  - name: rate-limiting
+    consumer: api-consumer-basic
+    config:
+      minute: 500
+      hour: 10000
+      policy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 0
+      fault_tolerant: true
+
+  # Premium套餐：2000 req/min
+  - name: rate-limiting
+    consumer: api-consumer-premium
+    config:
+      minute: 2000
+      hour: 50000
+      policy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 0
+      fault_tolerant: true
+
+  # Enterprise套餐：10000 req/min
+  - name: rate-limiting
+    consumer: api-consumer-enterprise
+    config:
+      minute: 10000
+      hour: 200000
+      policy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 0
+      fault_tolerant: true
+
+# ============================================
+# 熔断器配置
+# ============================================
+
+circuit_breaker:
+  - name: circuit-breaker
+    service: tenant-service
+    config:
+      error_threshold: 50        # 50%错误率触发熔断
+      volume_threshold: 10       # 最少请求数
+      half_open_timeout: 30000   # 30秒后尝试恢复
+      return_503_error: "Service temporarily unavailable"
+
+  - name: circuit-breaker
+    service: quota-service
+    config:
+      error_threshold: 50
+      volume_threshold: 10
+      half_open_timeout: 30000
+
+  - name: circuit-breaker
+    service: subscription-service
+    config:
+      error_threshold: 50
+      volume_threshold: 10
+      half_open_timeout: 30000
+
+  - name: circuit-breaker
+    service: bot-service
+    config:
+      error_threshold: 50
+      volume_threshold: 10
+      half_open_timeout: 30000
+
+# ============================================
+# 缓存配置
+# ============================================
+
+cache:
+  - name: proxy-cache
+    config:
+      response_code:
+        - 200
+        - 301
+        - 404
+      request_method:
+        - GET
+        - HEAD
+      content_type:
+        - text/plain
+        - application/json
+      cache_ttl: 300  # 5分钟
+      strategy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 1
+
+# ============================================
+# IP限制（防DDOS）
+# ============================================
+
+ip_restriction:
+  - name: ip-restriction
+    config:
+      allow:
+        - 0.0.0.0/0
+      deny:
+        - 192.168.1.100/32  # 示例：封禁特定IP
+
+# ============================================
+# 响应速率限制
+# ============================================
+
+response_ratelimiting:
+  - name: response-ratelimiting
+    config:
+      limit: 100
+      window_size: 60
+      window_type: sliding
+      policy: redis
+      redis_host: redis-cluster
+      redis_port: 6379
+      redis_database: 0
+      fault_tolerant: true
+
+# ============================================
+# Prometheus监控指标
+# ============================================
+
+prometheus:
+  - name: prometheus
+    config:
+      per_consumer: true
+      status_code_metrics: true
+      latency_metrics: true
+      bandwidth_metrics: true
+      upstream_health_metrics: true

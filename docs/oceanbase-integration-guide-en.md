@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document provides a comprehensive guide to the integration of OceanBase vector database in Coze Studio, including architectural design, implementation details, configuration instructions, and usage guidelines.
+This document provides a comprehensive guide to the integration of OceanBase vector database in zker, including architectural design, implementation details, configuration instructions, and usage guidelines.
 
 ## Integration Background
 
@@ -31,7 +31,7 @@ This document provides a comprehensive guide to the integration of OceanBase vec
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │  OceanBase      │    │   Vector Store  │
+│   zker   │    │  OceanBase      │    │   Vector Store  │
 │   Application   │───▶│   Client        │───▶│   Manager       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
@@ -180,8 +180,8 @@ oceanbase:
 
 ```bash
 # Clone the project
-git clone https://github.com/coze-dev/coze-studio.git
-cd coze-studio
+git clone https://github.com/coze-dev/zker.git
+cd zker
 
 # Setup OceanBase environment
 make oceanbase_env
@@ -205,7 +205,7 @@ mysql -h localhost -P 2881 -u root -p -e "SHOW DATABASES;"
 
 ### 3. Create Knowledge Base
 
-In the Coze Studio interface:
+In the zker interface:
 
 1. Enter knowledge base management
 2. Select OceanBase as vector storage
@@ -270,10 +270,10 @@ kubectl wait --for=condition=ready pod -l control-plane=controller-manager -n oc
 #### Using Integrated Helm Chart
 
 ```bash
-# Deploy complete Coze Studio application (including OceanBase)
-helm install coze-studio helm/charts/opencoze \
+# Deploy complete zker application (including OceanBase)
+helm install zker helm/charts/opencoze \
   --set oceanbase.enabled=true \
-  --namespace coze-studio \
+  --namespace zker \
   --create-namespace
 
 # Or deploy only OceanBase component
@@ -491,7 +491,7 @@ kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download
 
 #### Architecture Compatibility Design
 
-- Strictly follow Coze Studio core architectural design principles, ensuring seamless integration of OceanBase adaptation layer with existing systems
+- Strictly follow zker core architectural design principles, ensuring seamless integration of OceanBase adaptation layer with existing systems
 - Adopt delegation pattern (Delegation Pattern) to achieve backward compatibility, ensuring stability and consistency of existing interfaces
 - Maintain complete compatibility with existing vector storage interfaces, ensuring smooth system migration and upgrade
 
@@ -601,12 +601,12 @@ SHOW VARIABLES LIKE 'slow_query_log';
 docker logs coze-oceanbase
 
 # View application logs
-tail -f logs/coze-studio.log | grep -i "oceanbase\|vector"
+tail -f logs/zker.log | grep -i "oceanbase\|vector"
 ```
 
 ## Summary
 
-The integration of OceanBase vector database in Coze Studio has achieved the following goals:
+The integration of OceanBase vector database in zker has achieved the following goals:
 
 1. **Complete Functionality**: Supports complete vector storage and retrieval functionality
 2. **Good Performance**: Achieves efficient vector search through HNSW indexing
@@ -614,9 +614,9 @@ The integration of OceanBase vector database in Coze Studio has achieved the fol
 4. **Operations Friendly**: Low operational costs, easy monitoring and management
 5. **Strong Scalability**: Supports horizontal and vertical scaling
 
-Through this integration, Coze Studio provides users with a simple, efficient, and reliable vector database solution, particularly suitable for scenarios requiring transaction support, simple deployment, and low operational costs.
+Through this integration, zker provides users with a simple, efficient, and reliable vector database solution, particularly suitable for scenarios requiring transaction support, simple deployment, and low operational costs.
 
 ## Related Links
 
 - [OceanBase Official Documentation](https://www.oceanbase.com/docs)
-- [Coze Studio Project Repository](https://github.com/coze-dev/coze-studio)
+- [zker Project Repository](https://github.com/coze-dev/zker)

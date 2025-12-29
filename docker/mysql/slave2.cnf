@@ -1,0 +1,45 @@
+# MySQL Slave 2配置
+
+[mysqld]
+# 服务器ID (每个从库必须唯一)
+server-id = 3
+
+# 中继日志
+relay-log = mysql-relay-bin
+relay-log-index = mysql-relay-bin.index
+
+# 只读模式
+read-only = 1
+super-read-only = 0  # 允许超级用户写入
+
+# GTID模式
+gtid-mode = ON
+enforce-gtid-consistency = ON
+
+# 并行复制 (提升性能)
+slave-parallel-type = LOGICAL_CLOCK
+slave-parallel-workers = 4
+
+# 复制延迟监控
+slave-parallel-type = DATABASE
+
+# 慢查询日志
+slow-query-log = 1
+slow-query-log-file = /var/log/mysql/slow.log
+long-query-time = 1
+
+# 性能优化
+max-connections = 500
+innodb-buffer-pool-size = 2G
+innodb-log-file-size = 512M
+innodb-flush-method = O_DIRECT
+
+# 字符集
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# 时区
+default-time-zone = '+08:00'
+
+# 主从复制跳过错误
+slave-skip-errors = 1062,1053,1264

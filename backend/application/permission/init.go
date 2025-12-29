@@ -17,20 +17,49 @@
 package permission
 
 import (
-	"github.com/coze-dev/coze-studio/backend/domain/permission"
+	"gorm.io/gorm"
+
+	"github.com/coze-studio/backend/domain/permission/repository"
+	permissionservice "github.com/coze-studio/backend/domain/permission/service"
 )
 
+var PermissionAppSVC *PermissionApplicationService
+
+// ServiceComponents 权限应用服务组件
 type ServiceComponents struct {
+	DB *gorm.DB
 }
 
-type PermissionApplicationService struct {
-	DomainSVC permission.Permission
-}
+// InitService 初始化权限应用服务
+func InitService(c *ServiceComponents) (*PermissionApplicationService, error) {
+	// 1. 初始化领域仓储
+	roleRepo := repository.NewRoleRepository(c.DB)
+	dataPermRepo := repository.NewDataPermissionRepository(c.DB)
+	fieldPermRepo := repository.NewFieldPermissionRepository(c.DB)
+	userRoleRepo := repository.NewUserRoleRepository(c.DB)
+	departmentRepo := repository.NewDepartmentRepository(c.DB)
+	userDepartmentRepo := repository.NewUserDepartmentRepository(c.DB)
 
-func InitService(components *ServiceComponents) *PermissionApplicationService {
-	domainSVC := permission.NewService()
+	// 2. 初始化领域服务
+	roleSVC := permissionservice.NewRoleService(roleRepo, dataPermRepo, fieldPermRepo, userRoleRepo)
+	departmentSVC := permissionservice.NewDepartmentService(departmentRepo, userDepartmentRepo)
+	permissionChecker := permissionservice.NewPermissionChecker(
+		userRoleRepo,
+		dataPermRepo,
+		fieldPermRepo,
+		departmentRepo,
+		userDepartmentRepo,
+	)
 
-	return &PermissionApplicationService{
-		DomainSVC: domainSVC,
-	}
+	// 3. 初始化应用服务
+	permissionAppSVC := NewPermissionApplicationService(
+		permissionChecker,
+		roleSVC,
+		departmentSVC,
+	)
+
+	// 4. 设置全局变量
+	PermissionAppSVC = permissionAppSVC
+
+	return permissionAppSVC, nil
 }

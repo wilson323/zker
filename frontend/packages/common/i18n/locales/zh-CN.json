@@ -1,0 +1,194 @@
+// frontend/packages/common/i18n/locales/zh-CN.json
+
+{
+  "common": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "save": "保存",
+    "delete": "删除",
+    "edit": "编辑",
+    "create": "创建",
+    "update": "更新",
+    "search": "搜索",
+    "loading": "加载中...",
+    "noData": "暂无数据",
+    "error": "出错了",
+    "success": "成功",
+    "failed": "失败",
+    "retry": "重试",
+    "back": "返回",
+    "submit": "提交",
+    "reset": "重置",
+    "close": "关闭",
+    "view": "查看",
+    "copy": "复制",
+    "export": "导出",
+    "import": "导入",
+    "refresh": "刷新",
+    "actions": "操作",
+    "detail": "详情",
+    "status": "状态",
+    "type": "类型",
+    "name": "名称",
+    "description": "描述",
+    "createdAt": "创建时间",
+    "updatedAt": "更新时间",
+    "enabled": "启用",
+    "disabled": "禁用"
+  },
+  "tenant": {
+    "title": "租户管理",
+    "list": "租户列表",
+    "detail": "租户详情",
+    "create": "创建租户",
+    "edit": "编辑租户",
+    "delete": "删除租户",
+    "deleteConfirm": "确定要删除租户\"{{name}}\"吗？此操作不可恢复。",
+    "name": "租户名称",
+    "type": "租户类型",
+    "subscription": "订阅等级",
+    "contact": "联系方式",
+    "status": "状态",
+    "types": {
+      "individual": "个人",
+      "team": "团队",
+      "enterprise": "企业"
+    },
+    "tiers": {
+      "free": "免费版",
+      "pro": "专业版",
+      "enterprise": "企业版"
+    },
+    "statuses": {
+      "active": "正常",
+      "suspended": "暂停",
+      "deleted": "已删除"
+    },
+    "basicInfo": "基本信息",
+    "subscriptionManage": "订阅管理",
+    "quotaManage": "配额管理",
+    "autoRenew": "自动续费",
+    "quotaUsage": "配额使用情况",
+    "upgradeSubscription": "升级订阅",
+    "adjustQuota": "调整配额",
+    "selectPlaceholder": "请选择租户"
+  },
+  "permission": {
+    "title": "权限管理",
+    "role": "角色",
+    "roleList": "角色列表",
+    "roleDetail": "角色详情",
+    "createRole": "创建角色",
+    "editRole": "编辑角色",
+    "deleteRole": "删除角色",
+    "copyRole": "复制角色",
+    "deleteRoleConfirm": "确定要删除角色\"{{name}}\"吗？此操作不可恢复。",
+    "roleName": "角色名称",
+    "roleCode": "角色编码",
+    "roleType": "角色类型",
+    "userCount": "用户数",
+    "types": {
+      "system": "系统角色",
+      "custom": "自定义角色"
+    },
+    "functionPermission": "功能权限",
+    "dataPermission": "数据权限",
+    "dataScope": "数据范围",
+    "dataScopeDesc": "配置该角色可以访问的数据范围",
+    "functionPermissionDesc": "选择该角色可以访问的功能模块和操作权限",
+    "scopes": {
+      "ALL": "全部数据",
+      "DEPARTMENT": "本部门数据",
+      "OWN": "仅自己",
+      "CUSTOM": "自定义",
+      "NONE": "无权限"
+    },
+    "scopeDescriptions": {
+      "ALL": "可以访问所有数据",
+      "DEPARTMENT": "只能访问本部门的数据",
+      "OWN": "只能访问自己创建的数据",
+      "CUSTOM": "根据自定义条件访问数据",
+      "NONE": "没有任何访问权限"
+    }
+  },
+  "quota": {
+    "title": "配额管理",
+    "resourceType": "资源类型",
+    "used": "已使用",
+    "max": "最大值",
+    "usage": "使用量",
+    "unlimited": "无限制",
+    "normal": "正常",
+    "nearLimit": "即将超限",
+    "overLimit": "已超限",
+    "percentage": "百分比"
+  },
+  "button": {
+    "primary": "主要按钮",
+    "secondary": "次要按钮",
+    "outline": "轮廓按钮",
+    "text": "文本按钮",
+    "danger": "危险按钮",
+    "loading": "加载中...",
+    "clickMe": "点击我"
+  },
+  "table": {
+    "columns": "列",
+    "rows": "行",
+    "pagination": "分页",
+    "perPage": "条/页",
+    "total": "共 {{total}} 条",
+    "showing": "显示 {{start}}-{{end}} 条，共 {{total}} 条",
+    "noData": "暂无数据",
+    "loading": "加载中...",
+    "firstPage": "首页",
+    "lastPage": "末页",
+    "previousPage": "上一页",
+    "nextPage": "下一页"
+  },
+  "modal": {
+    "confirm": "确认",
+    "cancel": "取消",
+    "ok": "确定",
+    "close": "关闭"
+  },
+  "form": {
+    "required": "必填项",
+    "optional": "选填项",
+    "invalid": "格式不正确",
+    "requiredError": "此项为必填项",
+    "emailError": "请输入有效的邮箱地址",
+    "phoneError": "请输入有效的手机号码"
+  },
+  "error": {
+    "title": "出错了",
+    "description": "应用程序遇到了一些问题，请稍后重试",
+    "retry": "重新加载",
+    "goHome": "返回首页",
+    "errorDetails": "错误详情",
+    "errorMessage": "错误消息",
+    "componentStack": "组件堆栈"
+  },
+  "language": {
+    "title": "语言",
+    "zhCN": "简体中文",
+    "enUS": "English"
+  },
+  "resources": {
+    "bot": "机器人管理",
+    "conversation": "对话管理",
+    "knowledge": "知识库管理",
+    "workflow": "工作流管理",
+    "plugin": "插件管理"
+  },
+  "operations": {
+    "view": "查看",
+    "create": "创建",
+    "edit": "编辑",
+    "delete": "删除",
+    "copy": "复制",
+    "export": "导出",
+    "suspend": "暂停",
+    "activate": "激活"
+  }
+}

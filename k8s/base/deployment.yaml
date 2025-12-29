@@ -1,0 +1,243 @@
+# Deployment 配置 - ZKER API 服务
+# 用途: 管理 API 服务的 Pod 副本和更新策略
+# 遵循规范: K8s Deployment 最佳实践 + 企业级资源配置
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zker-api
+  namespace: zker
+  labels:
+    app: zker-api
+    version: v1.0.0
+    environment: production
+spec:
+  # 副本数 (由 HPA 自动调整)
+  replicas: 3
+
+  # 部署策略: 滚动更新
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1  # 最多1个Pod不可用
+      maxSurge: 1         # 最多额外1个Pod
+
+  # 选择器
+  selector:
+    matchLabels:
+      app: zker-api
+
+  # Pod 模板
+  template:
+    metadata:
+      labels:
+        app: zker-api
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8889"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # 容器配置
+      containers:
+      - name: zker-api
+        image: zker/api:v1.0.0
+        imagePullPolicy: IfNotPresent
+
+        # 端口配置
+        ports:
+        - name: http
+          containerPort: 8888
+          protocol: TCP
+        - name: metrics
+          containerPort: 8889
+          protocol: TCP
+
+        # 环境变量 (从 ConfigMap 和 Secret 注入)
+        env:
+        - name: ENVIRONMENT
+          valueFrom:
+            configMapKeyRef:
+              name: zker-config
+              key: ENVIRONMENT
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: zker-config
+              key: LOG_LEVEL
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: host
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: port
+        - name: DB_USER
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: user
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: password
+        - name: DB_NAME
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: database
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: zker-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: zker-config
+              key: REDIS_PORT
+        - name: ES_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: zker-config
+              key: ES_HOST
+
+        # 资源限制 (遵循企业级规范)
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "250m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+
+        # 存活探针 (检查容器是否运行)
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8888
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # 就绪探针 (检查容器是否准备好接收流量)
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8888
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        # 启动探针 (检查应用是否启动)
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8888
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30
+
+        # 安全上下文
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          capabilities:
+            drop:
+            - ALL
+
+      # 优雅终止
+      terminationGracePeriodSeconds: 30
+
+      # DNS 策略
+      dnsPolicy: ClusterFirst
+
+---
+# Frontend Deployment
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: zker-frontend
+  namespace: zker
+  labels:
+    app: zker-frontend
+    version: v1.0.0
+spec:
+  replicas: 2
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1
+      maxSurge: 1
+
+  selector:
+    matchLabels:
+      app: zker-frontend
+
+  template:
+    metadata:
+      labels:
+        app: zker-frontend
+        version: v1.0.0
+
+    spec:
+      containers:
+      - name: zker-frontend
+        image: zker/frontend:v1.0.0
+        imagePullPolicy: IfNotPresent
+
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 80
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL

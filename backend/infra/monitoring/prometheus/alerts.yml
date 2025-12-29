@@ -1,0 +1,379 @@
+# Prometheus告警规则
+# ZKER监控系统
+
+groups:
+  # ========== API告警 ==========
+  - name: api_alerts
+    interval: 30s
+    rules:
+      # API错误率告警
+      - alert: HighAPIErrorRate
+        expr: |
+          rate(http_requests_total{status=~"5.."}[5m]) /
+          rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "High API error rate detected"
+          description: "Error rate is {{ $value | humanizePercentage }} for {{ $labels.endpoint }}"
+          runbook_url: "https://docs.zker.com/runbooks/api-errors"
+
+      # API延迟告警
+      - alert: HighAPILatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High API latency detected"
+          description: "P95 latency is {{ $value }}s for {{ $labels.endpoint }}"
+          runbook_url: "https://docs.zker.com/runbooks/api-latency"
+
+      # API流量异常
+      - alert: LowAPIQPS
+        expr: |
+          rate(http_requests_total[5m]) < 10
+        for: 10m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "Abnormally low API traffic"
+          description: "QPS is {{ $value }} for {{ $labels.endpoint }}"
+
+  # ========== 业务告警 ==========
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 配额即将耗尽
+      - alert: QuotaNearLimit
+        expr: |
+          (quota_usage / quota_limit) > 0.8
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Quota near limit"
+          description: |
+            Quota usage is {{ $value | humanizePercentage }} for
+            tenant={{ $labels.tenant_id }}, resource={{ $labels.resource_type }}
+
+      # 配额已超限
+      - alert: QuotaExceeded
+        expr: |
+          quota_usage > quota_limit
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Quota exceeded"
+          description: |
+            Quota exceeded for tenant={{ $labels.tenant_id }},
+            resource={{ $labels.resource_type }},
+            usage={{ $value }}"
+
+      # 订阅即将过期
+      - alert: SubscriptionExpiringSoon
+        expr: |
+          subscription_expiring_count{days="7"} > 0
+        for: 1m
+        labels:
+          severity: warning
+          team: sales
+        annotations:
+          summary: "Subscriptions expiring soon"
+          description: |
+            {{ $value }} subscriptions expiring within 7 days
+            for tier={{ $labels.tier }}
+
+      # 暂停租户过多
+      - alert: HighSuspendedTenants
+        expr: |
+          (tenant_suspended_count / tenant_active_count) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+          team: support
+        annotations:
+          summary: "High number of suspended tenants"
+          description: "{{ $value | humanizePercentage }} of tenants are suspended"
+
+  # ========== 数据库告警 ==========
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # 数据库连接池使用率过高
+      - alert: DBPoolHighUsage
+        expr: |
+          db_connections_active / (db_connections_active + db_connections_idle) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Database pool high usage"
+          description: "Pool usage is {{ $value | humanizePercentage }} for {{ $labels.database }}"
+
+      # 数据库查询延迟过高
+      - alert: DBQuerySlow
+        expr: |
+          histogram_quantile(0.95,
+            rate(db_query_duration_seconds_bucket[5m])
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Slow database queries detected"
+          description: |
+            P95 query latency is {{ $value }}s for
+            database={{ $labels.database }}, table={{ $labels.table }}
+
+      # 数据库连接数过少
+      - alert: DBLowConnections
+        expr: |
+          db_connections_active < 5
+        for: 10m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "Low database connection count"
+          description: "Only {{ $value }} active connections for {{ $labels.database }}"
+
+  # ========== 缓存告警 ==========
+  - name: cache_alerts
+    interval: 1m
+    rules:
+      # 缓存命中率低
+      - alert: LowCacheHitRate
+        expr: |
+          rate(cache_hit_total[5m]) /
+          (rate(cache_hit_total[5m]) + rate(cache_miss_total[5m])) < 0.7
+        for: 15m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "Low cache hit rate"
+          description: |
+            Cache hit rate is {{ $value | humanizePercentage }} for
+            cache_type={{ $labels.cache_type }}
+
+      # 缓存大小过大
+      - alert: LargeCacheSize
+        expr: |
+          cache_size{cache_type="redis"} > 1073741824  # 1GB
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Large cache size"
+          description: |
+            Cache size is {{ $value | humanize }}B for
+            cache_type={{ $labels.cache_type }}
+
+  # ========== 系统告警 ==========
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # Goroutine数量过多
+      - alert: HighGoroutineCount
+        expr: sys_goroutines_count > 10000
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High goroutine count"
+          description: "{{ $value }} goroutines running"
+
+      # 堆内存使用过高
+      - alert: HighMemoryUsage
+        expr: sys_memory_heap_bytes > 1073741824  # 1GB
+        for: 15m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High memory usage"
+          description: "Heap memory is {{ $value | humanize }}B"
+
+      # GC频繁
+      - alert: FrequentGC
+        expr: |
+          rate(sys_gc_total[5m]) > 10
+        for: 10m
+        labels:
+          severity: info
+          team: backend
+        annotations:
+          summary: "Frequent garbage collection"
+          description: "{{ $value }} GC/second"
+
+  # ========== 数据库读写分离告警 ==========
+  - name: database_replication_alerts
+    interval: 30s
+    rules:
+      # 主从复制延迟过高
+      - alert: DBReplicationLagHigh
+        expr: db_replication_lag_seconds > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "Database replication lag is too high"
+          description: "Replication lag {{ $value }}s for {{ $labels.master }} -> {{ $labels.slave }}"
+          runbook_url: "https://docs.zker.com/runbooks/replication-lag"
+
+      # 主从复制停止
+      - alert: DBReplicationStopped
+        expr: db_replication_status == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: "Database replication has stopped"
+          description: "Replication {{ $labels.master }} -> {{ $labels.slave }} is not running"
+          runbook_url: "https://docs.zker.com/runbooks/replication-stopped"
+
+      # 从库宕机
+      - alert: DBSlaveDown
+        expr: up{job="mysql-slave"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: dba
+        annotations:
+          summary: "MySQL slave is down"
+          description: "Slave {{ $labels.instance }} is not responding"
+          runbook_url: "https://docs.zker.com/runbooks/slave-down"
+
+      # 写库连接池使用率过高
+      - alert: DBWritePoolUsageHigh
+        expr: db_connection_pool_usage{type="write"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "Database write pool usage is high"
+          description: "Write pool usage is {{ $value | humanizePercentage }} for {{ $labels.database }}"
+
+      # 读库连接池使用率过高
+      - alert: DBReadPoolUsageHigh
+        expr: db_connection_pool_usage{type="read"} > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          team: dba
+        annotations:
+          summary: "Database read pool usage is high"
+          description: "Read pool usage is {{ $value | humanizePercentage }} for {{ $labels.database }}"
+
+  # ========== Redis集群告警 ==========
+  - name: redis_cluster_alerts
+    interval: 30s
+    rules:
+      # Redis集群节点宕机
+      - alert: RedisClusterNodeDown
+        expr: redis_up{job="redis-cluster"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Redis cluster node is down"
+          description: "Node {{ $labels.instance }} in shard {{ $labels.shard }} is not responding"
+          runbook_url: "https://docs.zker.com/runbooks/redis-node-down"
+
+      # Redis集群内存使用率过高
+      - alert: RedisClusterMemoryHigh
+        expr: |
+          redis_memory_used_bytes{job="redis-cluster"} /
+          redis_memory_max_bytes{job="redis-cluster"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Redis cluster memory usage is high"
+          description: "Node {{ $labels.instance }} memory usage is {{ $value | humanizePercentage }}"
+
+      # Redis集群主从断开
+      - alert: RedisClusterMasterSlaveDisconnected
+        expr: redis_replication_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Redis cluster master-slave disconnected"
+          description: "Master {{ $labels.master }} and slave {{ $labels.slave }} are disconnected"
+          runbook_url: "https://docs.zker.com/runbooks/redis-disconnected"
+
+      # Redis集群槽位分配失败
+      - alert: RedisClusterSlotsNotAssigned
+        expr: redis_cluster_slots_assigned < 16384
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "Redis cluster slots not fully assigned"
+          description: "Only {{ $value }} slots assigned out of 16384"
+
+  # ========== API网关告警 ==========
+  - name: api_gateway_alerts
+    interval: 30s
+    rules:
+      # 网关错误率过高
+      - alert: GatewayErrorRateHigh
+        expr: |
+          rate(kong_http_requests_total{status=~"5.."}[5m]) /
+          rate(kong_http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "API Gateway error rate is high"
+          description: "Gateway error rate is {{ $value | humanizePercentage }}"
+
+      # 网关响应时间过长
+      - alert: GatewayLatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            rate(kong_latency_ms_bucket[5m])
+          ) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "API Gateway latency is high"
+          description: "P95 gateway latency is {{ $value }}ms"
+
+      # 网关限流触发
+      - alert: GatewayRateLimitTriggered
+        expr: |
+          rate(kong_http_requests_total{status="429"}[5m]) > 10
+        for: 5m
+        labels:
+          severity: info
+          team: ops
+        annotations:
+          summary: "API Gateway rate limiting triggered"
+          description: "Rate limit is being triggered {{ $value }} times/sec"

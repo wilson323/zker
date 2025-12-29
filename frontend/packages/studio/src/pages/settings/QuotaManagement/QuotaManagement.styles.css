@@ -1,0 +1,219 @@
+/* frontend/packages/studio/src/pages/settings/QuotaManagement/QuotaManagement.styles.css */
+
+.quota-management {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.quota-header {
+  margin-bottom: 32px;
+}
+
+.quota-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.quota-header p {
+  color: #666;
+  margin: 0;
+}
+
+.quota-overview {
+  margin-bottom: 48px;
+}
+
+.quota-overview h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.overview-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 24px;
+}
+
+.overview-card {
+  padding: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.card-header h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.usage-percentage {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1890ff;
+}
+
+.usage-percentage .over-limit {
+  color: #f5222d;
+}
+
+.usage-bar {
+  height: 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.bar-fill {
+  height: 100%;
+  background: #1890ff;
+  transition: width 0.3s;
+}
+
+.usage-text {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+.over-limit-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  background: #fff1f0;
+  border: 1px solid #ffccc7;
+  border-radius: 4px;
+  color: #f5222d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.overage-fee {
+  padding: 8px 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #fa8c16;
+  margin-bottom: 8px;
+}
+
+.reset-info {
+  font-size: 12px;
+  color: #999;
+}
+
+.quota-editor-section {
+  margin-bottom: 48px;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.editing-mode {
+  background: #fff;
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.edit-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.quota-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.quota-item {
+  padding: 16px;
+}
+
+.quota-info h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.quota-info p {
+  font-size: 14px;
+  color: #666;
+  margin: 4px 0;
+}
+
+.quota-alerts {
+  margin-bottom: 48px;
+}
+
+.quota-alerts h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.alert-card {
+  padding: 24px;
+}
+
+.alert-card > p {
+  color: #666;
+  margin-bottom: 16px;
+}
+
+.alert-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.alert-rule-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+  background: #fafafa;
+  border-radius: 4px;
+}
+
+.rule-label {
+  font-size: 14px;
+  color: #333;
+}
+
+.rule-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.quota-loading,
+.quota-error {
+  padding: 48px;
+  text-align: center;
+  font-size: 16px;
+  color: #666;
+}

@@ -28,7 +28,8 @@ var (
 
 type CodeDefinition struct {
 	Code              int32
-	Message           string
+	Message           string // 英文错误消息
+	MessageZH         string // 中文错误消息（可选）
 	IsAffectStability bool
 }
 
@@ -37,6 +38,13 @@ type RegisterOption func(definition *CodeDefinition)
 func WithAffectStability(affectStability bool) RegisterOption {
 	return func(definition *CodeDefinition) {
 		definition.IsAffectStability = affectStability
+	}
+}
+
+// WithZhMessage 设置中文错误消息（可选）
+func WithZhMessage(messageZH string) RegisterOption {
+	return func(definition *CodeDefinition) {
+		definition.MessageZH = messageZH
 	}
 }
 

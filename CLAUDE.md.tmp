@@ -1,0 +1,131 @@
+# CLAUDE.md
+
+本文件为 Claude Code (claude.ai/code) 在此代码库中工作时提供指导。
+
+## 项目概述
+
+Coze Studio 是一个一站式 AI Agent 开发平台，包含前端（React + TypeScript）和后端（Go）组件。项目采用 Rush.js 管理的复杂 monorepo 架构，拥有 135+ 个前端包，按层次依赖关系组织。
+
+## 开发命令
+
+### 环境配置
+```bash
+# 克隆并设置项目
+git clone https://github.com/coze-dev/coze-studio.git
+cd coze-studio
+
+# 安装前端依赖
+rush update
+
+# Docker 方式开发
+cd docker
+cp .env.example .env
+# 在 backend/conf/model/ 中配置模型设置
+docker compose up -d
+# 访问 http://localhost:8888
+```
+
+### 开发工作流
+```bash
+# 启动中间件服务（MySQL、Redis、Elasticsearch 等）
+make middleware
+
+# 以开发模式启动 Go 后端
+make server
+
+# 启动前端开发服务器
+cd frontend/apps/coze-studio
+npm run dev
+
+# 完整开发环境
+make debug
+```
+
+### 构建命令
+```bash
+# 仅构建前端
+make fe
+
+# 构建 Go 服务器
+make build_server
+
+# 使用 Docker 构建所有内容
+make web
+
+# Rush monorepo 命令
+rush build                    # 构建所有包
+rush rebuild -o @coze-studio/app  # 构建特定包
+rush test                     # 运行所有测试
+rush lint                     # 检查所有包
+```
+
+### 测试
+```bash
+# 运行测试（基于 Vitest）
+rush test
+npm run test                  # 在特定包中运行
+npm run test:cov             # 生成覆盖率报告
+
+# 后端测试
+cd backend && go test ./...
+```
+
+## 架构概览
+
+### 前端架构
+- **Monorepo**：Rush.js 管理 135+ 包，分为 4 个依赖层级
+- **构建系统**：Rsbuild（基于 Rspack）实现快速构建
+- **UI 框架**：React 18 + TypeScript + Semi Design + Tailwind CSS
+- **状态管理**：Zustand 用于全局状态
+- **包组织结构**：
+  - `arch/`：核心基础设施（level-1）
+  - `common/`：共享组件和工具（level-2）
+  - `agent-ide/`、`workflow/`、`studio/`：功能域（level-3）
+  - `apps/coze-studio`：主应用（level-4）
+
+### 后端架构（Go）
+- **框架**：Hertz HTTP 框架
+- **架构模式**：遵循领域驱动设计（DDD）的微服务架构
+- **目录结构**：
+  - `domain/`：业务逻辑和实体
+  - `application/`：应用服务和用例
+  - `api/`：HTTP 处理器和路由
+  - `infra/`：基础设施实现
+  - `crossdomain/`：跨领域关注点
+
+### 关键架构模式
+- **适配器模式**：广泛用于层间解耦
+- **接口隔离**：领域间清晰的契约定义
+- **事件驱动**：使用 NSQ 消息队列进行异步通信
+- **API 优先**：完善的 OpenAPI 规范
+
+## 数据库与基础设施
+
+### Docker 服务栈
+- **数据库**：MySQL 8.4.5
+- **缓存**：Redis 8.0
+- **搜索**：Elasticsearch 8.18.0（配置 SmartCN 分析器）
+- **向量数据库**：Milvus v2.5.10（用于嵌入向量）
+- **存储**：MinIO 对象存储
+- **消息队列**：NSQ（nsqlookupd、nsqd、nsqadmin）
+- **配置中心**：etcd 3.5
+
+### 数据库管理
+```bash
+# 同步数据库架构
+make sync_db
+
+# 导出数据库架构
+make dump_db
+
+# 初始化 SQL 数据
+make sql_init
+
+# Atlas 迁移管理
+make atlas-hash
+```
+
+## 关键开发模式
+
+### 前端包开发
+

@@ -1,0 +1,194 @@
+# =====================================================
+# Prometheus 配置文件 - Coze Studio 开发环境
+# 版本: v1.0
+# 日期: 2025-01-01
+# =====================================================
+
+global:
+  scrape_interval: 15s  # 每15秒采集一次指标
+  evaluation_interval: 15s  # 每15秒评估一次规则
+  external_labels:
+    cluster: 'coze-studio-dev'
+    environment: 'development'
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - 'alertmanager:9093'
+
+# 规则文件
+rule_files:
+  # - 'alert_rules.yml'
+  # - 'recording_rules.yml'
+
+# 抓取配置
+scrape_configs:
+  # =====================================================
+  # Coze Studio Go 应用监控
+  # =====================================================
+  - job_name: 'coze-studio-backend'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # =====================================================
+  # HTTP 服务监控
+  # =====================================================
+  - job_name: 'coze-studio-http'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    params:
+      'format': ['prometheus']
+    scrape_interval: 15s
+
+  # =====================================================
+  # 租户隔离中间件专用监控
+  # =====================================================
+  - job_name: 'tenant-isolation-middleware'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 10s  # 更频繁的采集
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'tenant_isolation.*|tenant_validation.*|tenant_id_extraction.*'
+        action: keep
+
+  # =====================================================
+  # 错误码系统监控
+  # =====================================================
+  - job_name: 'error-code-system'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'error_code.*|deprecated_error_code.*|error_creation.*'
+        action: keep
+
+  # =====================================================
+  # Bot 模块监控
+  # =====================================================
+  - job_name: 'bot-module'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'bot_.*'
+        action: keep
+
+  # =====================================================
+  # Conversation 模块监控
+  # =====================================================
+  - job_name: 'conversation-module'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'conversation_.*|message_.*|agent_run.*'
+        action: keep
+
+  # =====================================================
+  # Workflow 模块监控
+  # =====================================================
+  - job_name: 'workflow-module'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'workflow_.*'
+        action: keep
+
+  # =====================================================
+  # Session 操作监控
+  # =====================================================
+  - job_name: 'session-operations'
+    static_configs:
+      - targets: ['host.docker.internal:8888']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    honor_labels: true
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'session_.*'
+        action: keep
+
+  # =====================================================
+  # 数据库监控
+  # =====================================================
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['host.docker.internal:9104']  # mysqld_exporter
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # =====================================================
+  # Redis 监控
+  # =====================================================
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['host.docker.internal:9121']  # redis_exporter
+    scrape_interval: 30s
+
+  # =====================================================
+  # Node Exporter（系统指标）
+  # =====================================================
+  - job_name: 'node'
+    static_configs:
+      - targets: ['host.docker.internal:9100']
+    scrape_interval: 30s
+
+# =====================================================
+# 存储配置
+# =====================================================
+storage:
+  tsdb:
+    path: /prometheus
+    retention.time: 15d  # 保留15天的数据
+    retention.size: 10GB  # 最大10GB
+
+# =====================================================
+# 追踪配置
+# =====================================================
+tracing:
+  endpoint: "localhost:4318"  # Jaeger agent
+  client_type: "grpc"
+  headers:
+    X-Tenant-Header: "prometheus"
+
+# =====================================================
+# Web 界面配置
+# =====================================================
+server:
+  http_listen_port: 9090
+
+# =====================================================
+# 远程写入配置（可选，用于长期存储）
+# =====================================================
+# remote_write:
+#   - url: "http://thanos-receiver:19291/api/v1/receive"
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+#       min_shards: 1
+#       max_samples_per_send: 5000
+#       batch_send_deadline: 5s
+#       min_backoff: 30ms
+#       max_backoff: 100ms

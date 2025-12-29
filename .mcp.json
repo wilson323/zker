@@ -4,7 +4,7 @@
       "type": "http",
       "url": "https://api.githubcopilot.com/mcp/",
       "headers": {
-        "Authorization": "Bearer ${GITHUB_PAT}"
+        "Authorization": "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"
       }
     }
   }

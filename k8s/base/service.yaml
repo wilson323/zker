@@ -1,0 +1,101 @@
+# Service 配置 - ZKER API 和 Frontend 服务
+# 用途: 为 Pod 提供稳定的网络端点
+# 遵循规范: K8s Service 最佳实践 + 企业级命名规范
+
+---
+# API Service (ClusterIP - 内部访问)
+apiVersion: v1
+kind: Service
+metadata:
+  name: zker-api
+  namespace: zker
+  labels:
+    app: zker-api
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8889"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app: zker-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8888
+    protocol: TCP
+  - name: metrics
+    port: 8889
+    targetPort: 8889
+    protocol: TCP
+  sessionAffinity: None
+
+---
+# API Service (NodePort - 外部访问,可选)
+apiVersion: v1
+kind: Service
+metadata:
+  name: zker-api-nodeport
+  namespace: zker
+  labels:
+    app: zker-api
+spec:
+  type: NodePort
+  selector:
+    app: zker-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8888
+    protocol: TCP
+    nodePort: 30888  # 30000-32767 范围内
+
+---
+# Frontend Service (ClusterIP)
+apiVersion: v1
+kind: Service
+metadata:
+  name: zker-frontend
+  namespace: zker
+  labels:
+    app: zker-frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: zker-frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  sessionAffinity: None
+
+---
+# Frontend Service (LoadBalancer - 生产环境使用)
+apiVersion: v1
+kind: Service
+metadata:
+  name: zker-frontend-lb
+  namespace: zker
+  labels:
+    app: zker-frontend
+  annotations:
+    # 如果使用 AWS ALB, 添加注解
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: zker-frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 80
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600

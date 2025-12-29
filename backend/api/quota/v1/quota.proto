@@ -1,0 +1,147 @@
+// 配额服务API定义
+syntax = "v3";
+
+package quota;
+
+option go_package = "github.com/coze-studio/coze-studio/backend/api/quota/v1;quota";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+
+// ========== 配额服务 ==========
+service QuotaService {
+  // 检查配额
+  rpc CheckQuota(CheckQuotaRequest) returns (CheckQuotaResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/quota/check"
+      body: "*"
+    };
+  }
+
+  // 更新配额使用量
+  rpc UpdateQuotaUsage(UpdateQuotaUsageRequest) returns (UpdateQuotaUsageResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/quota/update"
+      body: "*"
+    };
+  }
+
+  // 获取配额使用量
+  rpc GetQuotaUsage(GetQuotaUsageRequest) returns (GetQuotaUsageResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/quota/usage/{tenant_id}"
+    };
+  }
+
+  // 获取配额限制
+  rpc GetQuotaLimit(GetQuotaLimitRequest) returns (GetQuotaLimitResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/quota/limit/{tenant_id}"
+    };
+  }
+
+  // 重置配额
+  rpc ResetQuota(ResetQuotaRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/quota/reset"
+      body: "*"
+    };
+  }
+
+  // 配额使用统计
+  rpc GetQuotaStats(GetQuotaStatsRequest) returns (GetQuotaStatsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/quota/stats/{tenant_id}"
+    };
+  }
+}
+
+// ========== 请求消息 ==========
+
+message CheckQuotaRequest {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型: bot, knowledge, api_call, storage
+  int32 amount = 3;             // 需要的数量
+  bool check_only = 4;         // 仅检查不扣减
+}
+
+message UpdateQuotaUsageRequest {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型
+  int32 amount = 3;             // 使用量 (+增加, -减少)
+}
+
+message GetQuotaUsageRequest {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型 (可选，空表示全部)
+}
+
+message GetQuotaLimitRequest {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型 (可选，空表示全部)
+}
+
+message ResetQuotaRequest {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型
+  google.protobuf.Timestamp reset_time = 3; // 重置时间 (可选，默认为当前月)
+}
+
+message GetQuotaStatsRequest {
+  string tenant_id = 1;         // 租户ID
+  google.protobuf.Timestamp start_date = 2; // 开始日期
+  google.protobuf.Timestamp end_date = 3;   // 结束日期
+}
+
+// ========== 响应消息 ==========
+
+message CheckQuotaResponse {
+  bool allowed = 1;             // 是否允许
+  int32 current_usage = 2;      // 当前使用量
+  int32 limit = 3;              // 限制
+  int32 remaining = 4;          // 剩余
+  string message = 5;            // 提示信息
+}
+
+message UpdateQuotaUsageResponse {
+  bool success = 1;              // 是否成功
+  int32 current_usage = 2;       // 更新后的使用量
+  int32 remaining = 3;           // 剩余
+}
+
+message GetQuotaUsageResponse {
+  repeated QuotaUsage usages = 1; // 配额使用量列表
+}
+
+message GetQuotaLimitResponse {
+  repeated QuotaLimit limits = 1; // 配额限制列表
+}
+
+message GetQuotaStatsResponse {
+  repeated QuotaStats stats = 1;   // 配额统计列表
+}
+
+// ========== 数据模型 ==========
+
+message QuotaUsage {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型
+  int32 current_usage = 3;      // 当前使用量
+  google.protobuf.Timestamp last_updated = 4; // 最后更新时间
+}
+
+message QuotaLimit {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型
+  int32 limit = 3;              // 限制
+  string tier = 4;              // 套餐类型
+  google.protobuf.Timestamp reset_time = 5; // 重置时间
+}
+
+message QuotaStats {
+  string tenant_id = 1;         // 租户ID
+  string resource_type = 2;    // 资源类型
+  int32 total_usage = 3;        // 总使用量
+  int32 peak_usage = 4;         // 峰值使用量
+  google.protobuf.Timestamp date = 5; // 日期
+}

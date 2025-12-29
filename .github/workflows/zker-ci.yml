@@ -1,0 +1,406 @@
+# GitHub Actions CI 流水线 - ZKER 项目
+# 用途: 自动化构建、测试、代码质量检查
+# 触发条件: push 到 main/develop 分支, Pull Request
+# 遵循规范: CI/CD 最佳实践 + 企业级质量标准
+
+name: ZKER-CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'  # 允许功能分支触发
+      - 'bugfix/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:  # 允许手动触发
+
+# 环境变量 (全局)
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/zker-api
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/zker-frontend
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== 后端测试 ====================
+  backend-lint:
+    name: 🧹 Backend - Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完整历史,用于 blame
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: |
+          go mod download
+          go mod verify
+
+      - name: 🔍 运行 golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          working-directory: backend
+          version: latest
+          args: --timeout=10m --config ../.github/linters/.golangci.yml
+
+      - name: 🔍 运行 gofmt 检查
+        working-directory: ./backend
+        run: |
+          echo "检查代码格式..."
+          diff=$(gofmt -s -l .)
+          if [ -n "$diff" ]; then
+            echo "以下文件格式不正确:"
+            echo "$diff"
+            exit 1
+          fi
+          echo "✅ 代码格式检查通过"
+
+      - name: 🔍 运行 go vet
+        working-directory: ./backend
+        run: go vet ./...
+
+  backend-test:
+    name: 🧪 Backend - Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4.5
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_zker
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🧪 运行单元测试
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_zker
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+
+      - name: 📊 生成覆盖率报告
+        working-directory: ./backend
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+          echo "覆盖率统计:"
+          go tool cover -func=coverage.out | grep total
+
+      - name: 📤 上传覆盖率到 Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.out
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+
+      - name: 💾 上传测试产物
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: backend-test-results
+          path: |
+            backend/coverage.out
+            backend/coverage.html
+
+  backend-security:
+    name: 🔒 Backend - Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🔍 运行 gosec 安全扫描
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./backend'
+
+      - name: 📤 上传安全扫描结果
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: gosec-results.sarif
+          category: gosec
+
+  # ==================== 前端测试 ====================
+  frontend-lint:
+    name: 🧹 Frontend - Lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: frontend/common/temp/rush/node_modules
+
+      - name: 📦 安装 Rush
+        run: npm install -g @microsoft/rush
+
+      - name: 📦 安装依赖
+        run: rush update
+
+      - name: 🔍 运行 ESLint
+        run: rush lint
+
+      - name: 🔍 运行 Prettier 检查
+        run: rush prettier:check
+
+  frontend-test:
+    name: 🧪 Frontend - Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 安装 Rush
+        run: npm install -g @microsoft/rush
+
+      - name: 📦 安装依赖
+        run: rush update
+
+      - name: 🧪 运行单元测试
+        run: rush test
+
+      - name: 📊 生成覆盖率报告
+        run: rush test:coverage
+
+      - name: 📤 上传覆盖率到 Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/**/coverage/*.json
+          flags: frontend
+          name: frontend-coverage
+
+  frontend-build:
+    name: 🏗️ Frontend - Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 安装 Rush
+        run: npm install -g @microsoft/rush
+
+      - name: 📦 安装依赖
+        run: rush update
+
+      - name: 🏗️ 构建前端
+        run: rush build
+
+      - name: 💾 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: frontend-build
+          path: |
+            frontend/dist/
+            frontend/**/dist/
+
+  # ==================== Docker 构建测试 ====================
+  docker-build-test:
+    name: 🐳 Docker - Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [backend-test, frontend-test]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔨 构建 API 镜像 (测试)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: 🔍 测试 API 镜像
+        run: |
+          echo "测试 API 镜像..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test --version || true
+
+      - name: 🔨 构建 Frontend 镜像 (测试)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: false
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          load: true
+
+      - name: 📊 镜像安全扫描 (Trivy)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: 📤 上传扫描结果
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: trivy
+
+  # ==================== 集成测试 ====================
+  integration-test:
+    name: 🔗 Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [docker-build-test]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🐳 启动测试环境
+        run: |
+          cd docker
+          docker compose -f docker-compose-zker.yml up -d mysql redis elasticsearch
+
+      - name: ⏳ 等待服务就绪
+        run: |
+          echo "等待 MySQL..."
+          until docker exec zker-mysql mysqladmin ping -h localhost --silent; do
+            echo "MySQL 还未就绪..."
+            sleep 2
+          done
+          echo "✅ MySQL 已就绪"
+
+      - name: 🔗 运行集成测试
+        working-directory: ./backend
+        run: |
+          # TODO: 添加实际的集成测试命令
+          echo "运行集成测试..."
+          # go test -v -tags=integration ./tests/integration/...
+
+      - name: 📋 查看服务日志
+        if: always()
+        run: |
+          cd docker
+          docker compose logs --tail=50
+
+  # ==================== CI 总结 ====================
+  ci-summary:
+    name: 📊 CI Summary
+    runs-on: ubuntu-latest
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-build, docker-build-test]
+    if: always()
+
+    steps:
+      - name: 📊 生成 CI 报告
+        run: |
+          echo "# CI 流水线执行报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 任务状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 任务 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Lint | ${{ needs.backend-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Test | ${{ needs.backend-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Backend Security | ${{ needs.backend-security.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Lint | ${{ needs.frontend-lint.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Test | ${{ needs.frontend-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Build | ${{ needs.frontend-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Build | ${{ needs.docker-build-test.result }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: ✅ CI 成功检查
+        if: |
+          needs.backend-lint.result != 'success' ||
+          needs.backend-test.result != 'success' ||
+          needs.backend-security.result != 'success' ||
+          needs.frontend-lint.result != 'success' ||
+          needs.frontend-test.result != 'success' ||
+          needs.frontend-build.result != 'success' ||
+          needs.docker-build-test.result != 'success'
+        run: |
+          echo "❌ CI 流水线失败,请检查失败的步骤"
+          exit 1

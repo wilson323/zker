@@ -1,0 +1,65 @@
+# NSQ消息队列 - Docker Compose配置
+
+version: '3.8'
+
+services:
+  # ========== NSQ Lookup 服务发现 ==========
+  nsqlookupd:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqlookupd
+    command: /nsqlookupd
+    ports:
+      - "4160:4160"  # TCP
+      - "4161:4161"  # HTTP
+    networks:
+      - nsq-network
+
+  # ========== NSQD 消息队列 ==========
+  nsqd:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqd
+    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --broadcast-address=nsqd
+    ports:
+      - "4150:4150"  # TCP
+      - "4151:4151"  # HTTP
+    volumes:
+      - nsqd-data:/data
+    networks:
+      - nsq-network
+    depends_on:
+      - nsqlookupd
+
+  # ========== NSQ Admin 管理界面 ==========
+  nsqadmin:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqadmin
+    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+    ports:
+      - "4171:4171"
+    networks:
+      - nsq-network
+    depends_on:
+      - nsqlookupd
+
+  # ========== PostgreSQL (NSQ存储) ==========
+  nsq-postgres:
+    image: postgres:15-alpine
+    container_name: zker-nsq-postgres
+    environment:
+      POSTGRES_USER: nsq
+      POSTGRES_PASSWORD: nsq_password
+      POSTGRES_DB: nsq
+    volumes:
+      - nsq-postgres-data:/var/lib/postgresql/data
+    networks:
+      - nsq-network
+
+networks:
+  nsq-network:
+    driver: bridge
+
+volumes:
+  nsqd-data:
+    driver: local
+  nsq-postgres-data:
+    driver: local

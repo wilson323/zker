@@ -1,0 +1,86 @@
+# Kustomize 开发环境配置
+# 用途: 开发环境特定的配置覆盖
+# 遵循规范: 环境隔离 + 开发便利性
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 命名空间
+namespace: zker-dev
+
+# 基础配置路径
+resources:
+  - ../../base
+
+# 配置图生成器
+configMapGenerator:
+  - name: zker-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=debug
+      - LOG_FORMAT=text
+      - DB_MAX_OPEN_CONNS=20
+      - DB_MAX_IDLE_CONNS=5
+      - REDIS_DB=1
+      - ES_INDEX_PREFIX=zker-dev
+      - MINIO_BUCKET=zker-dev
+      - RATE_LIMIT_REQUESTS_PER_SECOND=1000
+      - RATE_LIMIT_BURST=2000
+      - JAEGER_SAMPLER_PARAM=1.0
+      - PROMETHEUS_ENABLED=true
+
+# 图片标签
+images:
+  - name: zker/api
+    newTag: dev-latest
+  - name: zker/frontend
+    newTag: dev-latest
+
+# 副本数补丁
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-api
+    spec:
+      replicas: 1
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-frontend
+    spec:
+      replicas: 1
+
+# 资源限制补丁 (开发环境限制较低)
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: zker-api
+      spec:
+        template:
+          spec:
+            containers:
+              - name: zker-api
+                resources:
+                  requests:
+                    memory: "128Mi"
+                    cpu: "100m"
+                  limits:
+                    memory: "256Mi"
+                    cpu: "200m"
+    target:
+      kind: Deployment
+      name: zker-api
+
+# 标签
+commonLabels:
+  environment: development
+  tier: dev
+
+# 名称前缀 (避免环境冲突)
+namePrefix: dev-

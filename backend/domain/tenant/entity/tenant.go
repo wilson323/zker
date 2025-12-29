@@ -1,0 +1,89 @@
+/*
+ * Copyright 2025 coze-dev Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package entity
+
+import (
+	"time"
+)
+
+// TenantType 租户类型
+type TenantType string
+
+const (
+	TenantTypeIndividual TenantType = "individual" // 个人租户
+	TenantTypeTeam       TenantType = "team"       // 团队租户
+	TenantTypeEnterprise TenantType = "enterprise" // 企业租户
+)
+
+// TenantStatus 租户状态
+type TenantStatus string
+
+const (
+	TenantStatusActive    TenantStatus = "active"    // 激活
+	TenantStatusSuspended TenantStatus = "suspended" // 暂停
+	TenantStatusDeleted   TenantStatus = "deleted"   // 已删除
+)
+
+// SubscriptionTier 订阅等级
+type SubscriptionTier string
+
+const (
+	SubscriptionTierFree       SubscriptionTier = "free"       // 免费版
+	SubscriptionTierPro        SubscriptionTier = "pro"        // 专业版
+	SubscriptionTierEnterprise SubscriptionTier = "enterprise" // 企业版
+)
+
+// Tenant 租户实体
+type Tenant struct {
+	TenantID         string           `json:"tenant_id" gorm:"primaryKey;type:varchar(36)"`
+	TenantName       string           `json:"tenant_name" gorm:"type:varchar(200);not null"`
+	TenantType       TenantType       `json:"tenant_type" gorm:"type:enum('individual','team','enterprise');not null"`
+	Status           TenantStatus     `json:"status" gorm:"type:enum('active','suspended','deleted');default:'active'"`
+	SubscriptionTier SubscriptionTier `json:"subscription_tier" gorm:"type:enum('free','pro','enterprise');default:'free'"`
+	CreatedAt        int64            `json:"created_at" gorm:"not null;default:0"`
+	UpdatedAt        int64            `json:"updated_at" gorm:"not null;default:0"`
+	DeletedAt        *int64           `json:"deleted_at,omitempty" gorm:"index"`
+
+	// 关联
+	Subscription *Subscription `json:"subscription,omitempty" gorm:"foreignKey:TenantID;references:TenantID"`
+	Quotas       []Quota       `json:"quotas,omitempty" gorm:"foreignKey:TenantID;references:TenantID"`
+}
+
+// TableName 指定表名
+func (Tenant) TableName() string {
+	return "tenants"
+}
+
+// IsActive 是否激活
+func (t *Tenant) IsActive() bool {
+	return t.Status == TenantStatusActive
+}
+
+// IsDeleted 是否已删除
+func (t *Tenant) IsDeleted() bool {
+	return t.Status == TenantStatusDeleted || t.DeletedAt != nil
+}
+
+// GetCreatedAtAsTime 获取创建时间
+func (t *Tenant) GetCreatedAtAsTime() time.Time {
+	return time.Unix(t.CreatedAt/1000, 0)
+}
+
+// GetUpdatedAtAsTime 获取更新时间
+func (t *Tenant) GetUpdatedAtAsTime() time.Time {
+	return time.Unix(t.UpdatedAt/1000, 0)
+}

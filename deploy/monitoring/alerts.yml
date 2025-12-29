@@ -1,0 +1,436 @@
+# ZKER 企业级告警规则配置
+# 版本: v1.0.0
+# 说明: Prometheus AlertManager 告警规则定义
+
+groups:
+  # ==================== 系统资源告警 ====================
+  - name: system_resources
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "CPU使用率过高"
+          description: "实例 {{ $labels.instance }} CPU使用率超过80%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/system/cpu"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 内存使用率超过85%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/system/memory"
+
+      # 磁盘空间告警
+      - alert: HighDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+        annotations:
+          summary: "磁盘空间不足"
+          description: "实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 磁盘使用率超过85%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/system/disk"
+
+      # 磁盘空间严重告警
+      - alert: DiskSpaceCritical
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          category: system
+        annotations:
+          summary: "磁盘空间严重不足"
+          description: "实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 磁盘使用率超过95%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/system/disk"
+
+  # ==================== API性能告警 ====================
+  - name: api_performance
+    interval: 30s
+    rules:
+      # API响应时间告警
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+        annotations:
+          summary: "API响应时间过长"
+          description: "端点 {{ $labels.endpoint }} P95响应时间超过2秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/api/latency"
+
+      # API错误率告警
+      - alert: HighAPIErrorRate
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+        annotations:
+          summary: "API错误率过高"
+          description: "端点 {{ $labels.endpoint }} 5xx错误率超过5%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/api/errors"
+
+      # API错误率严重告警
+      - alert: APIErrorRateCritical
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 15
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "API错误率严重"
+          description: "端点 {{ $labels.endpoint }} 5xx错误率超过15%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/api/errors"
+
+  # ==================== 数据库告警 ====================
+  - name: database_performance
+    interval: 30s
+    rules:
+      # 数据库连接数告警
+      - alert: HighDBConnections
+        expr: db_connections_active / db_connections_active_max * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "数据库连接数过高"
+          description: "数据库 {{ $labels.database }} 连接使用率超过80%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/database/connections"
+
+      # 数据库查询延迟告警
+      - alert: HighDBQueryLatency
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "数据库查询延迟过高"
+          description: "数据库 {{ $labels.database }} 表 {{ $labels.table }} P95查询延迟超过1秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/database/query"
+
+      # 数据库慢查询告警
+      - alert: SlowDBQuery
+        expr: histogram_quantile(0.99, rate(db_query_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+        annotations:
+          summary: "检测到数据库慢查询"
+          description: "数据库 {{ $labels.database }} 表 {{ $labels.table }} P99查询延迟超过5秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/database/slow_query"
+
+  # ==================== 缓存告警 ====================
+  - name: cache_performance
+    interval: 30s
+    rules:
+      # 缓存命中率告警
+      - alert: LowCacheHitRate
+        expr: (rate(cache_hit_total[5m]) / (rate(cache_hit_total[5m]) + rate(cache_miss_total[5m]))) * 100 < 70
+        for: 10m
+        labels:
+          severity: warning
+          category: cache
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存 {{ $labels.cache_type }} 命中率低于70%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/cache/hit_rate"
+
+      # 缓存命中率严重告警
+      - alert: CacheHitRateCritical
+        expr: (rate(cache_hit_total[5m]) / (rate(cache_hit_total[5m]) + rate(cache_miss_total[5m]))) * 100 < 50
+        for: 5m
+        labels:
+          severity: critical
+          category: cache
+        annotations:
+          summary: "缓存命中率严重"
+          description: "缓存 {{ $labels.cache_type }} 命中率低于50%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/cache/hit_rate"
+
+  # ==================== 配额告警 ====================
+  - name: quota_alerts
+    interval: 1m
+    rules:
+      # 配额使用率告警
+      - alert: HighQuotaUsage
+        expr: (quota_usage{resource_type="bots"} / quota_limit{resource_type="bots"}) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: quota
+        annotations:
+          summary: "配额使用率过高"
+          description: "租户 {{ $labels.tenant_id }} 资源 {{ $labels.resource_type }} 配额使用率超过80%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/quota/usage"
+
+      # 配额接近上限告警
+      - alert: QuotaNearLimit
+        expr: (quota_usage{resource_type="bots"} / quota_limit{resource_type="bots"}) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          category: quota
+        annotations:
+          summary: "配额接近上限"
+          description: "租户 {{ $labels.tenant_id }} 资源 {{ $labels.resource_type }} 配额使用率超过90%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/quota/near_limit"
+
+      # 配额拒绝率告警
+      - alert: HighQuotaDenialRate
+        expr: (rate(quota_check_total{result="denied"}[5m]) / rate(quota_check_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: quota
+        annotations:
+          summary: "配额拒绝率过高"
+          description: "资源 {{ $labels.resource_type }} 配额拒绝率超过5%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/quota/denial"
+
+  # ==================== Bot服务告警 ====================
+  - name: bot_service_health
+    interval: 1m
+    rules:
+      # Bot调用失败率告警
+      - alert: HighBotErrorRate
+        expr: (rate(bot_invocation_total{status="failed"}[5m]) / rate(bot_invocation_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+        annotations:
+          summary: "Bot调用失败率过高"
+          description: "租户 {{ $labels.tenant_id }} Bot {{ $labels.bot_id }} 失败率超过10%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/bot/error_rate"
+
+      # Bot响应延迟告警
+      - alert: HighBotLatency
+        expr: histogram_quantile(0.95, rate(bot_invocation_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+        annotations:
+          summary: "Bot响应时间过长"
+          description: "租户 {{ $labels.tenant_id }} Bot {{ $labels.bot_id }} P95响应时间超过30秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/bot/latency"
+
+      # Bot Token使用量告警
+      - alert: HighTokenUsage
+        expr: rate(bot_token_usage_total[1h]) > 1000000
+        for: 10m
+        labels:
+          severity: warning
+          category: bot
+        annotations:
+          summary: "Token使用量过高"
+          description: "租户 {{ $labels.tenant_id }} Bot {{ $labels.bot_id }} 每小时Token使用量超过100万，当前值: {{ $value }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/bot/token_usage"
+
+  # ==================== 权限系统告警 ====================
+  - name: permission_system
+    interval: 1m
+    rules:
+      # 权限拒绝率告警
+      - alert: HighPermissionDenialRate
+        expr: (rate(permission_check_total{result="denied"}[5m]) / rate(permission_check_total[5m])) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          category: permission
+        annotations:
+          summary: "权限拒绝率过高"
+          description: "租户 {{ $labels.tenant_id }} 权限类型 {{ $labels.permission_type }} 拒绝率超过20%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/permission/denial_rate"
+
+      # 权限检查延迟告警
+      - alert: HighPermissionCheckLatency
+        expr: histogram_quantile(0.95, rate(permission_check_duration_seconds_bucket[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          category: permission
+        annotations:
+          summary: "权限检查延迟过高"
+          description: "租户 {{ $labels.tenant_id }} 权限类型 {{ $labels.permission_type }} P95检查延迟超过10ms，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/permission/latency"
+
+  # ==================== 存储告警 ====================
+  - name: storage_alerts
+    interval: 5m
+    rules:
+      # 存储使用率告警
+      - alert: HighStorageUsage
+        expr: (storage_usage_bytes / storage_quota_bytes) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: storage
+        annotations:
+          summary: "存储使用率过高"
+          description: "租户 {{ $labels.tenant_id }} 存储类型 {{ $labels.storage_type }} 使用率超过80%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/storage/usage"
+
+      # 存储使用率严重告警
+      - alert: StorageUsageCritical
+        expr: (storage_usage_bytes / storage_quota_bytes) * 100 > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: storage
+        annotations:
+          summary: "存储空间严重不足"
+          description: "租户 {{ $labels.tenant_id }} 存储类型 {{ $labels.storage_type }} 使用率超过95%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/storage/critical"
+
+  # ==================== 模型服务告警 ====================
+  - name: model_service_alerts
+    interval: 1m
+    rules:
+      # 模型调用失败率告警
+      - alert: HighModelErrorRate
+        expr: (rate(model_invocation_total{status="failed"}[5m]) / rate(model_invocation_total[5m])) * 100 > 15
+        for: 5m
+        labels:
+          severity: warning
+          category: model
+        annotations:
+          summary: "模型调用失败率过高"
+          description: "租户 {{ $labels.tenant_id }} 模型 {{ $labels.model }} 失败率超过15%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/model/error_rate"
+
+      # 模型响应延迟告警
+      - alert: HighModelLatency
+        expr: histogram_quantile(0.95, rate(model_invocation_duration_seconds_bucket[5m])) > 60
+        for: 5m
+        labels:
+          severity: warning
+          category: model
+        annotations:
+          summary: "模型响应时间过长"
+          description: "租户 {{ $labels.tenant_id }} 模型 {{ $labels.model }} P95响应时间超过60秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/model/latency"
+
+      # 模型成本告警
+      - alert: HighModelCost
+        expr: rate(model_cost_total[1h]) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+        annotations:
+          summary: "模型成本过高"
+          description: "租户 {{ $labels.tenant_id }} 每小时模型成本超过$10，当前值: ${{ $value }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/cost/model"
+
+  # ==================== 业务健康度告警 ====================
+  - name: business_health
+    interval: 5m
+    rules:
+      # 健康度评分低告警
+      - alert: LowHealthScore
+        expr: business_health_score < 60
+        for: 10m
+        labels:
+          severity: warning
+          category: health
+        annotations:
+          summary: "业务健康度评分过低"
+          description: "租户 {{ $labels.tenant_id }} 维度 {{ $labels.health_dimension }} 健康度评分低于60分，当前值: {{ $value }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/health/score"
+
+      # SLA合规率告警
+      - alert: SLAComplianceLow
+        expr: sla_compliance_rate < 95
+        for: 10m
+        labels:
+          severity: warning
+          category: sla
+        annotations:
+          summary: "SLA合规率过低"
+          description: "租户 {{ $labels.tenant_id }} SLA类型 {{ $labels.sla_type }} 合规率低于95%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/sla/compliance"
+
+      # SLA严重违规告警
+      - alert: SLAViolationCritical
+        expr: sla_compliance_rate < 90
+        for: 5m
+        labels:
+          severity: critical
+          category: sla
+        annotations:
+          summary: "SLA严重违规"
+          description: "租户 {{ $labels.tenant_id }} SLA类型 {{ $labels.sla_type }} 合规率低于90%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/sla/violation"
+
+  # ==================== 订阅告警 ====================
+  - name: subscription_alerts
+    interval: 1h
+    rules:
+      # 订阅即将过期告警
+      - alert: SubscriptionExpiringSoon
+        expr: subscription_expiring_count{days="7"} > 0
+        for: 1m
+        labels:
+          severity: warning
+          category: subscription
+        annotations:
+          summary: "订阅即将过期"
+          description: "有 {{ $value }} 个 {{ $labels.tier }} 级别的订阅将在7天内过期"
+          runbook_url: "https://docs.coze-studio.com/runbooks/subscription/expiring"
+
+      # 暂停租户告警
+      - alert: TooManySuspendedTenants
+        expr: tenant_suspended_count / (tenant_active_count + tenant_suspended_count) * 100 > 10
+        for: 10m
+        labels:
+          severity: warning
+          category: tenant
+        annotations:
+          summary: "暂停租户比例过高"
+          description: "暂停租户比例超过10%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/tenant/suspended"
+
+  # ==================== 事故告警 ====================
+  - name: incident_alerts
+    interval: 1m
+    rules:
+      # 严重事故告警
+      - alert: CriticalIncident
+        expr: rate(incident_total{severity="critical"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: incident
+        annotations:
+          summary: "检测到严重事故"
+          description: "租户 {{ $labels.tenant_id }} 发生严重事故，类型: {{ $labels.incident_type }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/incident/critical"
+
+      # 事故频发告警
+      - alert: FrequentIncidents
+        expr: rate(incident_total[1h]) > 5
+        for: 10m
+        labels:
+          severity: warning
+          category: incident
+        annotations:
+          summary: "事故频发"
+          description: "每小时事故数量超过5次，当前值: {{ $value }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/incident/frequent"

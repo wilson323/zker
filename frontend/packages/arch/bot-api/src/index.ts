@@ -82,3 +82,10 @@ export { fornaxObApi } from './fornax-ob-api';
 export { fornaxApi } from './fornax-api';
 export { evaluationApi } from './fornax-evaluation-api';
 export { cozeSpaceApi } from './coze-space-api';
+
+// ==================== 企业级 API ====================
+// 租户管理、配额管理、权限管理
+export { tenantApi, quotaApi, permissionApi } from './enterprise-api';
+
+// ==================== 企业级 React Hooks ====================
+export * from './hooks';

@@ -77,8 +77,9 @@ const (
 	WebSDKConnectorID = int64(999)
 	APIConnectorID    = int64(1024)
 
-	SessionDataKeyInCtx = "session_data_key_in_ctx"
+	SessionDataKeyInCtx  = "session_data_key_in_ctx"
 	OpenapiAuthKeyInCtx = "openapi_auth_key_in_ctx"
+	TenantIDKeyInCtx    = "tenant_id_key_in_ctx" // 租户ID存储在context中的key
 
 	CodeRunnerType           = "CODE_RUNNER_TYPE"
 	CodeRunnerAllowEnv       = "CODE_RUNNER_ALLOW_ENV"

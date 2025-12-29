@@ -1,0 +1,111 @@
+# Kustomize 生产环境配置
+# 用途: 生产环境最终配置
+# 遵循规范: 高可用性 + 性能优化 + 安全加固
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 命名空间
+namespace: zker-prod
+
+# 基础配置路径
+resources:
+  - ../../base
+
+# 配置图生成器
+configMapGenerator:
+  - name: zker-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=production
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - DB_MAX_OPEN_CONNS=100
+      - DB_MAX_IDLE_CONNS=10
+      - DB_CONN_MAX_LIFETIME=3600
+      - REDIS_DB=0
+      - ES_INDEX_PREFIX=zker
+      - MINIO_BUCKET=zker
+      - RATE_LIMIT_REQUESTS_PER_SECOND=100
+      - RATE_LIMIT_BURST=200
+      - JAEGER_SAMPLER_PARAM=0.1
+      - PROMETHEUS_ENABLED=true
+
+# 图片标签
+images:
+  - name: zker/api
+    newName: ${REGISTRY}/zker-api  # 从环境变量注入
+    newTag: v1.0.0
+  - name: zker/frontend
+    newName: ${REGISTRY}/zker-frontend
+    newTag: v1.0.0
+
+# 副本数补丁 (由HPA管理,这里是最小值)
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-api
+    spec:
+      replicas: 3
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-frontend
+    spec:
+      replicas: 2
+
+# HPA 补丁 (生产环境自动扩展范围更大)
+patches:
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: zker-api-hpa
+      spec:
+        minReplicas: 3
+        maxReplicas: 20
+    target:
+      kind: HorizontalPodAutoscaler
+      name: zker-api-hpa
+
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: zker-frontend-hpa
+      spec:
+        minReplicas: 2
+        maxReplicas: 10
+    target:
+      kind: HorizontalPodAutoscaler
+      name: zker-frontend-hpa
+
+# 资源配额 (如果启用ResourceQuota)
+# - patch: |-
+#     apiVersion: v1
+#     kind: ResourceQuota
+#     metadata:
+#       name: zker-resource-quota
+#     spec:
+#       hard:
+#         requests.cpu: "10"
+#         requests.memory: "20Gi"
+#         limits.cpu: "20"
+#         limits.memory: "40Gi"
+
+# 标签
+commonLabels:
+  environment: production
+  tier: prod
+  security-level: high
+
+# 名称前缀 (可选,生产环境通常不需要)
+# namePrefix: prod-

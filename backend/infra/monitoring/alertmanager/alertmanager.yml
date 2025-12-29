@@ -1,0 +1,224 @@
+# Prometheus Alertmanager 配置
+# 用于路由和分组告警通知
+
+global:
+  # 全局resolve_timeout（等待时间）
+  resolve_timeout: 5m
+
+  # 邮件服务器配置
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@zker.example.com'
+  smtp_auth_username: 'alerts@zker.example.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+  # 钉钉WebHook配置（环境变量）
+  dingtalk_webhook_url: '${DINGTALK_WEBHOOK_URL}'
+
+  # Slack配置
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+# 路由配置
+route:
+  # 默认接收器
+  receiver: 'default'
+
+  # 分组等待时间
+  group_wait: 10s
+  # 分组间隔时间
+  group_interval: 10s
+  # 重复告警间隔
+  repeat_interval: 12h
+
+  # 子路由配置
+  routes:
+    # ========== API告警路由 ==========
+    - match:
+        alertname: 'HighErrorRate'
+      receiver: 'api-team'
+      group_wait: 30s
+      repeat_interval: 5m
+
+    - match:
+        alertname: 'HighLatency'
+      receiver: 'api-team'
+      group_wait: 1m
+      repeat_interval: 10m
+
+    - match:
+        alertname: 'TrafficAnomaly'
+      receiver: 'api-team'
+      group_wait: 10s
+      repeat_interval: 15m
+
+    # ========== 业务告警路由 ==========
+    - match:
+        alertname: 'QuotaNearLimit'
+      receiver: 'sales-team'
+      group_wait: 5m
+      repeat_interval: 1h
+
+    - match:
+        alertname: 'QuotaExceeded'
+      receiver: 'sales-team'
+      group_wait: 10s
+      repeat_interval: 30m
+
+    - match:
+        alertname: 'SubscriptionExpiring'
+      receiver: 'sales-team'
+      group_wait: 1h
+      repeat_interval: 6h
+
+    - match:
+        alertname: 'TenantSuspended'
+      receiver: 'sales-team'
+      group_wait: 1m
+      repeat_interval: 2h
+
+    # ========== 数据库告警路由 ==========
+    - match:
+        alertname: 'DBConnectionPoolHigh'
+      receiver: 'dba-team'
+      group_wait: 1m
+      repeat_interval: 5m
+
+    - match:
+        alertname: 'DBQuerySlow'
+      receiver: 'dba-team'
+      group_wait: 2m
+      repeat_interval: 15m
+
+    - match:
+        alertname: 'DBConnectionHigh'
+      receiver: 'dba-team'
+      group_wait: 30s
+      repeat_interval: 10m
+
+    # ========== 缓存告警路由 ==========
+    - match:
+        alertname: 'CacheHitRateLow'
+      receiver: 'backend-team'
+      group_wait: 2m
+      repeat_interval: 30m
+
+    - match:
+        alertname: 'CacheSizeHigh'
+      receiver: 'backend-team'
+      group_wait: 5m
+      repeat_interval: 1h
+
+    # ========== 系统告警路由 ==========
+    - match:
+        alertname: 'HighGoroutines'
+      receiver: 'ops-team'
+      group_wait: 1m
+      repeat_interval: 10m
+
+    - match:
+        alertname: 'HighMemoryUsage'
+      receiver: 'ops-team'
+      group_wait: 30s
+      repeat_interval: 5m
+
+    - match:
+        alertname: 'HighGCFrequency'
+      receiver: 'ops-team'
+      group_wait: 1m
+      repeat_interval: 10m
+
+# 接收器配置
+receivers:
+  # ========== 默认接收器 ==========
+  - name: 'default'
+    email_configs:
+      - to: 'ops@zker.example.com'
+        send_resolved: true
+    dingtalk_configs:
+      - webhook_url: '${DINGTALK_WEBHOOK_URL}'
+        send_resolved: true
+
+  # ========== API团队接收器 ==========
+  - name: 'api-team'
+    email_configs:
+      - to: 'api-team@zker.example.com'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#api-alerts'
+        send_resolved: true
+    dingtalk_configs:
+      - webhook_url: '${DINGTALK_WEBHOOK_URL}'
+        message_type: 'link'
+        send_resolved: true
+
+  # ========== 后端团队接收器 ==========
+  - name: 'backend-team'
+    email_configs:
+      - to: 'backend-team@zker.example.com'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#backend-alerts'
+        send_resolved: true
+
+  # ========== DBA团队接收器 ==========
+  - name: 'dba-team'
+    email_configs:
+      - to: 'dba-team@zker.example.com'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#database-alerts'
+        send_resolved: true
+
+  # ========== 运维团队接收器 ==========
+  - name: 'ops-team'
+    email_configs:
+      - to: 'ops-team@zker.example.com'
+        send_resolved: true
+    slack_configs:
+      - api_url: '${SLACK_WEBHOOK_URL}'
+        channel: '#ops-alerts'
+        send_resolved: true
+    dingtalk_configs:
+      - webhook_url: '${DINGTALK_WEBHOOK_URL}'
+        message_type: 'link'
+        send_resolved: true
+
+  # ========== 销售团队接收器 ==========
+  - name: 'sales-team'
+    email_configs:
+      - to: 'sales-team@zker.example.com'
+        send_resolved: true
+    dingtalk_configs:
+      - webhook_url: '${DINGTALK_WEBHOOK_URL}'
+        message_type: 'link'
+        send_resolved: true
+
+# 抑制规则（避免重复告警）
+inhibit_rules:
+  # 如果高错误率告警触发，抑制单个HTTP请求失败的告警
+  - source_match:
+      alertname: 'HighErrorRate'
+    target_match:
+      alertname: 'HttpRequestFailed'
+    equal: ['tenant_id']
+
+  # 如果配额已耗尽，抑制配额接近限制的告警
+  - source_match:
+      alertname: 'QuotaExceeded'
+    target_match:
+      alertname: 'QuotaNearLimit'
+    equal: ['tenant_id', 'resource_type']
+
+  # 如果数据库连接数过高，抑制连接池使用率高的告警
+  - source_match:
+      alertname: 'DBConnectionHigh'
+    target_match:
+      alertname: 'DBConnectionPoolHigh'
+    equal: ['instance']
+
+# 模板配置
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

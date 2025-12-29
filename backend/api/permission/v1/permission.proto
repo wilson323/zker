@@ -1,0 +1,458 @@
+// 权限管理服务API定义
+syntax = "proto3";
+
+package permission;
+
+option go_package = "github.com/coze-studio/coze-studio/backend/api/permission/v1;permission";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ========== 角色管理服务 ==========
+service RoleService {
+  // 创建角色
+  rpc CreateRole(CreateRoleRequest) returns (CreateRoleResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/roles"
+      body: "*"
+    };
+  }
+
+  // 获取角色
+  rpc GetRole(GetRoleRequest) returns (GetRoleResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/roles/{role_id}"
+    };
+  }
+
+  // 更新角色
+  rpc UpdateRole(UpdateRoleRequest) returns (UpdateRoleResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/roles/{role_id}"
+      body: "*"
+    };
+  }
+
+  // 删除角色
+  rpc DeleteRole(DeleteRoleRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/roles/{role_id}"
+    };
+  }
+
+  // 角色列表
+  rpc ListRoles(ListRolesRequest) returns (ListRolesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/roles"
+    };
+  }
+
+  // 分配角色给用户
+  rpc AssignRole(AssignRoleRequest) returns (AssignRoleResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/users/{user_id}/roles"
+      body: "*"
+    };
+  }
+
+  // 撤销用户角色
+  rpc RevokeRole(RevokeRoleRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/users/{user_id}/roles/{role_id}"
+    };
+  }
+
+  // 获取用户的所有角色
+  rpc GetUserRoles(GetUserRolesRequest) returns (GetUserRolesResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/{user_id}/roles"
+    };
+  }
+
+  // 设置角色数据权限
+  rpc SetDataPermission(SetDataPermissionRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/roles/{role_id}/data-permissions"
+      body: "*"
+    };
+  }
+
+  // 设置角色字段权限
+  rpc SetFieldPermission(SetFieldPermissionRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/roles/{role_id}/field-permissions"
+      body: "*"
+    };
+  }
+}
+
+// ========== 部门管理服务 ==========
+service DepartmentService {
+  // 创建部门
+  rpc CreateDepartment(CreateDepartmentRequest) returns (CreateDepartmentResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/departments"
+      body: "*"
+    };
+  }
+
+  // 获取部门
+  rpc GetDepartment(GetDepartmentRequest) returns (GetDepartmentResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/departments/{department_id}"
+    };
+  }
+
+  // 更新部门
+  rpc UpdateDepartment(UpdateDepartmentRequest) returns (UpdateDepartmentResponse) {
+    option (google.api.http) = {
+      put: "/api/v1/departments/{department_id}"
+      body: "*"
+    };
+  }
+
+  // 删除部门
+  rpc DeleteDepartment(DeleteDepartmentRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/departments/{department_id}"
+    };
+  }
+
+  // 部门列表
+  rpc ListDepartments(ListDepartmentsRequest) returns (ListDepartmentsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/departments"
+    };
+  }
+
+  // 获取用户可访问的部门
+  rpc GetAccessibleDepartments(GetAccessibleDepartmentsRequest) returns (GetAccessibleDepartmentsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/{user_id}/accessible-departments"
+    };
+  }
+
+  // 添加部门成员
+  rpc AddDepartmentMember(AddDepartmentMemberRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      post: "/api/v1/departments/{department_id}/members"
+      body: "*"
+    };
+  }
+
+  // 更新部门成员
+  rpc UpdateDepartmentMember(UpdateDepartmentMemberRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      put: "/api/v1/departments/{department_id}/members/{user_id}"
+      body: "*"
+    };
+  }
+
+  // 移除部门成员
+  rpc RemoveDepartmentMember(RemoveDepartmentMemberRequest) returns (google.protobuf.Empty) {
+    option (google.api.http) = {
+      delete: "/api/v1/departments/{department_id}/members/{user_id}"
+    };
+  }
+
+  // 获取部门成员
+  rpc GetDepartmentMembers(GetDepartmentMembersRequest) returns (GetDepartmentMembersResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/departments/{department_id}/members"
+    };
+  }
+}
+
+// ========== 权限检查服务 ==========
+service PermissionService {
+  // 检查数据权限
+  rpc CheckDataPermission(CheckDataPermissionRequest) returns (CheckDataPermissionResponse) {
+    option (google.api.http) = {
+      post: "/api/v1/permissions/check-data"
+      body: "*"
+    };
+  }
+
+  // 获取字段权限
+  rpc GetFieldPermissions(GetFieldPermissionsRequest) returns (GetFieldPermissionsResponse) {
+    option (google.api.http) = {
+      get: "/api/v1/users/{user_id}/field-permissions"
+    };
+  }
+}
+
+// ==================== 角色管理消息 ====================
+
+// CreateRoleRequest 创建角色请求
+message CreateRoleRequest {
+  string tenant_id = 1;       // 租户ID
+  string role_name = 2;       // 角色名称
+  string description = 3;     // 角色描述
+  bool is_system = 4;         // 是否系统角色
+  repeated string permissions = 5; // 权限列表
+}
+
+// GetRoleRequest 获取角色请求
+message GetRoleRequest {
+  string role_id = 1;         // 角色ID
+}
+
+// UpdateRoleRequest 更新角色请求
+message UpdateRoleRequest {
+  string role_id = 1;         // 角色ID
+  string role_name = 2;       // 角色名称 (可选)
+  string description = 3;     // 角色描述 (可选)
+  repeated string permissions = 4; // 权限列表 (可选)
+}
+
+// DeleteRoleRequest 删除角色请求
+message DeleteRoleRequest {
+  string role_id = 1;         // 角色ID
+}
+
+// ListRolesRequest 角色列表请求
+message ListRolesRequest {
+  string tenant_id = 1;       // 租户ID
+  int32 page_size = 2;        // 每页大小
+  string page_token = 3;      // 页面令牌
+  string is_system = 4;       // 系统角色过滤 (可选)
+}
+
+// AssignRoleRequest 分配角色请求
+message AssignRoleRequest {
+  string tenant_id = 1;       // 租户ID
+  string role_id = 2;         // 角色ID
+}
+
+// RevokeRoleRequest 撤销角色请求
+message RevokeRoleRequest {
+  string tenant_id = 1;       // 租户ID
+  string role_id = 2;         // 角色ID
+}
+
+// GetUserRolesRequest 获取用户角色请求
+message GetUserRolesRequest {
+  string tenant_id = 1;       // 租户ID
+}
+
+// SetDataPermissionRequest 设置数据权限请求
+message SetDataPermissionRequest {
+  string resource_type = 1;   // 资源类型: bots, conversations, workflows等
+  string scope = 2;           // 权限范围: ALL, DEPARTMENT, OWN, CUSTOM, NONE
+  repeated string custom_filters = 3; // 自定义过滤器 (scope=CUSTOM时)
+}
+
+// SetFieldPermissionRequest 设置字段权限请求
+message SetFieldPermissionRequest {
+  string resource_type = 1;   // 资源类型
+  repeated FieldPermission fields = 2; // 字段权限列表
+}
+
+// ==================== 部门管理消息 ====================
+
+// CreateDepartmentRequest 创建部门请求
+message CreateDepartmentRequest {
+  string tenant_id = 1;       // 租户ID
+  string department_name = 2; // 部门名称
+  string parent_id = 3;       // 父部门ID (可选，顶级部门为空)
+  string description = 4;     // 部门描述
+}
+
+// GetDepartmentRequest 获取部门请求
+message GetDepartmentRequest {
+  string department_id = 1;   // 部门ID
+}
+
+// UpdateDepartmentRequest 更新部门请求
+message UpdateDepartmentRequest {
+  string department_name = 1; // 部门名称 (可选)
+  string parent_id = 2;       // 父部门ID (可选)
+  string description = 3;     // 部门描述 (可选)
+}
+
+// DeleteDepartmentRequest 删除部门请求
+message DeleteDepartmentRequest {
+  string department_id = 1;   // 部门ID
+}
+
+// ListDepartmentsRequest 部门列表请求
+message ListDepartmentsRequest {
+  string tenant_id = 1;       // 租户ID
+}
+
+// GetAccessibleDepartmentsRequest 获取可访问部门请求
+message GetAccessibleDepartmentsRequest {
+  string tenant_id = 1;       // 租户ID
+}
+
+// AddDepartmentMemberRequest 添加部门成员请求
+message AddDepartmentMemberRequest {
+  string user_id = 1;         // 用户ID
+  string role = 2;            // 部门角色: leader, member
+}
+
+// UpdateDepartmentMemberRequest 更新部门成员请求
+message UpdateDepartmentMemberRequest {
+  string role = 1;            // 部门角色: leader, member
+}
+
+// RemoveDepartmentMemberRequest 移除部门成员请求
+message RemoveDepartmentMemberRequest {
+  // 无需额外参数，路径已包含department_id和user_id
+}
+
+// GetDepartmentMembersRequest 获取部门成员请求
+message GetDepartmentMembersRequest {
+  // 无需额外参数，路径已包含department_id
+}
+
+// ==================== 权限检查消息 ====================
+
+// CheckDataPermissionRequest 检查数据权限请求
+message CheckDataPermissionRequest {
+  string tenant_id = 1;       // 租户ID
+  string user_id = 2;         // 用户ID
+  string resource_type = 3;   // 资源类型
+  string action = 4;          // 操作类型: create, read, update, delete
+  repeated string resource_ids = 5; // 资源ID列表
+}
+
+// GetFieldPermissionsRequest 获取字段权限请求
+message GetFieldPermissionsRequest {
+  string tenant_id = 1;       // 租户ID
+  string resource_type = 2;   // 资源类型
+}
+
+// ==================== 响应消息 ====================
+
+// CreateRoleResponse 创建角色响应
+message CreateRoleResponse {
+  Role role = 1;              // 创建的角色
+}
+
+// GetRoleResponse 获取角色响应
+message GetRoleResponse {
+  Role role = 1;              // 角色详情
+}
+
+// UpdateRoleResponse 更新角色响应
+message UpdateRoleResponse {
+  Role role = 1;              // 更新后的角色
+}
+
+// ListRolesResponse 角色列表响应
+message ListRolesResponse {
+  repeated Role roles = 1;    // 角色列表
+  string next_page_token = 2;  // 下一页令牌
+  int32 total_count = 3;      // 总数
+}
+
+// AssignRoleResponse 分配角色响应
+message AssignRoleResponse {
+  UserRole user_role = 1;     // 用户角色关系
+}
+
+// GetUserRolesResponse 获取用户角色响应
+message GetUserRolesResponse {
+  repeated Role roles = 1;    // 角色列表
+  repeated UserRole user_roles = 2; // 用户角色关系
+}
+
+// CheckDataPermissionResponse 检查数据权限响应
+message CheckDataPermissionResponse {
+  map<string, bool> results = 1; // 资源ID -> 是否允许
+}
+
+// GetFieldPermissionsResponse 获取字段权限响应
+message GetFieldPermissionsResponse {
+  map<string, string> field_permissions = 1; // 字段名 -> 权限级别
+}
+
+// CreateDepartmentResponse 创建部门响应
+message CreateDepartmentResponse {
+  Department department = 1;  // 创建的部门
+}
+
+// GetDepartmentResponse 获取部门响应
+message GetDepartmentResponse {
+  Department department = 1;  // 部门详情
+}
+
+// UpdateDepartmentResponse 更新部门响应
+message UpdateDepartmentResponse {
+  Department department = 1;  // 更新后的部门
+}
+
+// ListDepartmentsResponse 部门列表响应
+message ListDepartmentsResponse {
+  repeated Department departments = 1; // 部门列表
+}
+
+// GetAccessibleDepartmentsResponse 获取可访问部门响应
+message GetAccessibleDepartmentsResponse {
+  repeated Department departments = 1; // 可访问部门列表
+}
+
+// GetDepartmentMembersResponse 获取部门成员响应
+message GetDepartmentMembersResponse {
+  repeated DepartmentMember members = 1; // 部门成员列表
+}
+
+// ==================== 数据模型 ====================
+
+// Role 角色
+message Role {
+  string role_id = 1;         // 角色ID
+  string tenant_id = 2;       // 租户ID
+  string role_name = 3;       // 角色名称
+  string description = 4;     // 角色描述
+  bool is_system = 5;         // 是否系统角色
+  repeated string permissions = 6; // 权限列表
+  google.protobuf.Timestamp created_at = 7; // 创建时间
+  google.protobuf.Timestamp updated_at = 8; // 更新时间
+}
+
+// UserRole 用户角色关系
+message UserRole {
+  string user_id = 1;         // 用户ID
+  string tenant_id = 2;       // 租户ID
+  string role_id = 3;         // 角色ID
+  google.protobuf.Timestamp assigned_at = 4; // 分配时间
+}
+
+// DataPermission 数据权限
+message DataPermission {
+  string permission_id = 1;   // 权限ID
+  string role_id = 2;         // 角色ID
+  string resource_type = 3;   // 资源类型
+  string scope = 4;           // 权限范围
+  repeated string custom_filters = 5; // 自定义过滤器
+}
+
+// FieldPermission 字段权限
+message FieldPermission {
+  string field_name = 1;      // 字段名称
+  string permission_level = 2; // 权限级别: hidden, readonly, editable
+}
+
+// Department 部门
+message Department {
+  string department_id = 1;   // 部门ID
+  string tenant_id = 2;       // 租户ID
+  string department_name = 3; // 部门名称
+  string parent_id = 4;       // 父部门ID
+  string description = 5;     // 部门描述
+  int32 level = 6;            // 层级
+  string path = 7;            // 部门路径 (如: /1/2/3)
+  google.protobuf.Timestamp created_at = 8; // 创建时间
+  google.protobuf.Timestamp updated_at = 9; // 更新时间
+}
+
+// DepartmentMember 部门成员
+message DepartmentMember {
+  string user_id = 1;         // 用户ID
+  string department_id = 2;   // 部门ID
+  string role = 3;            // 部门角色: leader, member
+  google.protobuf.Timestamp joined_at = 4; // 加入时间
+}

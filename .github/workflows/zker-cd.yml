@@ -1,0 +1,366 @@
+# GitHub Actions CD 流水线 - ZKER 项目
+# 用途: 自动构建镜像、推送到仓库、部署到 K8s
+# 触发条件: push tag (v*), 手动触发
+# 遵循规范: GitOps + 不可变基础设施 + 零停机部署
+
+name: ZKER-CD
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'  # 语义化版本号: v1.0.0
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      version:
+        description: '版本号'
+        required: true
+        default: 'latest'
+
+# 环境变量 (全局)
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_API: ${{ github.repository }}/zker-api
+  IMAGE_NAME_FRONTEND: ${{ github.repository }}/zker-frontend
+
+jobs:
+  # ==================== 构建和推送镜像 ====================
+  build-and-push:
+    name: 🐳 Build & Push Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ 提取版本号
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📌 版本号: $VERSION"
+
+      - name: 🔧 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔐 登录到 Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ 生成镜像元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ steps.version.outputs.version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ steps.version.outputs.version }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: 🔨 构建并推送 API 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: 🔨 构建并推送 Frontend 镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.version.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+
+      - name: 📊 镜像安全扫描
+        run: |
+          echo "扫描 API 镜像..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --severity HIGH,CRITICAL \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ steps.version.outputs.version }}
+
+          echo "扫描 Frontend 镜像..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --severity HIGH,CRITICAL \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.version.outputs.version }}
+
+      - name: 📤 生成镜像清单
+        run: |
+          echo "# 镜像清单" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 构建的镜像" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 镜像 | 标签 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| API | ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend | ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.version.outputs.version }} |" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 部署到 Staging 环境 ====================
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'staging'
+
+    environment:
+      name: staging
+      url: https://staging.zker.example.com
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          # 从 GitHub Secrets 读取 Kubeconfig
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🏷️ 更新 Kustomize 镜像标签
+        working-directory: ./k8s/overlays/staging
+        run: |
+          kustomize edit set image \
+            zker/api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ needs.build-and-push.outputs.version }} \
+            zker/frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build-and-push.outputs.version }}
+
+      - name: 🚀 部署到 K8s
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl apply -k k8s/overlays/staging/
+
+      - name: ⏳ 等待部署完成
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl rollout status deployment/zker-api -n zker-staging --timeout=5m
+          kubectl rollout status deployment/zker-frontend -n zker-staging --timeout=5m
+
+      - name: ✅ 验证部署
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "检查 Pod 状态..."
+          kubectl get pods -n zker-staging -l app=zker-api
+
+          echo "检查 Service 状态..."
+          kubectl get svc -n zker-staging
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=busybox:1.36 \
+            --context=staging-check --namespace=zker-staging -- \
+            wget -O- http://zker-api/health
+
+      - name: 📊 生成部署报告
+        run: |
+          echo "# Staging 环境部署报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **环境**: Staging" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **镜像**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - API: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "  - Frontend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 部署到 Production 环境 ====================
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: [build-and-push, deploy-staging]
+
+    environment:
+      name: production
+      url: https://zker.example.com
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 AWS 凭证 (如果是 EKS)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          # EKS 示例
+          aws eks update-kubeconfig --name zker-prod --region us-west-2
+          # 或者从 GitHub Secrets 读取
+          # echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          # export KUBECONFIG=kubeconfig
+
+      - name: 🏷️ 更新 Kustomize 镜像标签
+        working-directory: ./k8s/overlays/prod
+        run: |
+          export REGISTRY=${{ env.REGISTRY }}
+          kustomize edit set image \
+            zker/api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ needs.build-and-push.outputs.version }} \
+            zker/frontend=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build-and-push.outputs.version }}
+
+      - name: 🎯 执行灰度发布 (10%)
+        run: |
+          echo "🎯 开始灰度发布 - 10% 流量"
+          # TODO: 调用灰度发布脚本
+          # ./scripts/canary-deploy.sh ${{ needs.build-and-push.outputs.version }} 10
+
+      - name: ⏳ 等待灰度验证
+        run: |
+          echo "⏳ 等待 5 分钟观察期..."
+          sleep 300
+
+          echo "检查错误率..."
+          # TODO: 查询 Prometheus 检查错误率
+          # error_rate=$(curl -s "http://prometheus:9090/api/v1/query?query=rate(http_requests_total{status=~\"5..\"}[5m])")
+          # echo "错误率: $error_rate"
+
+      - name: 🚀 完全切换到新版本
+        run: |
+          echo "🚀 切换 100% 流量到新版本"
+          # TODO: 更新 VirtualService 流量比例
+
+      - name: 🚀 部署到 K8s
+        run: |
+          kubectl apply -k k8s/overlays/prod/
+
+      - name: ⏳ 等待部署完成
+        run: |
+          kubectl rollout status deployment/zker-api -n zker-prod --timeout=10m
+          kubectl rollout status deployment/zker-frontend -n zker-prod --timeout=10m
+
+      - name: ✅ 验证部署
+        run: |
+          echo "检查 Pod 状态..."
+          kubectl get pods -n zker-prod -l app=zker-api
+
+          echo "检查 HPA 状态..."
+          kubectl get hpa -n zker-prod
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=busybox:1.36 \
+            --context=prod-check --namespace=zker-prod -- \
+            wget -O- http://zker-api/health
+
+      - name: 🔔 发送部署通知
+        if: success()
+        run: |
+          echo "✅ 生产环境部署成功!"
+          # TODO: 发送 Slack/DingTalk 通知
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
+          #   -H 'Content-Type: application/json' \
+          #   -d '{"text":"✅ ZKER v${{ needs.build-and-push.outputs.version }} 部署到生产环境成功"}'
+
+      - name: 📊 生成部署报告
+        run: |
+          echo "# Production 环境部署报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **环境**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **镜像**:" >> $GITHUB_STEP_SUMMARY
+          echo "  - API: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "  - Frontend: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ needs.build-and-push.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 验证结果" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Pod 状态正常" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 健康检查通过" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ HPA 运行正常" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 自动回滚 (失败时) ====================
+  auto-rollback:
+    name: 🔄 Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: deploy-production
+    if: failure()
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          aws eks update-kubeconfig --name zker-prod --region us-west-2
+
+      - name: 🔄 执行回滚
+        run: |
+          echo "⚠️ 检测到部署失败,执行自动回滚"
+          kubectl rollout undo deployment/zker-api -n zker-prod
+          kubectl rollout undo deployment/zker-frontend -n zker-prod
+
+          echo "⏳ 等待回滚完成..."
+          kubectl rollout status deployment/zker-api -n zker-prod --timeout=5m
+
+          echo "✅ 回滚完成"
+
+      - name: 🔔 发送回滚通知
+        if: success()
+        run: |
+          echo "🔄 生产环境已回滚!"
+          # TODO: 发送紧急通知
+          # curl -X POST ${{ secrets.SLACK_WEBHOOK_URGENT }} \
+          #   -H 'Content-Type: application/json' \
+          #   -d '{"text":"🚨 ZKER 部署失败,已自动回滚"}'

@@ -1,0 +1,342 @@
+name: zker-coze-studio
+x-env-file: &env_file
+  - .env
+
+services:
+  # ========== 核心中间件服务 ==========
+  mysql:
+    image: mysql:8.4.5
+    container_name: zker-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-zker}
+      MYSQL_USER: ${MYSQL_USER:-zker}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-zker123}
+    env_file: *env_file
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./atlas:/opt/atlas:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u$${MYSQL_USER}", "-p$${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - zker-network
+
+  redis:
+    image: redis:8.0-alpine
+    container_name: zker-redis
+    restart: unless-stopped
+    env_file: *env_file
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - ./data/redis:/data
+      - ./volumes/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zker-network
+
+  elasticsearch:
+    image: elasticsearch:8.18.0
+    container_name: zker-elasticsearch
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - "action.destructive_requires_name=false"
+    ports:
+      - "${ES_PORT:-9200}:9200"
+    volumes:
+      - ./data/elasticsearch:/usr/share/elasticsearch/data
+      - ./volumes/elasticsearch/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    networks:
+      - zker-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: zker-minio
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_DEFAULT_BUCKETS: ${STORAGE_BUCKET:-zker},${MINIO_DEFAULT_BUCKETS:-milvus}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - ./data/minio:/data
+      - ./volumes/minio/default_icon/:/default_icon:ro
+      - ./volumes/minio/official_plugin_icon/:/official_plugin_icon:ro
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD-SHELL", "mc alias set health_check http://localhost:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} && mc ready health_check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zker-network
+
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: zker-etcd
+    restart: unless-stopped
+    env_file: *env_file
+    ports:
+      - "${ETCD_PORT:-2379}:2379"
+    volumes:
+      - ./data/etcd:/etcd-data
+    command:
+      - /usr/local/bin/etcd
+      - --name=etcd0
+      - --data-dir=/etcd-data
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://localhost:2379
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zker-network
+
+  milvus:
+    image: milvusdb/milvus:v2.5.10
+    container_name: zker-milvus
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      ETCD_ENDPOINTS: etcd:2379
+      MINIO_ADDRESS: minio:9000
+      MINIO_BUCKET_NAME: ${MINIO_DEFAULT_BUCKETS:-milvus}
+      MINIO_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MINIO_USE_SSL: false
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - "${MILVUS_PORT:-19530}:19530"
+      - "${MILVUS_ADMIN_PORT:-9091}:9091"
+    volumes:
+      - ./data/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      etcd:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - zker-network
+
+  nsqlookupd:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqlookupd
+    restart: unless-stopped
+    command: /nsqlookupd
+    ports:
+      - "${NSQLOOKUPD_TCP_PORT:-4160}:4160"
+      - "${NSQLOOKUPD_HTTP_PORT:-4161}:4161"
+    healthcheck:
+      test: ["CMD-SHELL", "nsqlookupd --version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - zker-network
+
+  nsqd:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqd
+    restart: unless-stopped
+    command: /nsqd --lookupd-tcp-address=nsqlookupd:4160 --broadcast-address=nsqd
+    ports:
+      - "${NSQD_TCP_PORT:-4150}:4150"
+      - "${NSQD_HTTP_PORT:-4151}:4151"
+    healthcheck:
+      test: ["CMD-SHELL", "/nsqd --version"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    depends_on:
+      nsqlookupd:
+        condition: service_healthy
+    networks:
+      - zker-network
+
+  nsqadmin:
+    image: nsqio/nsq:v1.2.1
+    container_name: zker-nsqadmin
+    restart: unless-stopped
+    command: /nsqadmin --lookupd-http-address=nsqlookupd:4161
+    ports:
+      - "${NSQADMIN_PORT:-4171}:4171"
+    depends_on:
+      nsqlookupd:
+        condition: service_healthy
+    networks:
+      - zker-network
+
+  # ========== 监控和可观测性服务 ==========
+  prometheus:
+    image: prom/prometheus:v2.45.0
+    container_name: zker-prometheus
+    restart: unless-stopped
+    env_file: *env_file
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./volumes/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./volumes/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:9090/-/healthy || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zker-network
+
+  grafana:
+    image: grafana/grafana:10.0.0
+    container_name: zker-grafana
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+      - ./volumes/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./volumes/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zker-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: zker-jaeger
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"  # Jaeger UI
+      - "${JAEGER_ZIPKIN_PORT:-9411}:9411"  # Zipkin compatible endpoint
+      - "${JAEGER_OTLP_HTTP_PORT:-4318}:4318"  # OTLP HTTP
+      - "${JAEGER_OTLP_GRPC_PORT:-4317}:4317"  # OTLP gRPC
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:16686/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zker-network
+
+  # ========== 应用服务 ==========
+  coze-server:
+    image: cozedev/coze-studio-server:latest
+    container_name: zker-coze-server
+    restart: unless-stopped
+    env_file: *env_file
+    environment:
+      - ENVIRONMENT=${ENVIRONMENT:-development}
+      - LOG_LEVEL=${LOG_LEVEL:-debug}
+    ports:
+      - "${API_PORT:-8888}:8888"
+      - "${API_METRICS_PORT:-8889}:8889"
+    volumes:
+      - .env:/app/.env:ro
+      - ../backend/conf:/app/resources/conf:ro
+      - ../backend/static:/app/resources/static:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      milvus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8888/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - zker-network
+
+  coze-web:
+    image: cozedev/coze-studio-web:latest
+    container_name: zker-coze-web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      coze-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - zker-network
+
+networks:
+  zker-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${NETWORK_SUBNET:-172.20.0.0/16}

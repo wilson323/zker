@@ -1,0 +1,164 @@
+# Redis集群 (3主3从) - Docker Compose配置
+
+version: '3.8'
+
+services:
+  # ========== Redis Shard 1: Master + Slave ==========
+  redis-cluster-1:
+    image: redis:7-alpine
+    container_name: zker-redis-1
+    command: redis-server /usr/local/etc/redis/redis-cluster-1.conf
+    ports:
+      - "7001:7001"
+      - "17001:17001"  # 总线端口
+    volumes:
+      - ./redis/redis-cluster-1.conf:/usr/local/etc/redis/redis-cluster-1.conf
+      - redis-cluster-1-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7001", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis-cluster-4:
+    image: redis:7-alpine
+    container_name: zker-redis-4
+    command: redis-server /usr/local/etc/redis/redis-cluster-4.conf
+    ports:
+      - "7004:7004"
+      - "17004:17004"
+    volumes:
+      - ./redis/redis-cluster-4.conf:/usr/local/etc/redis/redis-cluster-4.conf
+      - redis-cluster-4-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7004", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ========== Redis Shard 2: Master + Slave ==========
+  redis-cluster-2:
+    image: redis:7-alpine
+    container_name: zker-redis-2
+    command: redis-server /usr/local/etc/redis/redis-cluster-2.conf
+    ports:
+      - "7002:7002"
+      - "17002:17002"
+    volumes:
+      - ./redis/redis-cluster-2.conf:/usr/local/etc/redis/redis-cluster-2.conf
+      - redis-cluster-2-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7002", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis-cluster-5:
+    image: redis:7-alpine
+    container_name: zker-redis-5
+    command: redis-server /usr/local/etc/redis/redis-cluster-5.conf
+    ports:
+      - "7005:7005"
+      - "17005:17005"
+    volumes:
+      - ./redis/redis-cluster-5.conf:/usr/local/etc/redis/redis-cluster-5.conf
+      - redis-cluster-5-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7005", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ========== Redis Shard 3: Master + Slave ==========
+  redis-cluster-3:
+    image: redis:7-alpine
+    container_name: zker-redis-3
+    command: redis-server /usr/local/etc/redis/redis-cluster-3.conf
+    ports:
+      - "7003:7003"
+      - "17003:17003"
+    volumes:
+      - ./redis/redis-cluster-3.conf:/usr/local/etc/redis/redis-cluster-3.conf
+      - redis-cluster-3-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7003", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  redis-cluster-6:
+    image: redis:7-alpine
+    container_name: zker-redis-6
+    command: redis-server /usr/local/etc/redis/redis-cluster-6.conf
+    ports:
+      - "7006:7006"
+      - "17006:17006"
+    volumes:
+      - ./redis/redis-cluster-6.conf:/usr/local/etc/redis/redis-cluster-6.conf
+      - redis-cluster-6-data:/data
+    networks:
+      - redis-cluster-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "7006", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ========== Redis Exporter (Prometheus监控) ==========
+  redis-exporter-1:
+    image: oliver006/redis_exporter:latest
+    container_name: zker-redis-exporter-1
+    ports:
+      - "9121:9121"
+    environment:
+      REDIS_ADDR: "redis-cluster-1:7001"
+    networks:
+      - redis-cluster-network
+
+  redis-exporter-2:
+    image: oliver006/redis_exporter:latest
+    container_name: zker-redis-exporter-2
+    ports:
+      - "9122:9121"
+    environment:
+      REDIS_ADDR: "redis-cluster-2:7002"
+    networks:
+      - redis-cluster-network
+
+  redis-exporter-3:
+    image: oliver006/redis_exporter:latest
+    container_name: zker-redis-exporter-3
+    ports:
+      - "9123:9121"
+    environment:
+      REDIS_ADDR: "redis-cluster-3:7003"
+    networks:
+      - redis-cluster-network
+
+networks:
+  redis-cluster-network:
+    driver: bridge
+
+volumes:
+  redis-cluster-1-data:
+    driver: local
+  redis-cluster-2-data:
+    driver: local
+  redis-cluster-3-data:
+    driver: local
+  redis-cluster-4-data:
+    driver: local
+  redis-cluster-5-data:
+    driver: local
+  redis-cluster-6-data:
+    driver: local

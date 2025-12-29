@@ -1,0 +1,3419 @@
+openapi: 3.0.3
+info:
+  title: ZKER API Specification
+  version: 1.0.0
+  description: |
+    ZKER 一站式 AI Agent 开发平台 API 规范
+
+    ## 认证方式
+
+    所有 API (除了登录/注册)都需要在 Header 中携带 JWT Token:
+
+    ```
+    Authorization: Bearer <access_token>
+    ```
+
+    ## 租户隔离
+
+    所有 API (除了租户管理)都需要在 Header 中携带租户 ID:
+
+    ```
+    X-Tenant-ID: <tenant_id>
+    ```
+
+    ## 错误码
+
+    统一错误码格式: `{模块}{类型}{编号}`，详见[错误码规范](./ZKER-统一错误码定义规范.md)
+
+  contact:
+    name: ZKER API Team
+    email: api@zker.com
+
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8001
+    description: 本地开发环境
+  - url: https://api-dev.zker.com
+    description: 开发环境
+  - url: https://api-staging.zker.com
+    description: 测试环境
+  - url: https://api.zker.com
+    description: 生产环境
+
+tags:
+  - name: Authentication
+    description: 认证授权相关接口
+  - name: Users
+    description: 用户管理相关接口
+  - name: Bots
+    description: Bot 管理相关接口
+  - name: Conversations
+    description: 会话管理相关接口
+  - name: Knowledge
+    description: 知识库管理相关接口
+
+security:
+  - BearerAuth: []
+
+paths:
+  # ========================================
+  # 认证授权模块 (Auth)
+  # ========================================
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: 用户注册
+      description: |
+        创建新用户账号
+
+        **业务规则**:
+        - 用户名必须唯一
+        - 邮箱必须唯一且有效
+        - 密码强度: 至少8位,包含大小写字母和数字
+        - 注册成功后自动登录,返回 access_token
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              normal:
+                summary: 正常注册
+                value:
+                  username: "zhangsan"
+                  email: "zhangsan@example.com"
+                  password: "Pass123456"
+                  password_confirm: "Pass123456"
+
+      responses:
+        '200':
+          description: 注册成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+              examples:
+                success:
+                  summary: 注册成功
+                  value:
+                    code: "SUCCESS"
+                    message: "注册成功"
+                    data:
+                      access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in: 7200
+                      user:
+                        user_id: "user_123"
+                        username: "zhangsan"
+                        email: "zhangsan@example.com"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '409':
+          description: 用户已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                user_exists:
+                  summary: 用户名已存在
+                  value:
+                    code: "USER301"
+                    message: "该用户名已被注册"
+                    message_zh: "该用户名已被注册"
+                    message_en: "Username already exists"
+                    request_id: "req_1234567890"
+                    timestamp: "2025-01-01T12:00:00Z"
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: 用户登录
+      description: |
+        使用用户名/邮箱和密码登录
+
+        **业务规则**:
+        - 支持用户名或邮箱登录
+        - 密码错误次数超过5次将临时锁定账号(30分钟)
+        - 登录成功返回 access_token 和 refresh_token
+
+      security: [] # 登录接口不需要认证
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              by_username:
+                summary: 用户名登录
+                value:
+                  username: "zhangsan"
+                  password: "Pass123456"
+              by_email:
+                summary: 邮箱登录
+                value:
+                  email: "zhangsan@example.com"
+                  password: "Pass123456"
+
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+              examples:
+                success:
+                  summary: 登录成功
+                  value:
+                    code: "SUCCESS"
+                    message: "登录成功"
+                    data:
+                      access_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      expires_in: 7200
+                      user:
+                        user_id: "user_123"
+                        username: "zhangsan"
+                        email: "zhangsan@example.com"
+                        avatar: "https://cdn.zker.com/avatars/user_123.png"
+
+        '401':
+          description: 认证失败
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_password:
+                  summary: 用户名或密码错误
+                  value:
+                    code: "AUTH201"
+                    message: "用户名或密码错误"
+                    message_zh: "用户名或密码错误"
+                    message_en: "Invalid username or password"
+                    request_id: "req_1234567890"
+                    timestamp: "2025-01-01T12:00:00Z"
+                account_locked:
+                  summary: 账号已锁定
+                  value:
+                    code: "AUTH404"
+                    message: "登录失败次数过多,账号已临时锁定"
+                    message_zh: "登录失败次数过多,账号已临时锁定,请30分钟后再试"
+                    message_en: "Account locked due to too many failed attempts"
+
+        '429':
+          description: 请求频率过高
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: 登录尝试频繁
+                  value:
+                    code: "AUTH404"
+                    message: "登录尝试次数过多,请稍后再试"
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: 用户登出
+      description: |
+        登出当前用户,使 Token 失效
+
+        **业务规则**:
+        - 将 access_token 加入黑名单
+        - 清除服务端会话
+        - 客户端也应删除本地存储的 token
+
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 登出成功
+                  value:
+                    code: "SUCCESS"
+                    message: "登出成功"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: 刷新 Token
+      description: |
+        使用 refresh_token 获取新的 access_token
+
+        **业务规则**:
+        - refresh_token 有效期为30天
+        - 刷新成功后返回新的 access_token 和 refresh_token
+        - 旧的 refresh_token 立即失效
+
+      security: [] # 刷新接口不需要 access_token
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: 刷新令牌
+            examples:
+              normal:
+                summary: 正常刷新
+                value:
+                  refresh_token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthResponse'
+
+        '401':
+          description: refresh_token 无效或已过期
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_token:
+                  summary: Token 无效
+                  value:
+                    code: "AUTH204"
+                    message: "Refresh token 无效或已过期"
+
+  /api/v1/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserDetail'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ========================================
+  # 用户管理模块 (Users)
+  # ========================================
+  /api/v1/users:
+    get:
+      tags:
+        - Users
+      summary: 获取用户列表
+      description: |
+        分页获取用户列表,支持搜索和筛选
+
+        **权限要求**:
+        - 需要管理员权限
+
+      parameters:
+        - name: page
+          in: query
+          description: 页码 (从1开始)
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          description: 每页数量
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: keyword
+          in: query
+          description: 搜索关键词 (用户名/邮箱)
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: 用户状态筛选
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, locked]
+        - name: sort_by
+          in: query
+          description: 排序字段
+          required: false
+          schema:
+            type: string
+            enum: [created_at, username, email]
+            default: created_at
+        - name: sort_order
+          in: query
+          description: 排序方向
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserListResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/users/{user_id}:
+    get:
+      tags:
+        - Users
+      summary: 获取用户详情
+      description: |
+        获取指定用户的详细信息
+
+        **权限要求**:
+        - 管理员可以查看任何用户
+        - 普通用户只能查看自己的信息
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: 用户 ID
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserDetail'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: 用户不存在
+                  value:
+                    code: "USER300"
+                    message: "用户不存在"
+
+    put:
+      tags:
+        - Users
+      summary: 更新用户信息
+      description: |
+        更新用户基本信息
+
+        **权限要求**:
+        - 管理员可以更新任何用户
+        - 普通用户只能更新自己的信息
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: 用户 ID
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            examples:
+              update_profile:
+                summary: 更新个人资料
+                value:
+                  nickname: "张三"
+                  avatar: "https://cdn.zker.com/avatars/new.png"
+                  bio: "AI 开发者"
+
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/UserDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: 用户不存在
+                  value:
+                    code: "USER300"
+
+    delete:
+      tags:
+        - Users
+      summary: 删除用户
+      description: |
+        删除指定用户 (软删除)
+
+        **权限要求**:
+        - 仅管理员可操作
+
+        **业务规则**:
+        - 软删除,设置 deleted_at 字段
+        - 用户的 Bot、会话等数据也会被软删除
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: 用户 ID
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 删除成功
+                  value:
+                    code: "SUCCESS"
+                    message: "删除成功"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: 用户不存在
+                  value:
+                    code: "USER300"
+
+  /api/v1/users/{user_id}/password:
+    put:
+      tags:
+        - Users
+      summary: 修改密码
+      description: |
+        修改用户密码
+
+        **业务规则**:
+        - 需要提供旧密码验证
+        - 新密码不能与最近3次使用的密码相同
+        - 密码强度: 至少8位,包含大小写字母和数字
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: 用户 ID
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+            examples:
+              normal:
+                summary: 正常修改密码
+                value:
+                  old_password: "Pass123456"
+                  new_password: "NewPass123456"
+                  new_password_confirm: "NewPass123456"
+
+      responses:
+        '200':
+          description: 修改成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  summary: 修改成功
+                  value:
+                    code: "SUCCESS"
+                    message: "密码修改成功,请重新登录"
+
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                wrong_old_password:
+                  summary: 旧密码错误
+                  value:
+                    code: "AUTH201"
+                    message: "旧密码错误"
+                weak_password:
+                  summary: 密码强度不足
+                  value:
+                    code: "AUTH400"
+                    message: "密码强度不足,至少8位,包含大小写字母和数字"
+                password_history:
+                  summary: 密码历史冲突
+                  value:
+                    code: "AUTH401"
+                    message: "新密码不能与最近3次使用的密码相同"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/users/{user_id}/roles:
+    get:
+      tags:
+        - Users
+      summary: 获取用户角色列表
+      description: 获取指定用户的所有角色
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Role'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 用户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "USER300"
+
+    post:
+      tags:
+        - Users
+      summary: 为用户分配角色
+      description: |
+        为用户分配角色
+
+        **权限要求**:
+        - 仅管理员可操作
+
+        **业务规则**:
+        - 可以分配多个角色
+        - 不能分配系统保留角色(除非是超级管理员)
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role_ids
+              properties:
+                role_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: 角色 ID 列表
+                  example: ["role_admin", "role_user"]
+            examples:
+              assign_roles:
+                summary: 分配角色
+                value:
+                  role_ids: ["role_admin", "role_developer"]
+
+      responses:
+        '200':
+          description: 分配成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+              examples:
+                success:
+                  value:
+                    code: "SUCCESS"
+                    message: "角色分配成功"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 用户或角色不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                user_not_found:
+                  value:
+                    code: "USER300"
+                role_not_found:
+                  value:
+                    code: "RBAC300"
+
+    delete:
+      tags:
+        - Users
+      summary: 移除用户角色
+      description: |
+        移除用户的指定角色
+
+        **权限要求**:
+        - 仅管理员可操作
+
+        **业务规则**:
+        - 不能移除用户的最后一个角色
+        - 不能移除自己的管理员角色
+
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - role_id
+              properties:
+                role_id:
+                  type: string
+                  description: 要移除的角色 ID
+            examples:
+              remove_role:
+                summary: 移除角色
+                value:
+                  role_id: "role_admin"
+
+      responses:
+        '200':
+          description: 移除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+        '400':
+          description: 业务规则限制
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                last_role:
+                  summary: 最后一个角色不能移除
+                  value:
+                    code: "RBAC401"
+                    message: "不能移除用户的最后一个角色"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  # ========================================
+  # Bot 管理模块 (Bots)
+  # ========================================
+  /api/v1/bots:
+    get:
+      tags:
+        - Bots
+      summary: 获取 Bot 列表
+      description: |
+        分页获取当前租户的 Bot 列表,支持搜索和筛选
+
+        **权限要求**:
+        - 需要登录
+
+        **业务规则**:
+        - 只返回当前租户的 Bot
+        - 支持按状态、标签筛选
+
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: keyword
+          in: query
+          description: 搜索关键词 (Bot 名称/描述)
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Bot 状态筛选
+          schema:
+            type: string
+            enum: [draft, published, archived]
+        - name: tags
+          in: query
+          description: 标签筛选 (逗号分隔)
+          schema:
+            type: string
+            example: "客服,销售"
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [created_at, updated_at, name]
+            default: updated_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotListResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Bots
+      summary: 创建 Bot
+      description: |
+        创建新的 Bot
+
+        **权限要求**:
+        - 需要登录
+
+        **业务规则**:
+        - Bot 名称在同一租户内必须唯一
+        - 自动分配 Bot ID
+        - 初始状态为 draft
+
+        **配额限制**:
+        - 免费版: 1个 Bot
+        - 基础版: 5个 Bot
+        - 专业版: 20个 Bot
+        - 企业版: 无限
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBotRequest'
+            examples:
+              simple:
+                summary: 简单创建
+                value:
+                  name: "客服助手"
+                  description: "智能客服助手"
+                  avatar: "https://cdn.zker.com/avatars/bot.png"
+              advanced:
+                summary: 高级配置
+                value:
+                  name: "销售顾问"
+                  description: "智能销售顾问 Bot"
+                  avatar: "https://cdn.zker.com/avatars/sales.png"
+                  model_config:
+                    model_id: "gpt-4"
+                    temperature: 0.7
+                    max_tokens: 2000
+                  prompt_config:
+                    system_prompt: "你是一个专业的销售顾问..."
+                    welcome_message: "您好,我是您的专属销售顾问"
+
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotDetail'
+              examples:
+                success:
+                  summary: 创建成功
+                  value:
+                    code: "SUCCESS"
+                    message: "Bot 创建成功"
+                    data:
+                      bot_id: "bot_123"
+                      name: "客服助手"
+                      description: "智能客服助手"
+                      status: "draft"
+                      created_at: "2025-01-01T12:00:00Z"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '409':
+          description: Bot 名称冲突
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                name_exists:
+                  summary: Bot 名称已存在
+                  value:
+                    code: "BOT402"
+                    message: "Bot 名称在同一租户内已存在"
+
+        '422':
+          description: 配额超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quota_exceeded:
+                  summary: Bot 数量超限
+                  value:
+                    code: "BOT401"
+                    message: "Bot 数量超过租户配额,请升级订阅方案"
+
+  /api/v1/bots/{bot_id}:
+    get:
+      tags:
+        - Bots
+      summary: 获取 Bot 详情
+      description: |
+        获取指定 Bot 的详细信息
+
+        **权限要求**:
+        - Bot 所有者
+        - Bot 协作者
+        - 管理员
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          description: Bot ID
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotDetail'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+    put:
+      tags:
+        - Bots
+      summary: 更新 Bot
+      description: |
+        更新 Bot 信息
+
+        **权限要求**:
+        - Bot 所有者
+        - 管理员
+
+        **业务规则**:
+        - 已发布的 Bot 不能直接修改,需要创建新版本
+        - Bot 名称修改后仍需保持唯一性
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBotRequest'
+            examples:
+              basic:
+                summary: 基础信息更新
+                value:
+                  name: "客服助手 v2"
+                  description: "智能客服助手 - 升级版"
+              config:
+                summary: 配置更新
+                value:
+                  model_config:
+                    model_id: "gpt-4-turbo"
+                    temperature: 0.8
+                    max_tokens: 4000
+                  prompt_config:
+                    system_prompt: "你是一个专业的客服助手..."
+                    welcome_message: "您好,有什么可以帮助您的?"
+
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+        '409':
+          description: Bot 已发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                published:
+                  summary: Bot 已发布,不能修改
+                  value:
+                    code: "BOT501"
+                    message: "Bot 已发布,无法修改,请创建新版本"
+
+    delete:
+      tags:
+        - Bots
+      summary: 删除 Bot
+      description: |
+        删除指定 Bot (软删除)
+
+        **权限要求**:
+        - Bot 所有者
+        - 管理员
+
+        **业务规则**:
+        - 软删除,设置 deleted_at 字段
+        - Bot 的所有关联数据也会被软删除
+        - 已发布的 Bot 需要先下线才能删除
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+        '422':
+          description: Bot 状态不允许删除
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                published:
+                  summary: 已发布的 Bot 需要先下线
+                  value:
+                    code: "BOT502"
+                    message: "Bot 已发布,需要先下线才能删除"
+
+  /api/v1/bots/{bot_id}/publish:
+    post:
+      tags:
+        - Bots
+      summary: 发布 Bot
+      description: |
+        发布 Bot,使其可公开访问
+
+        **权限要求**:
+        - Bot 所有者
+        - 管理员
+
+        **业务规则**:
+        - Bot 必须通过审核才能发布
+        - 发布后 Bot 状态变为 published
+        - 发布后 Bot 不能直接修改,需要创建新版本
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                publish_channels:
+                  type: array
+                  items:
+                    type: string
+                  description: 发布渠道
+                  example: ["web", "wechat", "api"]
+            examples:
+              with_channels:
+                summary: 指定发布渠道
+                value:
+                  publish_channels: ["web", "api"]
+
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: object
+                        properties:
+                          publish_id:
+                            type: string
+                            description: 发布记录 ID
+                          status:
+                            type: string
+                            enum: [pending, approved, rejected]
+                            description: 发布状态
+              examples:
+                success:
+                  summary: 发布成功
+                  value:
+                    code: "SUCCESS"
+                    message: "Bot 发布成功"
+                    data:
+                      publish_id: "pub_123"
+                      status: "approved"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+        '422':
+          description: Bot 状态不允许发布
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                audit_failed:
+                  summary: 审核未通过
+                  value:
+                    code: "BOT407"
+                    message: "Bot 发布审核未通过,请修改后重新提交"
+
+  /api/v1/bots/{bot_id}/versions:
+    get:
+      tags:
+        - Bots
+      summary: 获取 Bot 版本列表
+      description: 获取指定 Bot 的所有版本
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/BotVersion'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+    post:
+      tags:
+        - Bots
+      summary: 创建 Bot 新版本
+      description: |
+        为 Bot 创建新版本
+
+        **权限要求**:
+        - Bot 所有者
+        - 管理员
+
+        **业务规则**:
+        - 新版本基于当前版本
+        - 版本号自动递增
+        - 可以在新版本中修改配置
+
+      parameters:
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                changes:
+                  type: string
+                  description: 版本变更说明
+                  example: "优化了模型参数,更新了提示词"
+                config:
+                  type: object
+                  description: 新版本配置
+                  properties:
+                    model_config:
+                      $ref: '#/components/schemas/ModelConfig'
+                    prompt_config:
+                      $ref: '#/components/schemas/PromptConfig'
+            examples:
+              with_changes:
+                summary: 带变更说明
+                value:
+                  changes: "优化了模型参数"
+
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/BotVersion'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+  # ========================================
+  # 会话管理模块 (Conversations)
+  # ========================================
+  /api/v1/conversations:
+    get:
+      tags:
+        - Conversations
+      summary: 获取会话列表
+      description: |
+        分页获取当前用户的会话列表
+
+        **权限要求**:
+        - 需要登录
+
+        **业务规则**:
+        - 只返回当前用户的会话
+        - 按最后更新时间排序
+
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: bot_id
+          in: query
+          description: 筛选指定 Bot 的会话
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: 会话状态筛选
+          schema:
+            type: string
+            enum: [active, closed, archived]
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConversationListResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Conversations
+      summary: 创建会话
+      description: |
+        创建新的会话
+
+        **权限要求**:
+        - 需要登录
+
+        **业务规则**:
+        - 自动分配会话 ID
+        - 初始状态为 active
+        - 如果指定 Bot,会关联到该 Bot
+
+        **配额限制**:
+        - 免费版: 100个会话
+        - 基础版: 1000个会话
+        - 专业版: 10000个会话
+        - 企业版: 无限
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateConversationRequest'
+            examples:
+              simple:
+                summary: 简单创建
+                value:
+                  title: "新对话"
+              with_bot:
+                summary: 创建并关联 Bot
+                value:
+                  title: "客服咨询"
+                  bot_id: "bot_123"
+                  initial_message: "你好,我需要帮助"
+
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConversationDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: Bot 不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "BOT300"
+
+        '422':
+          description: 配额超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quota_exceeded:
+                  value:
+                    code: "CONV400"
+                    message: "会话数量超过租户配额,请升级订阅方案"
+
+  /api/v1/conversations/{conversation_id}:
+    get:
+      tags:
+        - Conversations
+      summary: 获取会话详情
+      description: 获取指定会话的详细信息和消息历史
+
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: include_messages
+          in: query
+          description: 是否包含消息历史
+          schema:
+            type: boolean
+            default: true
+        - name: page
+          in: query
+          description: 消息分页页码
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          description: 消息分页每页数量
+          schema:
+            type: integer
+            default: 50
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConversationDetail'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "CONV300"
+
+    put:
+      tags:
+        - Conversations
+      summary: 更新会话
+      description: 更新会话信息(标题、状态等)
+
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateConversationRequest'
+            examples:
+              update_title:
+                summary: 更新标题
+                value:
+                  title: "新标题"
+              close:
+                summary: 关闭会话
+                value:
+                  status: "closed"
+
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ConversationDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "CONV300"
+
+        '422':
+          description: 会话状态不允许该操作
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                already_closed:
+                  summary: 会话已关闭
+                  value:
+                    code: "CONV404"
+                    message: "会话已关闭,无法继续发送消息"
+
+    delete:
+      tags:
+        - Conversations
+      summary: 删除会话
+      description: |
+        删除指定会话 (软删除)
+
+        **业务规则**:
+        - 软删除,设置 deleted_at 字段
+        - 会话的所有消息也会被软删除
+
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "CONV300"
+
+  /api/v1/conversations/{conversation_id}/messages:
+    get:
+      tags:
+        - Conversations
+      summary: 获取会话消息列表
+      description: 分页获取会话的所有消息
+
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: order
+          in: query
+          description: 排序方向
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: asc
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/MessageListResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "CONV300"
+
+    post:
+      tags:
+        - Conversations
+      summary: 发送消息
+      description: |
+        向会话发送新消息
+
+        **业务规则**:
+        - 自动处理消息内容和附件
+        - 调用 Bot 生成回复(如果会话关联了 Bot)
+        - 支持流式返回 Bot 回复
+
+        **限制**:
+        - 消息长度: 最大 10000 字符
+        - 附件大小: 单个文件最大 10MB
+        - 发送频率: 10条/分钟
+
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendMessageRequest'
+            examples:
+              text_only:
+                summary: 纯文本消息
+                value:
+                  content: "你好,有什么可以帮助您的?"
+              with_attachments:
+                summary: 带附件的消息
+                value:
+                  content: "请分析这个图片"
+                  content_type: "multimodal"
+                  attachments:
+                    - type: "image"
+                      url: "https://cdn.zker.com/uploads/image.png"
+                      name: "image.png"
+              stream:
+                summary: 流式返回
+                value:
+                  content: "生成一篇长文章"
+                  stream: true
+
+      responses:
+        '200':
+          description: 消息发送成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/SendMessageResponse'
+
+        '400':
+          description: 请求参数错误
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                content_too_long:
+                  summary: 消息过长
+                  value:
+                    code: "CONV401"
+                    message: "消息长度超过限制(最大10000字符)"
+                file_too_large:
+                  summary: 文件过大
+                  value:
+                    code: "CONV402"
+                    message: "附件文件大小超过限制(最大10MB)"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+        '404':
+          description: 会话不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "CONV300"
+
+        '422':
+          description: 会话状态不允许发送消息
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                closed:
+                  summary: 会话已关闭
+                  value:
+                    code: "CONV404"
+
+        '429':
+          description: 发送频率过高
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                rate_limit:
+                  summary: 发送太频繁
+                  value:
+                    code: "CONV405"
+                    message: "消息发送频率超过限制,请稍后再试"
+
+  # ========================================
+  # 知识库管理模块 (Knowledge)
+  # ========================================
+  /api/v1/knowledge-bases:
+    get:
+      tags:
+        - Knowledge
+      summary: 获取知识库列表
+      description: 分页获取当前租户的知识库列表
+
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: page_size
+          in: query
+          schema:
+            type: integer
+            default: 20
+        - name: keyword
+          in: query
+          description: 搜索关键词
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: 知识库类型筛选
+          schema:
+            type: string
+            enum: [text, image, table, qa]
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KnowledgeBaseListResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags:
+        - Knowledge
+      summary: 创建知识库
+      description: |
+        创建新的知识库
+
+        **配额限制**:
+        - 免费版: 1个知识库
+        - 基础版: 5个知识库
+        - 专业版: 20个知识库
+        - 企业版: 无限
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKnowledgeBaseRequest'
+            examples:
+              text_kb:
+                summary: 文本知识库
+                value:
+                  name: "产品文档"
+                  description: "产品相关文档"
+                  type: "text"
+                  chunk_strategy:
+                    chunk_size: 500
+                    overlap: 50
+
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KnowledgeBaseDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '422':
+          description: 配额超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quota_exceeded:
+                  value:
+                    code: "KNW400"
+                    message: "知识库数量超过租户配额"
+
+  /api/v1/knowledge-bases/{knowledge_base_id}:
+    get:
+      tags:
+        - Knowledge
+      summary: 获取知识库详情
+
+      parameters:
+        - name: knowledge_base_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KnowledgeBaseDetail'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 知识库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "KNW300"
+
+    put:
+      tags:
+        - Knowledge
+      summary: 更新知识库
+
+      parameters:
+        - name: knowledge_base_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateKnowledgeBaseRequest'
+
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/KnowledgeBaseDetail'
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 知识库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "KNW300"
+
+    delete:
+      tags:
+        - Knowledge
+      summary: 删除知识库
+
+      parameters:
+        - name: knowledge_base_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 知识库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "KNW300"
+
+  /api/v1/knowledge-bases/{knowledge_base_id}/documents:
+    post:
+      tags:
+        - Knowledge
+      summary: 上传文档到知识库
+      description: |
+        上传文档到知识库
+
+        **业务规则**:
+        - 自动解析文档内容
+        - 自动分块
+        - 自动向量化
+
+        **限制**:
+        - 文件大小: 单个文件最大 50MB
+        - 文档数量: 免费版100个,专业版1000个,企业版无限
+
+      parameters:
+        - name: knowledge_base_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文档文件
+                name:
+                  type: string
+                  description: 自定义文档名称
+                metadata:
+                  type: string
+                  description: 文档元数据 (JSON string)
+
+      responses:
+        '201':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/DocumentDetail'
+
+        '400':
+          description: 文件格式不支持或过大
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                invalid_format:
+                  summary: 不支持的文件格式
+                  value:
+                    code: "KNW403"
+                    message: "不支持的文档格式"
+                file_too_large:
+                  summary: 文件过大
+                  value:
+                    code: "KNW402"
+                    message: "文档大小超过限制(最大50MB)"
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 知识库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "KNW300"
+
+        '422':
+          description: 文档数量超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quota_exceeded:
+                  value:
+                    code: "KNW401"
+                    message: "文档数量超过租户配额,请升级订阅方案"
+
+  /api/v1/knowledge-bases/{knowledge_base_id}/search:
+    post:
+      tags:
+        - Knowledge
+      summary: 检索知识库
+      description: |
+        在知识库中检索相关内容
+
+        **业务规则**:
+        - 使用混合检索(向量+关键词)
+        - 返回最相关的 Top-K 结果
+
+        **参数**:
+        - top_k: 返回结果数 (1-20,默认5)
+        - score_threshold: 相似度阈值 (0-1,默认0.7)
+
+      parameters:
+        - name: knowledge_base_id
+          in: path
+          required: true
+          schema:
+            type: string
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  description: 检索问题
+                  example: "如何重置密码?"
+                top_k:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+                  default: 5
+                  description: 返回结果数
+                score_threshold:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 1
+                  default: 0.7
+                  description: 相似度阈值
+            examples:
+              simple:
+                summary: 简单检索
+                value:
+                  query: "如何重置密码?"
+              advanced:
+                summary: 高级检索
+                value:
+                  query: "如何重置密码?"
+                  top_k: 10
+                  score_threshold: 0.8
+
+      responses:
+        '200':
+          description: 检索成功
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/KnowledgeChunk'
+              examples:
+                success:
+                  summary: 检索成功
+                  value:
+                    code: "SUCCESS"
+                    message: "检索成功"
+                    data:
+                      - chunk_id: "chunk_123"
+                        content: "重置密码的步骤如下..."
+                        score: 0.95
+                        document:
+                          document_id: "doc_123"
+                          name: "用户手册.pdf"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+        '404':
+          description: 知识库不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  value:
+                    code: "KNW300"
+
+# ========================================
+# 组件定义 (Components)
+# ========================================
+components:
+  # ========================================
+  # 安全方案 (Security Schemes)
+  # ========================================
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT Token 认证
+
+        在 Header 中携带:
+        ```
+        Authorization: Bearer <access_token>
+        ```
+
+  # ========================================
+  # 通用 Schema (Common Schemas)
+  # ========================================
+  schemas:
+    # 通用 API 响应
+    ApiResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: 响应码
+          example: "SUCCESS"
+        message:
+          type: string
+          description: 响应消息
+          example: "操作成功"
+        message_zh:
+          type: string
+          description: 中文消息
+        message_en:
+          type: string
+          description: 英文消息
+        request_id:
+          type: string
+          description: 请求追踪 ID
+          example: "req_1234567890"
+        timestamp:
+          type: string
+          format: date-time
+          description: 响应时间戳
+          example: "2025-01-01T12:00:00Z"
+
+    # 错误响应
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: 错误码
+          example: "AUTH201"
+        message:
+          type: string
+          description: 错误消息
+          example: "用户名或密码错误"
+        message_zh:
+          type: string
+          description: 中文错误消息
+        message_en:
+          type: string
+          description: 英文错误消息
+        details:
+          type: object
+          description: 错误详情
+          additionalProperties: true
+        request_id:
+          type: string
+          description: 请求追踪 ID
+        timestamp:
+          type: string
+          format: date-time
+
+    # 分页响应
+    PaginatedResponse:
+      type: object
+      required:
+        - items
+        - total
+        - page
+        - page_size
+      properties:
+        items:
+          type: array
+          items: {}
+          description: 数据列表
+        total:
+          type: integer
+          description: 总数
+        page:
+          type: integer
+          description: 当前页码
+        page_size:
+          type: integer
+          description: 每页数量
+        total_pages:
+          type: integer
+          description: 总页数
+        has_more:
+          type: boolean
+          description: 是否有更多数据
+
+    # ========================================
+    # 认证模块 Schemas
+    # ========================================
+    # 注册请求
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+        - password_confirm
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 20
+          pattern: '^[a-zA-Z0-9_]+$'
+          description: 用户名 (3-20位,字母数字下划线)
+          example: "zhangsan"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "zhangsan@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: 密码 (至少8位)
+          example: "Pass123456"
+        password_confirm:
+          type: string
+          description: 确认密码
+          example: "Pass123456"
+
+    # 登录请求
+    LoginRequest:
+      oneOf:
+        - type: object
+          required:
+            - username
+            - password
+          properties:
+            username:
+              type: string
+              description: 用户名
+            password:
+              type: string
+              description: 密码
+        - type: object
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              description: 邮箱
+            password:
+              type: string
+              description: 密码
+
+    # 认证响应
+    AuthResponse:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_in
+        - user
+      properties:
+        access_token:
+          type: string
+          description: 访问令牌
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: 刷新令牌
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expires_in:
+          type: integer
+          description: 访问令牌过期时间 (秒)
+          example: 7200
+        token_type:
+          type: string
+          default: "Bearer"
+          description: 令牌类型
+        user:
+          $ref: '#/components/schemas/UserDetail'
+
+    # ========================================
+    # 用户模块 Schemas
+    # ========================================
+    # 用户详情
+    UserDetail:
+      type: object
+      required:
+        - user_id
+        - username
+        - email
+        - status
+      properties:
+        user_id:
+          type: string
+          description: 用户 ID
+          example: "user_123"
+        tenant_id:
+          type: string
+          description: 租户 ID
+          example: "tenant_456"
+        username:
+          type: string
+          description: 用户名
+          example: "zhangsan"
+        email:
+          type: string
+          format: email
+          description: 邮箱
+          example: "zhangsan@example.com"
+        nickname:
+          type: string
+          description: 昵称
+          example: "张三"
+        avatar:
+          type: string
+          format: uri
+          description: 头像 URL
+          example: "https://cdn.zker.com/avatars/user_123.png"
+        bio:
+          type: string
+          description: 个人简介
+          example: "AI 开发者"
+        status:
+          type: string
+          enum: [active, inactive, locked]
+          description: 用户状态
+        role:
+          type: string
+          description: 主要角色
+          example: "admin"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+
+    # 用户列表响应
+    UserListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserDetail'
+
+    # 更新用户请求
+    UpdateUserRequest:
+      type: object
+      properties:
+        nickname:
+          type: string
+          maxLength: 50
+          description: 昵称
+        avatar:
+          type: string
+          format: uri
+          description: 头像 URL
+        bio:
+          type: string
+          maxLength: 200
+          description: 个人简介
+
+    # 修改密码请求
+    ChangePasswordRequest:
+      type: object
+      required:
+        - old_password
+        - new_password
+        - new_password_confirm
+      properties:
+        old_password:
+          type: string
+          minLength: 8
+          description: 旧密码
+        new_password:
+          type: string
+          minLength: 8
+          description: 新密码
+        new_password_confirm:
+          type: string
+          minLength: 8
+          description: 确认新密码
+
+    # 角色
+    Role:
+      type: object
+      required:
+        - role_id
+        - name
+        - code
+      properties:
+        role_id:
+          type: string
+          description: 角色 ID
+        name:
+          type: string
+          description: 角色名称
+        code:
+          type: string
+          description: 角色代码
+        description:
+          type: string
+          description: 角色描述
+        is_system:
+          type: boolean
+          description: 是否系统角色
+        permissions:
+          type: array
+          items:
+            type: string
+          description: 权限列表
+
+    # ========================================
+    # Bot 模块 Schemas
+    # ========================================
+    # Bot 详情
+    BotDetail:
+      type: object
+      required:
+        - bot_id
+        - name
+        - status
+        - created_at
+      properties:
+        bot_id:
+          type: string
+          description: Bot ID
+        tenant_id:
+          type: string
+          description: 租户 ID
+        name:
+          type: string
+          description: Bot 名称
+        description:
+          type: string
+          description: Bot 描述
+        avatar:
+          type: string
+          format: uri
+          description: Bot 头像
+        status:
+          type: string
+          enum: [draft, published, archived]
+          description: Bot 状态
+        model_config:
+          $ref: '#/components/schemas/ModelConfig'
+        prompt_config:
+          $ref: '#/components/schemas/PromptConfig'
+        created_by:
+          type: string
+          description: 创建者 ID
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # 模型配置
+    ModelConfig:
+      type: object
+      required:
+        - model_id
+      properties:
+        model_id:
+          type: string
+          description: 模型 ID
+          example: "gpt-4-turbo-preview"
+        temperature:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 2
+          default: 0.7
+          description: 温度参数 (0-2)
+        max_tokens:
+          type: integer
+          minimum: 1
+          maximum: 128000
+          default: 2000
+          description: 最大 Token 数
+        top_p:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          default: 1
+          description: Top-P 采样
+        frequency_penalty:
+          type: number
+          format: float
+          minimum: -2
+          maximum: 2
+          default: 0
+          description: 频率惩罚
+        presence_penalty:
+          type: number
+          format: float
+          minimum: -2
+          maximum: 2
+          default: 0
+          description: 存在惩罚
+
+    # 提示词配置
+    PromptConfig:
+      type: object
+      properties:
+        system_prompt:
+          type: string
+          description: 系统提示词
+        welcome_message:
+          type: string
+          description: 欢迎语
+        suggested_questions:
+          type: array
+          items:
+            type: string
+          description: 建议问题列表
+
+    # 创建 Bot 请求
+    CreateBotRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Bot 名称
+        description:
+          type: string
+          maxLength: 500
+          description: Bot 描述
+        avatar:
+          type: string
+          format: uri
+          description: Bot 头像 URL
+        model_config:
+          $ref: '#/components/schemas/ModelConfig'
+        prompt_config:
+          $ref: '#/components/schemas/PromptConfig'
+
+    # 更新 Bot 请求
+    UpdateBotRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        avatar:
+          type: string
+          format: uri
+        model_config:
+          $ref: '#/components/schemas/ModelConfig'
+        prompt_config:
+          $ref: '#/components/schemas/PromptConfig'
+
+    # Bot 列表响应
+    BotListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/BotDetail'
+
+    # Bot 版本
+    BotVersion:
+      type: object
+      required:
+        - version_id
+        - version_number
+        - created_at
+      properties:
+        version_id:
+          type: string
+          description: 版本 ID
+        version_number:
+          type: integer
+          description: 版本号
+        changes:
+          type: string
+          description: 版本变更说明
+        config:
+          type: object
+          description: 版本配置
+        created_by:
+          type: string
+          description: 创建者 ID
+        created_at:
+          type: string
+          format: date-time
+
+    # ========================================
+    # 会话模块 Schemas
+    # ========================================
+    # 会话详情
+    ConversationDetail:
+      type: object
+      required:
+        - conversation_id
+        - user_id
+        - status
+        - created_at
+      properties:
+        conversation_id:
+          type: string
+          description: 会话 ID
+        bot_id:
+          type: string
+          description: 关联的 Bot ID
+        user_id:
+          type: string
+          description: 用户 ID
+        title:
+          type: string
+          description: 会话标题
+        status:
+          type: string
+          enum: [active, closed, archived]
+          description: 会话状态
+        message_count:
+          type: integer
+          description: 消息数量
+        last_message_at:
+          type: string
+          format: date-time
+          description: 最后消息时间
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+          description: 消息列表
+
+    # 消息
+    Message:
+      type: object
+      required:
+        - message_id
+        - role
+        - content
+        - created_at
+      properties:
+        message_id:
+          type: string
+          description: 消息 ID
+        conversation_id:
+          type: string
+          description: 会话 ID
+        role:
+          type: string
+          enum: [user, assistant, system]
+          description: 角色
+        content:
+          type: string
+          description: 消息内容
+        content_type:
+          type: string
+          enum: [text, image, file, multimodal, function_call]
+          description: 内容类型
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+          description: 附件列表
+        metadata:
+          type: object
+          description: 元数据
+        created_at:
+          type: string
+          format: date-time
+
+    # 附件
+    Attachment:
+      type: object
+      required:
+        - type
+        - url
+      properties:
+        type:
+          type: string
+          enum: [image, file, video, audio]
+          description: 附件类型
+        url:
+          type: string
+          format: uri
+          description: 附件 URL
+        name:
+          type: string
+          description: 文件名
+        size:
+          type: integer
+          description: 文件大小 (字节)
+        mime_type:
+          type: string
+          description: MIME 类型
+
+    # 会话列表响应
+    ConversationListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/ConversationDetail'
+
+    # 创建会话请求
+    CreateConversationRequest:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 会话标题
+        bot_id:
+          type: string
+          description: 关联的 Bot ID
+        initial_message:
+          type: string
+          description: 初始消息
+
+    # 更新会话请求
+    UpdateConversationRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 100
+        status:
+          type: string
+          enum: [active, closed, archived]
+
+    # 发送消息请求
+    SendMessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: 消息内容
+        content_type:
+          type: string
+          enum: [text, multimodal]
+          default: text
+          description: 内容类型
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/Attachment'
+          description: 附件列表
+        stream:
+          type: boolean
+          default: false
+          description: 是否流式返回
+
+    # 发送消息响应
+    SendMessageResponse:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          $ref: '#/components/schemas/Message'
+        reply:
+          $ref: '#/components/schemas/Message'
+          description: Bot 回复 (如果非流式)
+        stream_id:
+          type: string
+          description: 流式返回 ID (如果流式)
+
+    # 消息列表响应
+    MessageListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+
+    # ========================================
+    # 知识库模块 Schemas
+    # ========================================
+    # 知识库详情
+    KnowledgeBaseDetail:
+      type: object
+      required:
+        - knowledge_base_id
+        - name
+        - type
+        - created_at
+      properties:
+        knowledge_base_id:
+          type: string
+          description: 知识库 ID
+        tenant_id:
+          type: string
+          description: 租户 ID
+        name:
+          type: string
+          description: 知识库名称
+        description:
+          type: string
+          description: 知识库描述
+        type:
+          type: string
+          enum: [text, image, table, qa]
+          description: 知识库类型
+        document_count:
+          type: integer
+          description: 文档数量
+        chunk_count:
+          type: integer
+          description: 分块数量
+        chunk_strategy:
+          $ref: '#/components/schemas/ChunkStrategy'
+        created_by:
+          type: string
+          description: 创建者 ID
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # 分块策略
+    ChunkStrategy:
+      type: object
+      properties:
+        chunk_size:
+          type: integer
+          description: 分块大小 (字符数)
+          example: 500
+        overlap:
+          type: integer
+          description: 重叠大小 (字符数)
+          example: 50
+        separator:
+          type: string
+          description: 分隔符
+          example: "\n\n"
+
+    # 知识库列表响应
+    KnowledgeBaseListResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/KnowledgeBaseDetail'
+
+    # 创建知识库请求
+    CreateKnowledgeBaseRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: 知识库名称
+        description:
+          type: string
+          maxLength: 500
+          description: 知识库描述
+        type:
+          type: string
+          enum: [text, image, table, qa]
+          description: 知识库类型
+        chunk_strategy:
+          $ref: '#/components/schemas/ChunkStrategy'
+
+    # 更新知识库请求
+    UpdateKnowledgeBaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        chunk_strategy:
+          $ref: '#/components/schemas/ChunkStrategy'
+
+    # 文档详情
+    DocumentDetail:
+      type: object
+      required:
+        - document_id
+        - name
+        - status
+        - created_at
+      properties:
+        document_id:
+          type: string
+          description: 文档 ID
+        knowledge_base_id:
+          type: string
+          description: 知识库 ID
+        name:
+          type: string
+          description: 文档名称
+        type:
+          type: string
+          description: 文档类型
+        size:
+          type: integer
+          description: 文件大小 (字节)
+        status:
+          type: string
+          enum: [pending, processing, completed, failed]
+          description: 处理状态
+        chunk_count:
+          type: integer
+          description: 分块数量
+        error:
+          type: string
+          description: 错误信息 (如果失败)
+        created_at:
+          type: string
+          format: date-time
+
+    # 知识分块
+    KnowledgeChunk:
+      type: object
+      required:
+        - chunk_id
+        - content
+        - score
+      properties:
+        chunk_id:
+          type: string
+          description: 分块 ID
+        document_id:
+          type: string
+          description: 文档 ID
+        content:
+          type: string
+          description: 分块内容
+        score:
+          type: number
+          format: float
+          description: 相似度分数
+        metadata:
+          type: object
+          description: 元数据
+        document:
+          $ref: '#/components/schemas/DocumentDetail'
+
+  # ========================================
+  # 通用响应 (Responses)
+  # ========================================
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_params:
+              summary: 参数错误
+              value:
+                code: "SYS100"
+                message: "请求参数不正确"
+
+    Unauthorized:
+      description: 未授权
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_logged_in:
+              summary: 未登录
+              value:
+                code: "AUTH200"
+                message: "用户未登录或登录已过期"
+            invalid_token:
+              summary: Token 无效
+              value:
+                code: "AUTH202"
+                message: "Access token 无效或已过期"
+
+    Forbidden:
+      description: 权限不足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            no_permission:
+              summary: 权限不足
+              value:
+                code: "AUTH300"
+                message: "无权限访问该资源"
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            not_found:
+              summary: 资源不存在
+              value:
+                code: "SYS301"
+                message: "请求的资源不存在"
+
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internal_error:
+              summary: 内部错误
+              value:
+                code: "SYS500"
+                message: "系统内部错误,请联系管理员"
+
+    TooManyRequests:
+      description: 请求频率过高
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            rate_limit:
+              summary: 超出频率限制
+              value:
+                code: "API600"
+                message: "请求频率超过限制,请稍后再试"

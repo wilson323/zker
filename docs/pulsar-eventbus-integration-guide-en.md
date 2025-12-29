@@ -2,20 +2,20 @@
 
 ## Overview
 
-This document provides a comprehensive guide for integrating Apache Pulsar as an EventBus in Coze Studio, including architecture design, implementation details, configuration instructions, and usage guidelines.
+This document provides a comprehensive guide for integrating Apache Pulsar as an EventBus in zker, including architecture design, implementation details, configuration instructions, and usage guidelines.
 
 ## Integration Background
 
 ### Why Choose Pulsar?
 
-In Coze Studio's architecture, EventBus plays a critical role in asynchronous message delivery, including workflow execution, Agent communication, data processing pipelines, and other core functions. As user scale grows and business complexity increases, we need a more powerful and flexible message queue solution.
+In zker's architecture, EventBus plays a critical role in asynchronous message delivery, including workflow execution, Agent communication, data processing pipelines, and other core functions. As user scale grows and business complexity increases, we need a more powerful and flexible message queue solution.
 
-Pulsar, as a next-generation distributed messaging system, brings the following core advantages to Coze Studio:
+Pulsar, as a next-generation distributed messaging system, brings the following core advantages to zker:
 
-1. **High Performance**: Pulsar provides low-latency, high-throughput messaging that can support Coze Studio's large-scale concurrent Agent execution and workflow processing
-2. **Multi-tenancy**: Native support for multi-tenant architecture, perfectly matching Coze Studio's multi-user, multi-workspace business model
+1. **High Performance**: Pulsar provides low-latency, high-throughput messaging that can support zker's large-scale concurrent Agent execution and workflow processing
+2. **Multi-tenancy**: Native support for multi-tenant architecture, perfectly matching zker's multi-user, multi-workspace business model
 3. **Persistence**: Supports message persistence storage, ensuring the reliability of Agent execution states and workflow data, preventing task loss due to system restarts
-4. **Horizontal Scaling**: Supports separation of compute and storage, easy to scale horizontally, enabling smooth scaling as Coze Studio's user base grows
+4. **Horizontal Scaling**: Supports separation of compute and storage, easy to scale horizontally, enabling smooth scaling as zker's user base grows
 5. **Message Ordering**: Pulsar provides strong consistency and message ordering guarantees, ensuring that Agent workflow steps execute in the correct sequence, preventing state confusion and data inconsistency
 6. **Rich Features**: Supports message deduplication, delayed messages, dead letter queues, and other advanced features, providing stronger reliability guarantees for complex AI workflows
 
@@ -46,7 +46,7 @@ Pulsar, as a next-generation distributed messaging system, brings the following 
 - **RocketMQ**: While supporting dynamic scaling, the coordination mechanism between NameServer and Broker is relatively complex
 - **NSQ**: Single-machine architecture limits scaling capabilities, can only improve throughput by increasing Topic count
 
-This excellent scaling capability makes Pulsar particularly suitable for scenarios like Coze Studio with rapid user growth and fluctuating business loads.
+This excellent scaling capability makes Pulsar particularly suitable for scenarios like zker with rapid user growth and fluctuating business loads.
 
 ## Architecture Design
 
@@ -54,7 +54,7 @@ This excellent scaling capability makes Pulsar particularly suitable for scenari
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │  Pulsar         │    │   EventBus      │
+│   zker   │    │  Pulsar         │    │   EventBus      │
 │   Application   │───▶│   Client        │───▶│   Manager       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
@@ -186,8 +186,8 @@ For detailed cluster deployment configuration, please refer to the [Apache Pulsa
 
 ```bash
 # Clone the project
-git clone https://github.com/coze-dev/coze-studio.git
-cd coze-studio
+git clone https://github.com/coze-dev/zker.git
+cd zker
 ```
 
 ### 2. Modify Docker Compose Configuration
@@ -222,7 +222,7 @@ services:
 
 ### 3. Configure Environment Variables
 
-Modify the `.env` file to configure Coze Studio to use Pulsar:
+Modify the `.env` file to configure zker to use Pulsar:
 
 ```bash
 # Enter docker directory
@@ -245,7 +245,7 @@ MQ_NAME_SERVER=pulsar://pulsar:6650
 ### 4. Start Services
 
 ```bash
-# Start complete Coze Studio services including Pulsar
+# Start complete zker services including Pulsar
 docker-compose up -d
 
 # Check service startup status
@@ -270,10 +270,10 @@ docker exec -it coze-pulsar bin/pulsar-admin clusters list
 
 ### 6. Access Services
 
-- **Coze Studio**: `http://localhost:3000` (based on actual configuration)
+- **zker**: `http://localhost:3000` (based on actual configuration)
 - **Pulsar Admin**: `http://localhost:8080`
 
-Now Coze Studio has successfully integrated Pulsar as the message queue, and all EventBus functionality will be handled through Pulsar.
+Now zker has successfully integrated Pulsar as the message queue, and all EventBus functionality will be handled through Pulsar.
 
 ## Appendix
 
@@ -299,7 +299,7 @@ For more information, please refer to: [ASP Community Edition Documentation](htt
 #### 1. Design Principles
 
 **Architecture Compatibility Design**:
-- Strictly follows Coze Studio EventBus interface specifications for seamless integration
+- Strictly follows zker EventBus interface specifications for seamless integration
 - Uses factory pattern for unified management of multiple MQ systems
 - Maintains interface consistency with NSQ, Kafka, and RocketMQ implementations
 
@@ -391,7 +391,7 @@ docker exec -it coze-pulsar bin/pulsar-admin topics stats persistent://public/de
 docker logs coze-pulsar
 
 # View Pulsar-related information in application logs
-tail -f logs/coze-studio.log | grep -i "pulsar\|eventbus"
+tail -f logs/zker.log | grep -i "pulsar\|eventbus"
 
 # Enable verbose logging
 # Set rootLogLevel=DEBUG in Pulsar configuration
@@ -452,7 +452,7 @@ PULSAR_JWT_TOKEN=your-jwt-token
 
 ## Summary
 
-The Apache Pulsar EventBus integration in Coze Studio achieves the following goals:
+The Apache Pulsar EventBus integration in zker achieves the following goals:
 
 1. **High Performance**: Supports high-throughput, low-latency messaging
 2. **High Reliability**: Message persistence storage with acknowledgment mechanisms
@@ -460,11 +460,11 @@ The Apache Pulsar EventBus integration in Coze Studio achieves the following goa
 4. **Easy Operations**: Rich management tools and monitoring metrics
 5. **Enterprise-grade**: Multi-tenancy support for enterprise applications
 
-Through this integration, Coze Studio provides users with a high-performance, highly reliable, and easily scalable message queue solution, particularly suitable for scenarios requiring high throughput, low latency, and enterprise-grade features.
+Through this integration, zker provides users with a high-performance, highly reliable, and easily scalable message queue solution, particularly suitable for scenarios requiring high throughput, low latency, and enterprise-grade features.
 
 ## Related Links
 
 - [Apache Pulsar Official Documentation](https://pulsar.apache.org/docs/)
 - [Pulsar Go Client Documentation](https://pulsar.apache.org/docs/client-libraries-go/)
 - [ASP Community Edition Documentation](https://ascentstream.com/docs/asp/asp-community/overview)
-- [Coze Studio Project Repository](https://github.com/coze-dev/coze-studio)
+- [zker Project Repository](https://github.com/coze-dev/zker)

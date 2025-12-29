@@ -1,0 +1,1622 @@
+openapi: 3.0.3
+info:
+  title: ZKER Enterprise API
+  description: |
+    ZKER Enterprise 企业级 Multi-Tenant SaaS AI 平台 API 文档
+
+    ## 功能概述
+    - 🤖 **AI对话管理**: 智能对话、多轮交互、插件调用
+    - 📊 **数据分析**: NL2SQL、数据可视化、智能分析
+    - ✍️ **AI写作**: AI写作、模板生成、多风格
+    - 🏢 **企业管理**: 组织架构、权限管理、数字员工
+    - 🔧 **开发平台**: Bot构建、工作流编辑、插件开发
+    - 📈 **监控运维**: 性能监控、日志分析、告警管理
+
+    ## 认证方式
+    API 使用 Bearer Token 进行认证：
+    ```
+    Authorization: Bearer {token}
+    ```
+
+    ## 租户识别
+    支持三种租户识别方式：
+    1. **Subdomain**: `{tenant}.zker.com`
+    2. **Path**: `/api/v1/{tenant}/...`
+    3. **Header**: `X-Tenant-ID: {tenant_id}`
+
+  version: 1.0.0
+  contact:
+    name: ZKER Enterprise Team
+    email: api@zker.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: https://api.zker.com/v1
+    description: 生产环境
+  - url: https://api-staging.zker.com/v1
+    description: 预发布环境
+  - url: http://localhost:8080/v1
+    description: 本地开发环境
+
+tags:
+  - name: auth
+    description: 认证授权
+  - name: conversations
+    description: AI对话管理
+  - name: bots
+    description: Bot管理
+  - name: knowledge
+    description: 知识库管理
+  - name: workflows
+    description: 工作流管理
+  - name: plugins
+    description: 插件管理
+  - name: analytics
+    description: 数据分析
+  - name: tenants
+    description: 租户管理
+  - name: users
+    description: 用户管理
+  - name: permissions
+    description: 权限管理
+  - name: monitoring
+    description: 监控运维
+
+paths:
+  # ==================== 认证授权 ====================
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: 用户登录
+      description: 使用用户名密码登录系统
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin@example.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+                tenant_id:
+                  type: string
+                  description: 租户ID（可选，用于多租户系统）
+                  example: tenant_001
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: 用户登出
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 登出成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - auth
+      summary: 刷新Token
+      description: 使用refresh token获取新的access token
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+                  description: 刷新令牌
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+
+  # ==================== Bot管理 ====================
+  /bots:
+    get:
+      tags:
+        - bots
+      summary: 获取Bot列表
+      description: 获取当前用户可访问的Bot列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, archived]
+          description: 按状态筛选
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: 搜索关键词
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: success
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Bot'
+                      total:
+                        type: integer
+                        example: 100
+                      page:
+                        type: integer
+                        example: 1
+                      page_size:
+                        type: integer
+                        example: 20
+
+    post:
+      tags:
+        - bots
+      summary: 创建Bot
+      description: 创建新的AI Bot
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotCreateRequest'
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/Bot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /bots/{bot_id}:
+    get:
+      tags:
+        - bots
+      summary: 获取Bot详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Bot ID
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/BotDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags:
+        - bots
+      summary: 更新Bot
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BotUpdateRequest'
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  message:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/Bot'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags:
+        - bots
+      summary: 删除Bot
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /bots/{bot_id}/publish:
+    post:
+      tags:
+        - bots
+      summary: 发布Bot
+      description: 将Bot发布到指定渠道
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - channels
+              properties:
+                channels:
+                  type: array
+                  items:
+                    type: string
+                    enum: [web, wechat, feishu, discord]
+                  example: ["web", "wechat"]
+                config:
+                  type: object
+                  description: 渠道配置信息
+                  properties:
+                    wechat_app_id:
+                      type: string
+                    wechat_app_secret:
+                      type: string
+      responses:
+        '200':
+          description: 发布成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ==================== 对话管理 ====================
+  /conversations:
+    post:
+      tags:
+        - conversations
+      summary: 创建对话
+      description: 创建新的对话会话
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bot_id
+              properties:
+                bot_id:
+                  type: string
+                  description: Bot ID
+                user_id:
+                  type: string
+                  description: 用户ID
+                metadata:
+                  type: object
+                  description: 元数据
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/Conversation'
+
+  /conversations/{conversation_id}/messages:
+    post:
+      tags:
+        - conversations
+      summary: 发送消息
+      description: 向对话发送消息并获取AI响应
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MessageRequest'
+      responses:
+        '200':
+          description: 消息发送成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+    get:
+      tags:
+        - conversations
+      summary: 获取对话消息历史
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Message'
+                      total:
+                        type: integer
+
+  # ==================== 知识库管理 ====================
+  /knowledge:
+    get:
+      tags:
+        - knowledge
+      summary: 获取知识库列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/KnowledgeBase'
+                      total:
+                        type: integer
+
+    post:
+      tags:
+        - knowledge
+      summary: 创建知识库
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - type
+              properties:
+                name:
+                  type: string
+                  example: "产品文档库"
+                description:
+                  type: string
+                  example: "公司产品相关文档"
+                type:
+                  type: string
+                  enum: [document, qa, dataset]
+                chunking_strategy:
+                  type: string
+                  enum: [fixed, semantic, recursive, hybrid]
+                  default: hybrid
+                  description: 分块策略
+                embedding_model:
+                  type: string
+                  default: text-embedding-ada-002
+                  description: 向量化模型
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/KnowledgeBase'
+
+  /knowledge/{knowledge_id}/documents:
+    post:
+      tags:
+        - knowledge
+      summary: 上传文档
+      description: 上传文档到知识库并自动进行向量化
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: knowledge_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: 文档文件（支持PDF、Word、TXT、MD等格式）
+                metadata:
+                  type: object
+                  description: 文档元数据
+      responses:
+        '200':
+          description: 上传成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    type: object
+                    properties:
+                      document_id:
+                        type: string
+                      status:
+                        type: string
+                        enum: [processing, completed, failed]
+                      chunk_count:
+                        type: integer
+                        description: 分块数量
+
+  # ==================== 数据分析 ====================
+  /bots/{bot_id}/metrics:
+    get:
+      tags:
+        - analytics
+      summary: 获取Bot指标数据
+      description: 获取Bot的关键性能指标和使用统计
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 开始日期 (YYYY-MM-DD)
+          example: "2025-01-01"
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: 结束日期 (YYYY-MM-DD)
+          example: "2025-01-31"
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [hour, day, week, month]
+            default: day
+          description: 时间粒度
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/BotMetrics'
+
+  /bots/{bot_id}/analytics:
+    get:
+      tags:
+        - analytics
+      summary: 获取Bot分析报告
+      description: 获取Bot的综合分析报告，包括用户行为、成本分析等
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: bot_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: report_type
+          in: query
+          schema:
+            type: string
+            enum: [usage, performance, cost, satisfaction]
+          description: 报告类型
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/BotAnalytics'
+
+  # ==================== 插件管理 ====================
+  /plugins:
+    get:
+      tags:
+        - plugins
+      summary: 获取插件列表
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/PageSize'
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [search, productivity, entertainment, tools]
+          description: 插件分类
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    type: object
+                    properties:
+                      items:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Plugin'
+                      total:
+                        type: integer
+
+  /plugins/{plugin_id}/install:
+    post:
+      tags:
+        - plugins
+      summary: 安装插件
+      description: 为Bot安装插件
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: plugin_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - bot_id
+              properties:
+                bot_id:
+                  type: string
+                config:
+                  type: object
+                  description: 插件配置
+      responses:
+        '200':
+          description: 安装成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+
+  # ==================== 租户管理 ====================
+  /tenants:
+    post:
+      tags:
+        - tenants
+      summary: 创建租户
+      description: 创建新的租户（仅超级管理员）
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - domain
+                - admin_email
+              properties:
+                name:
+                  type: string
+                  example: "示例企业"
+                domain:
+                  type: string
+                  example: "example"
+                  description: 租户域名（将生成 example.zker.com）
+                admin_email:
+                  type: string
+                  format: email
+                  example: "admin@example.com"
+                plan:
+                  type: string
+                  enum: [free, basic, professional, enterprise]
+                  default: basic
+                max_users:
+                  type: integer
+                  default: 100
+                  description: 最大用户数
+                max_bots:
+                  type: integer
+                  default: 10
+                  description: 最大Bot数
+      responses:
+        '200':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/Tenant'
+
+  /tenants/{tenant_id}:
+    get:
+      tags:
+        - tenants
+      summary: 获取租户详情
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/TenantDetail'
+
+  # ==================== 监控运维 ====================
+  /monitoring/metrics:
+    get:
+      tags:
+        - monitoring
+      summary: 获取系统监控指标
+      description: 获取系统整体监控指标
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: metric_type
+          in: query
+          schema:
+            type: string
+            enum: [qps, response_time, error_rate, resource_usage]
+          description: 指标类型
+        - name: time_range
+          in: query
+          schema:
+            type: string
+            enum: [1h, 6h, 24h, 7d, 30d]
+            default: 24h
+          description: 时间范围
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    $ref: '#/components/schemas/SystemMetrics'
+
+  /monitoring/logs:
+    get:
+      tags:
+        - monitoring
+      summary: 获取系统日志
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [debug, info, warn, error, fatal]
+          description: 日志级别
+        - name: service
+          in: query
+          schema:
+            type: string
+          description: 服务名称
+        - name: start_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 开始时间
+        - name: end_time
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: 结束时间
+      responses:
+        '200':
+          description: 获取成功
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: integer
+                    example: 0
+                  data:
+                    type: object
+                    properties:
+                      logs:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/LogEntry'
+                      total:
+                        type: integer
+
+# ==================== 组件定义 ====================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT Token认证，格式：Bearer {token}
+
+  parameters:
+    TenantId:
+      name: X-Tenant-ID
+      in: header
+      description: 租户ID
+      required: false
+      schema:
+        type: string
+      example: tenant_001
+
+    Page:
+      name: page
+      in: query
+      description: 页码
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PageSize:
+      name: page_size
+      in: query
+      description: 每页数量
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    # ==================== 通用响应 ====================
+    SuccessResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 响应码，0表示成功
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: success
+        data:
+          type: object
+          description: 响应数据
+
+    ErrorResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 10001
+        message:
+          type: string
+          description: 错误消息
+          example: 参数错误
+        details:
+          type: object
+          description: 错误详情
+
+    # ==================== 认证相关 ====================
+    LoginResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: success
+        data:
+          type: object
+          properties:
+            access_token:
+              type: string
+              description: 访问令牌
+            refresh_token:
+              type: string
+              description: 刷新令牌
+            expires_in:
+              type: integer
+              description: 过期时间（秒）
+              example: 7200
+            user:
+              $ref: '#/components/schemas/User'
+            tenant:
+              $ref: '#/components/schemas/Tenant'
+
+    # ==================== Bot相关 ====================
+    Bot:
+      type: object
+      properties:
+        id:
+          type: string
+          example: bot_123
+        name:
+          type: string
+          example: "客服助手"
+        description:
+          type: string
+          example: "智能客服Bot"
+        avatar:
+          type: string
+          format: uri
+          example: "https://cdn.zker.com/avatars/bot_123.png"
+        status:
+          type: string
+          enum: [active, inactive, archived]
+          example: active
+        type:
+          type: string
+          enum: [chat, workflow, agent]
+          example: chat
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    BotDetail:
+      allOf:
+        - type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+            avatar:
+              type: string
+            status:
+              type: string
+            type:
+              type: string
+        - type: object
+          properties:
+            prompt_template:
+              type: string
+              description: 提示词模板
+            model_config:
+              type: object
+              description: 模型配置
+              properties:
+                model:
+                  type: string
+                  example: "gpt-4"
+                temperature:
+                  type: number
+                  minimum: 0
+                  maximum: 2
+                  example: 0.7
+                max_tokens:
+                  type: integer
+                  example: 2000
+            plugins:
+              type: array
+              items:
+                $ref: '#/components/schemas/Plugin'
+            knowledge_bases:
+              type: array
+              items:
+                $ref: '#/components/schemas/KnowledgeBase'
+            statistics:
+              $ref: '#/components/schemas/BotStatistics'
+
+    BotCreateRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        type:
+          type: string
+          enum: [chat, workflow, agent]
+        prompt_template:
+          type: string
+        model_config:
+          type: object
+          properties:
+            model:
+              type: string
+            temperature:
+              type: number
+            max_tokens:
+              type: integer
+
+    BotUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 500
+        status:
+          type: string
+          enum: [active, inactive, archived]
+        prompt_template:
+          type: string
+        model_config:
+          type: object
+
+    BotStatistics:
+      type: object
+      properties:
+        total_conversations:
+          type: integer
+          description: 总对话数
+          example: 10000
+        total_messages:
+          type: integer
+          description: 总消息数
+          example: 50000
+        active_users:
+          type: integer
+          description: 活跃用户数
+          example: 500
+        avg_response_time:
+          type: number
+          description: 平均响应时间(ms)
+          example: 1200
+        satisfaction_score:
+          type: number
+          description: 满意度评分(0-5)
+          example: 4.5
+
+    BotMetrics:
+      type: object
+      properties:
+        conversation_count:
+          type: integer
+          description: 对话次数
+        message_count:
+          type: integer
+          description: 消息数量
+        active_users:
+          type: integer
+          description: 活跃用户数
+        token_consumption:
+          type: integer
+          description: Token消耗量
+        avg_response_time:
+          type: number
+          description: 平均响应时间(ms)
+        error_rate:
+          type: number
+          description: 错误率
+        timeline:
+          type: array
+          description: 时间线数据
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              metrics:
+                $ref: '#/components/schemas/BotMetrics'
+
+    BotAnalytics:
+      type: object
+      properties:
+        usage_analytics:
+          type: object
+          description: 使用分析
+          properties:
+            top_users:
+              type: array
+              items:
+                type: object
+                properties:
+                  user_id:
+                    type: string
+                  message_count:
+                    type: integer
+            peak_hours:
+              type: array
+              items:
+                type: object
+                properties:
+                  hour:
+                    type: integer
+                  count:
+                    type: integer
+        performance_analytics:
+          type: object
+          description: 性能分析
+          properties:
+            p50_response_time:
+              type: number
+            p95_response_time:
+              type: number
+            p99_response_time:
+              type: number
+        cost_analytics:
+          type: object
+          description: 成本分析
+          properties:
+            total_cost:
+              type: number
+            cost_per_conversation:
+              type: number
+            cost_by_model:
+              type: object
+              additionalProperties:
+                type: number
+
+    # ==================== 对话相关 ====================
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        bot_id:
+          type: string
+        user_id:
+          type: string
+        status:
+          type: string
+          enum: [active, closed, archived]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MessageRequest:
+      type: object
+      required:
+        - content
+      properties:
+        content:
+          type: string
+          description: 消息内容
+          minLength: 1
+          maxLength: 10000
+        content_type:
+          type: string
+          enum: [text, image, audio, video, file]
+          default: text
+        metadata:
+          type: object
+          description: 元数据
+        stream:
+          type: boolean
+          default: false
+          description: 是否使用流式响应
+
+    MessageResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+        content:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system]
+        created_at:
+          type: string
+          format: date-time
+        token_usage:
+          type: object
+          properties:
+            input_tokens:
+              type: integer
+            output_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+        finish_reason:
+          type: string
+          enum: [stop, length, error, filtered]
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        conversation_id:
+          type: string
+        role:
+          type: string
+          enum: [user, assistant, system]
+        content:
+          type: string
+        content_type:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    # ==================== 知识库相关 ====================
+    KnowledgeBase:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [document, qa, dataset]
+        document_count:
+          type: integer
+          description: 文档数量
+        chunk_count:
+          type: integer
+          description: 分块数量
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ==================== 插件相关 ====================
+    Plugin:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          enum: [search, productivity, entertainment, tools]
+        icon:
+          type: string
+          format: uri
+        version:
+          type: string
+          example: "1.0.0"
+        author:
+          type: string
+        rating:
+          type: number
+          minimum: 0
+          maximum: 5
+        install_count:
+          type: integer
+        is_installed:
+          type: boolean
+
+    # ==================== 用户相关 ====================
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        avatar:
+          type: string
+          format: uri
+        role:
+          type: string
+          enum: [admin, user, viewer]
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+        created_at:
+          type: string
+          format: date-time
+
+    # ==================== 租户相关 ====================
+    Tenant:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        domain:
+          type: string
+        plan:
+          type: string
+          enum: [free, basic, professional, enterprise]
+        status:
+          type: string
+          enum: [active, suspended, expired]
+        created_at:
+          type: string
+          format: date-time
+
+    TenantDetail:
+      allOf:
+        - $ref: '#/components/schemas/Tenant'
+        - type: object
+          properties:
+            max_users:
+              type: integer
+            max_bots:
+              type: integer
+            current_users:
+              type: integer
+            current_bots:
+              type: integer
+            subscription:
+              type: object
+              properties:
+                plan:
+                  type: string
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                auto_renew:
+                  type: boolean
+            settings:
+              type: object
+              properties:
+                sso_enabled:
+                  type: boolean
+                custom_domain:
+                  type: string
+                branding:
+                  type: object
+
+    # ==================== 监控相关 ====================
+    SystemMetrics:
+      type: object
+      properties:
+        qps:
+          type: object
+          properties:
+            current:
+              type: number
+            avg:
+              type: number
+            peak:
+              type: number
+        response_time:
+          type: object
+          properties:
+            p50:
+              type: number
+            p95:
+              type: number
+            p99:
+              type: number
+        error_rate:
+          type: number
+          description: 错误率百分比
+        resource_usage:
+          type: object
+          properties:
+            cpu_percent:
+              type: number
+            memory_percent:
+              type: number
+            disk_percent:
+              type: number
+
+    LogEntry:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [debug, info, warn, error, fatal]
+        service:
+          type: string
+        message:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+
+  # ==================== 响应模板 ====================
+  responses:
+    BadRequest:
+      description: 请求参数错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 400
+            message: 参数错误
+            details:
+              username: 用户名不能为空
+
+    Unauthorized:
+      description: 未授权
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 401
+            message: 未授权，请先登录
+
+    Forbidden:
+      description: 禁止访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 403
+            message: 权限不足
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 404
+            message: 资源不存在
+
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            code: 500
+            message: 服务器内部错误

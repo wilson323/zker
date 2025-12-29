@@ -1,0 +1,137 @@
+# ConfigMap 配置 - ZKER 应用配置
+# 用途: 存储非敏感的配置信息
+# 遵循规范: K8s ConfigMap 最佳实践 + 环境分离
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zker-config
+  namespace: zker
+  labels:
+    app: zker
+data:
+  # 环境配置
+  ENVIRONMENT: "production"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # 数据库连接 (非敏感部分)
+  DB_PORT: "3306"
+  DB_MAX_OPEN_CONNS: "100"
+  DB_MAX_IDLE_CONNS: "10"
+  DB_CONN_MAX_LIFETIME: "3600"
+
+  # Redis 配置
+  REDIS_HOST: "zker-redis.zker.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_POOL_SIZE: "10"
+
+  # Elasticsearch 配置
+  ES_HOST: "http://zker-elasticsearch.zker.svc.cluster.local:9200"
+  ES_INDEX_PREFIX: "zker"
+
+  # MinIO 配置
+  MINIO_ENDPOINT: "zker-minio.zker.svc.cluster.local:9000"
+  MINIO_BUCKET: "zker"
+  MINIO_USE_SSL: "false"
+
+  # Milvus 配置
+  MILVUS_HOST: "zker-milvus.zker.svc.cluster.local"
+  MILVUS_PORT: "19530"
+
+  # NSQ 配置
+  NSQ_LOOKUPD: "zker-nsqlookupd.zker.svc.cluster.local:4161"
+  NSQD: "zker-nsqd.zker.svc.cluster.local:4151"
+
+  # etcd 配置
+  ETCD_ENDPOINTS: "zker-etcd.zker.svc.cluster.local:2379"
+
+  # API 配置
+  API_PORT: "8888"
+  API_METRICS_PORT: "8889"
+  API_READ_TIMEOUT: "30"
+  API_WRITE_TIMEOUT: "30"
+
+  # 限流配置
+  RATE_LIMIT_REQUESTS_PER_SECOND: "100"
+  RATE_LIMIT_BURST: "200"
+
+  # 跨域配置
+  CORS_ALLOWED_ORIGINS: "*"
+  CORS_ALLOWED_METHODS: "GET,POST,PUT,DELETE,OPTIONS"
+  CORS_ALLOWED_HEADERS: "*"
+
+  # 追踪配置
+  JAEGER_ENDPOINT: "http://zker-jaeger.zker.svc.cluster.local:14268/api/traces"
+  JAEGER_SAMPLER_TYPE: "probabilistic"
+  JAEGER_SAMPLER_PARAM: "0.1"
+
+  # 监控配置
+  PROMETHEUS_ENDPOINT: "/metrics"
+  PROMETHEUS_ENABLED: "true"
+
+---
+# Nginx ConfigMap (Frontend)
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: zker-nginx-config
+  namespace: zker
+  labels:
+    app: zker-frontend
+data:
+  default.conf: |
+    upstream api_backend {
+        server zker-api:80;
+        keepalive 32;
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # 前端静态文件
+        location / {
+            try_files $uri $uri/ /index.html;
+            expires 7d;
+            add_header Cache-Control "public, immutable";
+        }
+
+        # API 代理
+        location /api/ {
+            proxy_pass http://api_backend;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_cache_bypass $http_upgrade;
+
+            # 超时配置
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 60s;
+            proxy_read_timeout 60s;
+        }
+
+        # 健康检查
+        location /health {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Gzip 压缩
+        gzip on;
+        gzip_vary on;
+        gzip_min_length 1024;
+        gzip_types text/plain text/css text/xml text/javascript
+                   application/json application/javascript application/xml+rss
+                   application/rss+xml font/truetype font/opentype
+                   application/vnd.ms-fontobject image/svg+xml;
+    }

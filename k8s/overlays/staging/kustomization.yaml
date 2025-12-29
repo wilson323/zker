@@ -1,0 +1,63 @@
+# Kustomize 预发布环境配置
+# 用途: 预发布环境配置 (类生产环境)
+# 遵循规范: 模拟生产环境 + 测试真实性
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# 命名空间
+namespace: zker-staging
+
+# 基础配置路径
+resources:
+  - ../../base
+
+# 配置图生成器
+configMapGenerator:
+  - name: zker-config
+    behavior: merge
+    literals:
+      - ENVIRONMENT=staging
+      - LOG_LEVEL=info
+      - LOG_FORMAT=json
+      - DB_MAX_OPEN_CONNS=50
+      - DB_MAX_IDLE_CONNS=10
+      - REDIS_DB=2
+      - ES_INDEX_PREFIX=zker-staging
+      - MINIO_BUCKET=zker-staging
+      - RATE_LIMIT_REQUESTS_PER_SECOND=200
+      - RATE_LIMIT_BURST=400
+      - JAEGER_SAMPLER_PARAM=0.5
+      - PROMETHEUS_ENABLED=true
+
+# 图片标签
+images:
+  - name: zker/api
+    newTag: staging-v1.0.0
+  - name: zker/frontend
+    newTag: staging-v1.0.0
+
+# 副本数补丁
+patchesStrategicMerge:
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-api
+    spec:
+      replicas: 2
+  - |-
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: zker-frontend
+    spec:
+      replicas: 2
+
+# 标签
+commonLabels:
+  environment: staging
+  tier: staging
+
+# 名称前缀
+namePrefix: staging-

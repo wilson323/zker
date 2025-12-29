@@ -1,0 +1,217 @@
+/* frontend/packages/studio/src/pages/settings/SubscriptionManagement/SubscriptionManagement.styles.css */
+
+.subscription-management {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.subscription-header {
+  margin-bottom: 32px;
+}
+
+.subscription-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.subscription-header p {
+  color: #666;
+  margin: 0;
+}
+
+.subscription-current {
+  margin-bottom: 48px;
+}
+
+.subscription-current h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.current-plan-card {
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 24px;
+}
+
+.plan-info {
+  flex: 1;
+}
+
+.plan-info h3 {
+  font-size: 24px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.tier-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.tier-free {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.tier-pro {
+  background: #e6f7ff;
+  color: #1890ff;
+}
+
+.tier-enterprise {
+  background: #fff7e6;
+  color: #fa8c16;
+}
+
+.plan-pricing {
+  text-align: center;
+}
+
+.plan-pricing .price {
+  font-size: 32px;
+  font-weight: 700;
+  color: #1890ff;
+}
+
+.plan-pricing .period {
+  font-size: 14px;
+  font-weight: 400;
+  color: #666;
+}
+
+.next-billing {
+  font-size: 14px;
+  color: #666;
+  margin-top: 8px;
+}
+
+.plan-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cancel-notice {
+  padding: 12px;
+  background: #fff7e6;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #fa8c16;
+}
+
+.subscription-plans {
+  margin-bottom: 48px;
+}
+
+.subscription-plans h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.plans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.plan-card {
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: box-shadow 0.2s;
+}
+
+.plan-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.plan-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.plan-header h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.yearly-price {
+  font-size: 14px;
+  color: #666;
+  margin-top: 4px;
+}
+
+.discount {
+  color: #f5222d;
+  font-weight: 600;
+}
+
+.plan-features h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin: 0 0 12px 0;
+}
+
+.plan-features ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.plan-features li {
+  padding: 4px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.upgrade-button {
+  margin-top: auto;
+}
+
+.subscription-invoices h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.invoices-list {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 24px;
+}
+
+.empty-state {
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.subscription-loading,
+.subscription-error {
+  padding: 48px;
+  text-align: center;
+  font-size: 16px;
+  color: #666;
+}

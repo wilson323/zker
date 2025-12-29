@@ -1,0 +1,153 @@
+{{ define "email.default.subject" }}[ZKER告警] {{ .GroupLabels.alertname }} {{ end }}
+
+{{ define "email.default.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .header {
+            border-bottom: 2px solid #ff4444;
+            padding-bottom: 15px;
+            margin-bottom: 20px;
+        }
+        .alert-status {
+            display: inline-block;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-weight: bold;
+            color: white;
+        }
+        .status-firing {
+            background-color: #ff4444;
+        }
+        .status-resolved {
+            background-color: #00C851;
+        }
+        .label {
+            font-weight: bold;
+            color: #333;
+        }
+        .value {
+            color: #666;
+            margin-left: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+            font-size: 12px;
+            color: #999;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+        }
+        th {
+            background-color: #f8f8f8;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h2>ZKER 监控告警通知</h2>
+            <p><strong>告警名称:</strong> {{ .GroupLabels.alertname }}</p>
+            <p>
+                <strong>状态:</strong>
+                <span class="alert-status {{ if eq .Status "firing" }}status-firing{{ else }}status-resolved{{ end }}">
+                    {{ .Status | toUpper }}
+                </span>
+            </p>
+        </div>
+
+        <h3>告警详情</h3>
+        <table>
+            <tr>
+                <th>标签</th>
+                <th>值</th>
+            </tr>
+            {{ range .Alerts }}
+            {{ range .Labels.SortedPairs }}
+            <tr>
+                <td class="label">{{ .Name }}</td>
+                <td class="value">{{ .Value }}</td>
+            </tr>
+            {{ end }}
+            {{ end }}
+        </table>
+
+        <h3>告警描述</h3>
+        {{ range .Alerts }}
+        <p><strong>{{ .StartsAt.Format "2006-01-02 15:04:05" }}</strong></p>
+        <p>{{ .Annotations.description }}</p>
+        {{ if .Annotations.summary }}
+        <p><strong>摘要:</strong> {{ .Annotations.summary }}</p>
+        {{ end }}
+        {{ if .Annotations.runbook_url }}
+        <p><strong>运维手册:</strong> <a href="{{ .Annotations.runbook_url }}">点击查看</a></p>
+        {{ end }}
+        {{ end }}
+
+        {{ if .Alerts }}
+        <h3>触发时间</h3>
+        <p><strong>开始:</strong> {{ .Alerts.StartsAt.Format "2006-01-02 15:04:05" }}</p>
+        {{ if .Alerts.ResolvedAt }}
+        <p><strong>恢复:</strong> {{ .Alerts.ResolvedAt.Format "2006-01-02 15:04:05" }}</p>
+        {{ end }}
+        {{ end }}
+
+        <div class="footer">
+            <p>此邮件由 ZKER 监控系统自动发送，请勿回复。</p>
+            <p>如有疑问，请联系运维团队: ops@zker.example.com</p>
+            <p>查看更多详情: <a href="{{ .ExternalURL }}">{{ .ExternalURL }}</a></p>
+        </div>
+    </div>
+</body>
+</html>
+{{ end }}
+
+{{ define "email.default.text" }}
+ZKER 监控告警通知
+
+告警名称: {{ .GroupLabels.alertname }}
+状态: {{ .Status | toUpper }}
+
+告警详情:
+{{ range .Alerts }}
+{{ range .Labels.SortedPairs }}
+{{ .Name }}: {{ .Value }}
+{{ end }}
+
+触发时间: {{ .StartsAt.Format "2006-01-02 15:04:05" }}
+{{ .Annotations.description }}
+{{ end }}
+
+{{ if .Alerts.ResolvedAt }}
+恢复时间: {{ .Alerts.ResolvedAt.Format "2006-01-02 15:04:05" }}
+{{ end }}
+
+查看详情: {{ .ExternalURL }}
+
+---
+此告警由 ZKER 监控系统自动发送
+{{ end }}

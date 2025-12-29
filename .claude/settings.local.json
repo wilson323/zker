@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena-user__list_dir",
+      "mcp__serena-user__initial_instructions",
+      "mcp__serena-user__get_current_config",
+      "mcp__serena-user__find_file",
+      "mcp__serena-user__activate_project",
+      "mcp__serena-user__search_for_pattern"
+    ]
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "github"
+  ]
+}

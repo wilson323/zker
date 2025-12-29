@@ -1,0 +1,36 @@
+# Namespace 配置
+# 用途: 创建独立的命名空间,实现资源隔离
+# 遵循规范: K8s Namespace 最佳实践
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zker
+  labels:
+    name: zker
+    environment: production
+    project: zker
+    team: devops
+
+---
+# 开发环境 Namespace (可选)
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: zker-dev
+#   labels:
+#     name: zker-dev
+#     environment: development
+#     project: zker
+
+---
+# 测试环境 Namespace (可选)
+# apiVersion: v1
+# kind: Namespace
+# metadata:
+#   name: zker-staging
+#   labels:
+#     name: zker-staging
+#     environment: staging
+#     project: zker

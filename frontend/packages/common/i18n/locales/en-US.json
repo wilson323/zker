@@ -1,0 +1,194 @@
+// frontend/packages/common/i18n/locales/en-US.json
+
+{
+  "common": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "edit": "Edit",
+    "create": "Create",
+    "update": "Update",
+    "search": "Search",
+    "loading": "Loading...",
+    "noData": "No Data",
+    "error": "Error",
+    "success": "Success",
+    "failed": "Failed",
+    "retry": "Retry",
+    "back": "Back",
+    "submit": "Submit",
+    "reset": "Reset",
+    "close": "Close",
+    "view": "View",
+    "copy": "Copy",
+    "export": "Export",
+    "import": "Import",
+    "refresh": "Refresh",
+    "actions": "Actions",
+    "detail": "Detail",
+    "status": "Status",
+    "type": "Type",
+    "name": "Name",
+    "description": "Description",
+    "createdAt": "Created At",
+    "updatedAt": "Updated At",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "tenant": {
+    "title": "Tenant Management",
+    "list": "Tenant List",
+    "detail": "Tenant Detail",
+    "create": "Create Tenant",
+    "edit": "Edit Tenant",
+    "delete": "Delete Tenant",
+    "deleteConfirm": "Are you sure you want to delete tenant \"{{name}}\"? This action cannot be undone.",
+    "name": "Tenant Name",
+    "type": "Tenant Type",
+    "subscription": "Subscription Tier",
+    "contact": "Contact",
+    "status": "Status",
+    "types": {
+      "individual": "Individual",
+      "team": "Team",
+      "enterprise": "Enterprise"
+    },
+    "tiers": {
+      "free": "Free",
+      "pro": "Pro",
+      "enterprise": "Enterprise"
+    },
+    "statuses": {
+      "active": "Active",
+      "suspended": "Suspended",
+      "deleted": "Deleted"
+    },
+    "basicInfo": "Basic Information",
+    "subscriptionManage": "Subscription Management",
+    "quotaManage": "Quota Management",
+    "autoRenew": "Auto Renew",
+    "quotaUsage": "Quota Usage",
+    "upgradeSubscription": "Upgrade Subscription",
+    "adjustQuota": "Adjust Quota",
+    "selectPlaceholder": "Please select tenant"
+  },
+  "permission": {
+    "title": "Permission Management",
+    "role": "Role",
+    "roleList": "Role List",
+    "roleDetail": "Role Detail",
+    "createRole": "Create Role",
+    "editRole": "Edit Role",
+    "deleteRole": "Delete Role",
+    "copyRole": "Copy Role",
+    "deleteRoleConfirm": "Are you sure you want to delete role \"{{name}}\"? This action cannot be undone.",
+    "roleName": "Role Name",
+    "roleCode": "Role Code",
+    "roleType": "Role Type",
+    "userCount": "User Count",
+    "types": {
+      "system": "System Role",
+      "custom": "Custom Role"
+    },
+    "functionPermission": "Function Permission",
+    "dataPermission": "Data Permission",
+    "dataScope": "Data Scope",
+    "dataScopeDesc": "Configure the data scope that this role can access",
+    "functionPermissionDesc": "Select function modules and operation permissions that this role can access",
+    "scopes": {
+      "ALL": "All Data",
+      "DEPARTMENT": "Department Data",
+      "OWN": "Own Only",
+      "CUSTOM": "Custom",
+      "NONE": "No Permission"
+    },
+    "scopeDescriptions": {
+      "ALL": "Can access all data",
+      "DEPARTMENT": "Can only access department data",
+      "OWN": "Can only access own created data",
+      "CUSTOM": "Access data based on custom conditions",
+      "NONE": "No access permission"
+    }
+  },
+  "quota": {
+    "title": "Quota Management",
+    "resourceType": "Resource Type",
+    "used": "Used",
+    "max": "Max",
+    "usage": "Usage",
+    "unlimited": "Unlimited",
+    "normal": "Normal",
+    "nearLimit": "Near Limit",
+    "overLimit": "Over Limit",
+    "percentage": "Percentage"
+  },
+  "button": {
+    "primary": "Primary Button",
+    "secondary": "Secondary Button",
+    "outline": "Outline Button",
+    "text": "Text Button",
+    "danger": "Danger Button",
+    "loading": "Loading...",
+    "clickMe": "Click Me"
+  },
+  "table": {
+    "columns": "Columns",
+    "rows": "Rows",
+    "pagination": "Pagination",
+    "perPage": "items/page",
+    "total": "Total {{total}} items",
+    "showing": "Showing {{start}}-{{end}} of {{total}} items",
+    "noData": "No Data",
+    "loading": "Loading...",
+    "firstPage": "First",
+    "lastPage": "Last",
+    "previousPage": "Previous",
+    "nextPage": "Next"
+  },
+  "modal": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "ok": "OK",
+    "close": "Close"
+  },
+  "form": {
+    "required": "Required",
+    "optional": "Optional",
+    "invalid": "Invalid format",
+    "requiredError": "This field is required",
+    "emailError": "Please enter a valid email address",
+    "phoneError": "Please enter a valid phone number"
+  },
+  "error": {
+    "title": "Error",
+    "description": "The application encountered some problems, please try again later",
+    "retry": "Reload",
+    "goHome": "Go Home",
+    "errorDetails": "Error Details",
+    "errorMessage": "Error Message",
+    "componentStack": "Component Stack"
+  },
+  "language": {
+    "title": "Language",
+    "zhCN": "简体中文",
+    "enUS": "English"
+  },
+  "resources": {
+    "bot": "Bot Management",
+    "conversation": "Conversation Management",
+    "knowledge": "Knowledge Management",
+    "workflow": "Workflow Management",
+    "plugin": "Plugin Management"
+  },
+  "operations": {
+    "view": "View",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "copy": "Copy",
+    "export": "Export",
+    "suspend": "Suspend",
+    "activate": "Activate"
+  }
+}

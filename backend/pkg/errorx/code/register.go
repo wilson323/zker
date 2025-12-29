@@ -27,6 +27,11 @@ func WithAffectStability(affectStability bool) RegisterOptionFn {
 	return internal.WithAffectStability(affectStability)
 }
 
+// WithZhMessage sets the Chinese error message (optional)
+func WithZhMessage(messageZH string) RegisterOptionFn {
+	return internal.WithZhMessage(messageZH)
+}
+
 // Register the predefined error code information of the registered user, and call the code_gen sub-module corresponding to the PSM service when initializing.
 func Register(code int32, msg string, opts ...RegisterOptionFn) {
 	internal.Register(code, msg, opts...)
@@ -35,4 +40,9 @@ func Register(code int32, msg string, opts ...RegisterOptionFn) {
 // SetDefaultErrorCode Code with PSM information staining Replace the default code.
 func SetDefaultErrorCode(code int32) {
 	internal.SetDefaultErrorCode(code)
+}
+
+// GetCodeDefinition 获取错误码定义（如果存在）
+func GetCodeDefinition(code int32) *internal.CodeDefinition {
+	return internal.CodeDefinitions[code]
 }

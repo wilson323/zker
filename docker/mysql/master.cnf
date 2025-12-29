@@ -1,0 +1,36 @@
+# MySQL Master配置
+
+[mysqld]
+# 服务器ID (主库必须唯一)
+server-id = 1
+
+# 启用二进制日志
+log-bin = mysql-bin
+binlog-format = ROW
+binlog-do-db = zker
+
+# GTID模式 (全局事务ID，推荐)
+gtid-mode = ON
+enforce-gtid-consistency = ON
+
+# 复制优化
+sync-binlog = 1
+binlog-cache-size = 4M
+
+# 慢查询日志
+slow-query-log = 1
+slow-query-log-file = /var/log/mysql/slow.log
+long-query-time = 1
+
+# 性能优化
+max-connections = 500
+innodb-buffer-pool-size = 2G
+innodb-log-file-size = 512M
+innodb-flush-method = O_DIRECT
+
+# 字符集
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# 时区
+default-time-zone = '+08:00'

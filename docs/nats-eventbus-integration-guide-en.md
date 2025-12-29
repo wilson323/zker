@@ -2,16 +2,16 @@
 
 ## Overview
 
-This document provides a comprehensive guide for integrating NATS as an EventBus in Coze Studio, including architecture design, implementation details, configuration instructions, and usage guidelines.
+This document provides a comprehensive guide for integrating NATS as an EventBus in zker, including architecture design, implementation details, configuration instructions, and usage guidelines.
 
 ## Integration Background
 
 ### Why Choose NATS?
 
-In Coze Studio's architecture, EventBus plays a critical role in asynchronous message delivery, including workflow execution, Agent communication, data processing pipelines, and other core functions. NATS, as a lightweight and high-performance messaging system, brings the following core advantages to Coze Studio:
+In zker's architecture, EventBus plays a critical role in asynchronous message delivery, including workflow execution, Agent communication, data processing pipelines, and other core functions. NATS, as a lightweight and high-performance messaging system, brings the following core advantages to zker:
 
 1. **Lightweight**: NATS has minimal resource footprint and simple deployment architecture, perfect for cloud-native environments
-2. **High Performance**: Provides low-latency, high-throughput messaging that can support Coze Studio's large-scale concurrent Agent execution
+2. **High Performance**: Provides low-latency, high-throughput messaging that can support zker's large-scale concurrent Agent execution
 3. **Simplicity**: Clean and intuitive API that reduces development and maintenance costs
 4. **JetStream Support**: Provides message persistence, replay, and stream processing capabilities through JetStream
 5. **Cloud Native**: Native support for Kubernetes, easy to deploy and manage in containerized environments
@@ -54,7 +54,7 @@ In Coze Studio's architecture, EventBus plays a critical role in asynchronous me
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │   NATS Server   │    │   JetStream     │
+│   zker   │    │   NATS Server   │    │   JetStream     │
 │   Application   │    │                 │    │   Storage       │
 ├─────────────────┤    ├─────────────────┤    ├─────────────────┤
 │   Producer      │───▶│   Core NATS     │    │   Streams       │
@@ -65,7 +65,7 @@ In Coze Studio's architecture, EventBus plays a critical role in asynchronous me
 
 ### Message Flow Patterns
 
-NATS supports two messaging modes in Coze Studio:
+NATS supports two messaging modes in zker:
 
 1. **Core NATS**: For real-time, lightweight message delivery
    - Publish/Subscribe pattern
@@ -203,7 +203,7 @@ nats:
 
 ### Application Configuration
 
-Configure NATS in Coze Studio application through environment variables:
+Configure NATS in zker application through environment variables:
 
 ```go
 // Read configuration from environment variables
@@ -490,7 +490,7 @@ func (p *Producer) Close() error {
 
 ## Summary
 
-NATS as Coze Studio's EventBus solution provides lightweight, high-performance, and easy-to-deploy messaging capabilities. Through JetStream extensions, NATS can also provide enterprise-grade message persistence and stream processing functionality.
+NATS as zker's EventBus solution provides lightweight, high-performance, and easy-to-deploy messaging capabilities. Through JetStream extensions, NATS can also provide enterprise-grade message persistence and stream processing functionality.
 
 Key advantages of choosing NATS:
 - **Simplicity**: Low deployment and maintenance costs

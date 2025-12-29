@@ -2,7 +2,7 @@
 
 ## 概述
 
-本文档详细介绍了 OceanBase 向量数据库在 Coze Studio 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
+本文档详细介绍了 OceanBase 向量数据库在 zker 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
 
 ## 集成背景
 
@@ -31,7 +31,7 @@
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │  OceanBase      │    │   Vector Store  │
+│   zker   │    │  OceanBase      │    │   Vector Store  │
 │   Application   │───▶│   Client        │───▶│   Manager       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
@@ -180,8 +180,8 @@ oceanbase:
 
 ```bash
 # 克隆项目
-git clone https://github.com/coze-dev/coze-studio.git
-cd coze-studio
+git clone https://github.com/coze-dev/zker.git
+cd zker
 
 # 设置 OceanBase 环境文件
 make oceanbase_env
@@ -205,7 +205,7 @@ mysql -h localhost -P 2881 -u root -p -e "SHOW DATABASES;"
 
 ### 3. 创建知识库
 
-在 Coze Studio 界面中：
+在 zker 界面中：
 
 1. 进入知识库管理
 2. 选择 OceanBase 作为向量存储
@@ -270,10 +270,10 @@ kubectl wait --for=condition=ready pod -l control-plane=controller-manager -n oc
 #### 使用集成 Helm Chart
 
 ```bash
-# 部署完整的 Coze Studio 应用（包含 OceanBase）
-helm install coze-studio helm/charts/opencoze \
+# 部署完整的 zker 应用（包含 OceanBase）
+helm install zker helm/charts/opencoze \
   --set oceanbase.enabled=true \
-  --namespace coze-studio \
+  --namespace zker \
   --create-namespace
 
 # 或者只部署 OceanBase 组件
@@ -491,7 +491,7 @@ kubectl delete -f https://github.com/cert-manager/cert-manager/releases/download
 
 #### 架构兼容性设计
 
-- 严格遵循 Coze Studio 核心架构设计原则，确保 OceanBase 适配层与现有系统无缝集成
+- 严格遵循 zker 核心架构设计原则，确保 OceanBase 适配层与现有系统无缝集成
 - 采用委托模式（Delegation Pattern）实现向后兼容，保证现有接口的稳定性和一致性
 - 保持与现有向量存储接口的完全兼容，确保系统平滑迁移和升级
 
@@ -601,12 +601,12 @@ SHOW VARIABLES LIKE 'slow_query_log';
 docker logs coze-oceanbase
 
 # 查看应用日志
-tail -f logs/coze-studio.log | grep -i "oceanbase\|vector"
+tail -f logs/zker.log | grep -i "oceanbase\|vector"
 ```
 
 ## 总结
 
-OceanBase 向量数据库在 Coze Studio 中的集成实现了以下目标：
+OceanBase 向量数据库在 zker 中的集成实现了以下目标：
 
 1. **功能完整**: 支持完整的向量存储和检索功能
 2. **性能良好**: 通过 HNSW 索引实现高效的向量搜索
@@ -614,9 +614,9 @@ OceanBase 向量数据库在 Coze Studio 中的集成实现了以下目标：
 4. **运维友好**: 低运维成本，易于监控和管理
 5. **扩展性强**: 支持水平扩展和垂直扩展
 
-通过这次集成，Coze Studio 为用户提供了一个简单、高效、可靠的向量数据库解决方案，特别适合需要事务支持、部署简单、运维成本低的场景。
+通过这次集成，zker 为用户提供了一个简单、高效、可靠的向量数据库解决方案，特别适合需要事务支持、部署简单、运维成本低的场景。
 
 ## 相关链接
 
 - [OceanBase 官方文档](https://www.oceanbase.com/docs)
-- [Coze Studio 项目地址](https://github.com/coze-dev/coze-studio)
+- [zker 项目地址](https://github.com/coze-dev/zker)

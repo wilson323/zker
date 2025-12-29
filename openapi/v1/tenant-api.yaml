@@ -1,0 +1,862 @@
+openapi: 3.0.3
+info:
+  title: ZKER Tenant Management API
+  version: 1.0.0
+  description: |
+    ZKER 多租户SaaS平台 - 租户管理API
+
+    ## 功能特性
+    - 租户CRUD操作
+    - 租户配额管理
+    - 租户订阅管理
+    - 租户状态管理
+
+    ## 认证方式
+    所有API请求需要在Header中携带认证Token:
+    ```
+    Authorization: Bearer {token}
+    ```
+
+  contact:
+    name: API Support
+    email: api-support@zker.com
+    url: https://docs.zker.com
+
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
+
+servers:
+  - url: http://localhost:8080/api/v1
+    description: 开发环境
+  - url: https://api-dev.zker.com/api/v1
+    description: 测试环境
+  - url: https://api.zker.com/api/v1
+    description: 生产环境
+
+tags:
+  - name: tenants
+    description: 租户管理
+  - name: quotas
+    description: 配额管理
+  - name: subscriptions
+    description: 订阅管理
+
+paths:
+  /tenants:
+    get:
+      summary: 获取租户列表
+      description: |
+        获取租户列表,支持分页和过滤
+
+        ## 权限要求
+        - 需要管理员权限
+
+      operationId: listTenants
+      tags:
+        - tenants
+      parameters:
+        - name: page_token
+          in: query
+          description: 分页令牌(用于获取下一页)
+          schema:
+            type: string
+          example: "eyJwYWdlIjoxMH0="
+        - name: page_size
+          in: query
+          description: 每页数量(1-100)
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+          example: 20
+        - name: status
+          in: query
+          description: 按状态过滤
+          schema:
+            type: string
+            enum: [active, suspended, deleted]
+          example: "active"
+        - name: tenant_type
+          in: query
+          description: 按租户类型过滤
+          schema:
+            type: string
+            enum: [individual, team, enterprise]
+          example: "enterprise"
+        - name: subscription_tier
+          in: query
+          description: 按订阅等级过滤
+          schema:
+            type: string
+            enum: [free, pro, enterprise]
+          example: "pro"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+              examples:
+                success:
+                  value:
+                    code: 0
+                    message: SUCCESS
+                    message_zh: "操作成功"
+                    data:
+                      tenants:
+                        - tenant_id: "tenant-123"
+                          tenant_name: "Acme Corp"
+                          tenant_type: "enterprise"
+                          status: "active"
+                          subscription_tier: "enterprise"
+                          created_at: "2025-01-01T00:00:00Z"
+                          updated_at: "2025-01-01T12:00:00Z"
+                      next_page_token: "eyJwYWdlIjoyMH0="
+                      total_count: 100
+                    request_id: "req-abc123"
+                    timestamp: "2025-01-01T12:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: 创建租户
+      description: |
+        创建新租户
+
+        ## 权限要求
+        - 需要超级管理员权限
+
+        ## 业务规则
+        - 租户名称全局唯一
+        - 租户ID自动生成(UUID)
+        - 默认订阅等级为free
+        - 默认状态为active
+
+      operationId: createTenant
+      tags:
+        - tenants
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+            examples:
+              enterprise:
+                value:
+                  tenant_name: "Acme Corporation"
+                  tenant_type: "enterprise"
+                  admin_email: "admin@acme.com"
+                  admin_password: "SecurePassword123!"
+              individual:
+                value:
+                  tenant_name: "John Doe"
+                  tenant_type: "individual"
+                  admin_email: "john@example.com"
+                  admin_password: "SecurePassword123!"
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+              examples:
+                success:
+                  value:
+                    code: 0
+                    message: SUCCESS
+                    message_zh: "操作成功"
+                    data:
+                      tenant_id: "tenant-abc123"
+                      tenant_name: "Acme Corporation"
+                      tenant_type: "enterprise"
+                      status: "active"
+                      subscription_tier: "free"
+                      created_at: "2025-01-01T12:00:00Z"
+                      updated_at: "2025-01-01T12:00:00Z"
+                    request_id: "req-xyz789"
+                    timestamp: "2025-01-01T12:00:00Z"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          description: 租户已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                conflict:
+                  value:
+                    code: 200000002
+                    message: "Tenant already exists: Acme Corporation"
+                    message_zh: "租户已存在: Acme Corporation"
+                    request_id: "req-xyz789"
+                    timestamp: "2025-01-01T12:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tenants/{tenant_id}:
+    get:
+      summary: 获取租户详情
+      description: |
+        根据租户ID获取租户详细信息
+
+        ## 权限要求
+        - 租户管理员
+        - 或平台管理员
+
+      operationId: getTenant
+      tags:
+        - tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 租户不存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                notFound:
+                  value:
+                    code: 200000001
+                    message: "Tenant not found: tenant-xyz"
+                    message_zh: "租户不存在: tenant-xyz"
+                    request_id: "req-abc123"
+                    timestamp: "2025-01-01T12:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: 更新租户
+      description: |
+        更新租户信息
+
+        ## 权限要求
+        - 租户管理员
+        - 或平台管理员
+
+        ## 注意事项
+        - tenant_type 和 tenant_id 不可修改
+        - 状态变更需要特殊权限
+
+      operationId: updateTenant
+      tags:
+        - tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTenantRequest'
+            examples:
+              updateName:
+                value:
+                  tenant_name: "New Company Name"
+              suspend:
+                value:
+                  status: "suspended"
+                  reason: "Violation of terms of service"
+      responses:
+        '200':
+          description: 更新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      summary: 删除租户
+      description: |
+        删除租户(软删除)
+
+        ## 权限要求
+        - 仅超级管理员
+
+        ## 业务规则
+        - 软删除,数据不立即删除
+        - 删除后租户状态变为deleted
+        - 删除后无法恢复(需手动操作数据库)
+
+      operationId: deleteTenant
+      tags:
+        - tenants
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '204':
+          description: 删除成功
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tenants/{tenant_id}/quotas:
+    get:
+      summary: 获取租户配额
+      description: |
+        获取租户的所有配额信息
+
+        ## 权限要求
+        - 租户管理员
+        - 或平台管理员
+
+      operationId: getTenantQuotas
+      tags:
+        - quotas
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tenants/{tenant_id}/quotas/{resource_type}:
+    get:
+      summary: 获取特定资源配额
+      description: |
+        获取特定资源类型的配额使用情况
+
+        ## 权限要求
+        - 租户成员
+        - 或平台管理员
+
+      operationId: getTenantQuota
+      tags:
+        - quotas
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: resource_type
+          in: path
+          required: true
+          description: 资源类型
+          schema:
+            type: string
+            enum: [bots, knowledge, workflows, api_calls, storage, concurrent]
+          example: "bots"
+      responses:
+        '200':
+          description: 成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /tenants/{tenant_id}/quotas/{resource_type}/check:
+    post:
+      summary: 检查配额是否允许操作
+      description: |
+        检查执行操作是否会超过配额限制
+
+        ## 权限要求
+        - 租户成员
+        - 或平台管理员
+
+        ## 使用场景
+        - 创建Bot前检查
+        - 上传文档前检查
+        - 执行工作流前检查
+
+      operationId: checkQuota
+      tags:
+        - quotas
+      parameters:
+        - $ref: '#/components/parameters/TenantId'
+        - name: resource_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [bots, knowledge, workflows, api_calls, storage, concurrent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - amount
+              properties:
+                amount:
+                  type: integer
+                  description: 需要的配额数量
+                  minimum: 1
+                  example: 1
+            examples:
+              checkBot:
+                value:
+                  amount: 1
+              checkStorage:
+                value:
+                  amount: 100
+                  unit: "MB"
+      responses:
+        '200':
+          description: 配额检查结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotaCheckResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: 配额已超限
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                quotaExceeded:
+                  value:
+                    code: 300010001
+                    message: "Bot quota exceeded: tenant_id=tenant-123, current=10, limit=10"
+                    message_zh: "Bot数量已超限: 当前数量=10, 限制=10"
+                    details:
+                      tenant_id: "tenant-123"
+                      resource_type: "bots"
+                      current_usage: 10
+                      quota_limit: 10
+                    request_id: "req-abc123"
+                    timestamp: "2025-01-01T12:00:00Z"
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  parameters:
+    TenantId:
+      name: tenant_id
+      in: path
+      required: true
+      description: 租户ID
+      schema:
+        type: string
+        format: uuid
+      example: "tenant-abc123"
+
+  schemas:
+    Tenant:
+      type: object
+      required:
+        - tenant_id
+        - tenant_name
+        - tenant_type
+        - status
+        - subscription_tier
+        - created_at
+        - updated_at
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          description: 租户ID
+          example: "tenant-abc123"
+        tenant_name:
+          type: string
+          maxLength: 200
+          description: 租户名称
+          example: "Acme Corporation"
+        tenant_type:
+          type: string
+          enum: [individual, team, enterprise]
+          description: 租户类型
+          example: "enterprise"
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+          description: 租户状态
+          example: "active"
+        subscription_tier:
+          type: string
+          enum: [free, pro, enterprise]
+          description: 订阅等级
+          example: "pro"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2025-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2025-01-01T12:00:00Z"
+
+    CreateTenantRequest:
+      type: object
+      required:
+        - tenant_name
+        - tenant_type
+        - admin_email
+        - admin_password
+      properties:
+        tenant_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 租户名称
+          example: "Acme Corporation"
+        tenant_type:
+          type: string
+          enum: [individual, team, enterprise]
+          description: 租户类型
+          example: "enterprise"
+        admin_email:
+          type: string
+          format: email
+          description: 管理员邮箱
+          example: "admin@acme.com"
+        admin_password:
+          type: string
+          minLength: 8
+          description: 管理员密码(至少8位)
+          example: "SecurePassword123!"
+
+    UpdateTenantRequest:
+      type: object
+      properties:
+        tenant_name:
+          type: string
+          minLength: 1
+          maxLength: 200
+          description: 租户名称
+        status:
+          type: string
+          enum: [active, suspended, deleted]
+          description: 租户状态(需要管理员权限)
+        reason:
+          type: string
+          description: 状态变更原因(当修改status时必填)
+
+    TenantResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          description: 状态码(0表示成功)
+          example: 0
+        message:
+          type: string
+          description: 英文消息
+          example: "SUCCESS"
+        message_zh:
+          type: string
+          description: 中文消息
+          example: "操作成功"
+        data:
+          $ref: '#/components/schemas/Tenant'
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-abc123"
+        timestamp:
+          type: string
+          format: date-time
+          description: 时间戳
+          example: "2025-01-01T12:00:00Z"
+
+    TenantListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: "SUCCESS"
+        message_zh:
+          type: string
+          example: "操作成功"
+        data:
+          type: object
+          properties:
+            tenants:
+              type: array
+              items:
+                $ref: '#/components/schemas/Tenant'
+            next_page_token:
+              type: string
+              description: 下一页令牌
+              example: "eyJwYWdlIjoyMH0="
+            total_count:
+              type: integer
+              description: 总数量
+              example: 100
+        request_id:
+          type: string
+          example: "req-abc123"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2025-01-01T12:00:00Z"
+
+    Quota:
+      type: object
+      required:
+        - resource_type
+        - current_usage
+        - quota_limit
+      properties:
+        resource_type:
+          type: string
+          enum: [bots, knowledge, workflows, api_calls, storage, concurrent]
+          description: 资源类型
+        current_usage:
+          type: integer
+          description: 当前使用量
+          example: 5
+        quota_limit:
+          type: integer
+          description: 配额上限
+          example: 10
+        unit:
+          type: string
+          description: 单位
+          example: "count"
+
+    QuotaListResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: "SUCCESS"
+        data:
+          type: object
+          properties:
+            quotas:
+              type: array
+              items:
+                $ref: '#/components/schemas/Quota'
+        request_id:
+          type: string
+          example: "req-abc123"
+        timestamp:
+          type: string
+          format: date-time
+
+    QuotaResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: "SUCCESS"
+        data:
+          $ref: '#/components/schemas/Quota'
+        request_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    QuotaCheckResponse:
+      type: object
+      properties:
+        code:
+          type: integer
+          example: 0
+        message:
+          type: string
+          example: "SUCCESS"
+        data:
+          type: object
+          properties:
+            allowed:
+              type: boolean
+              description: 是否允许操作
+              example: true
+            current_usage:
+              type: integer
+              description: 当前使用量
+              example: 5
+            quota_limit:
+              type: integer
+              description: 配额上限
+              example: 10
+            remaining:
+              type: integer
+              description: 剩余配额
+              example: 5
+        request_id:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+        - request_id
+        - timestamp
+      properties:
+        code:
+          type: integer
+          description: 错误码
+          example: 200000001
+        message:
+          type: string
+          description: 英文错误消息
+          example: "Tenant not found"
+        message_zh:
+          type: string
+          description: 中文错误消息
+          example: "租户不存在"
+        details:
+          type: object
+          description: 错误详情
+          additionalProperties: true
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-abc123"
+        timestamp:
+          type: string
+          format: date-time
+          description: 时间戳
+          example: "2025-01-01T12:00:00Z"
+
+  responses:
+    BadRequest:
+      description: 错误的请求
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            badRequest:
+              value:
+                code: 200000005
+                message: "Invalid tenant parameter: tenant_type, value: invalid"
+                message_zh: "无效的租户参数: tenant_type, 值: invalid"
+                request_id: "req-abc123"
+                timestamp: "2025-01-01T12:00:00Z"
+
+    Unauthorized:
+      description: 未认证
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            unauthorized:
+              value:
+                code: 700012006
+                message: "Authentication failed: invalid token"
+                message_zh: "认证失败: 无效的token"
+                request_id: "req-abc123"
+                timestamp: "2025-01-01T12:00:00Z"
+
+    Forbidden:
+      description: 禁止访问
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            forbidden:
+              value:
+                code: 700000007
+                message: "unauthorized access : insufficient permissions"
+                message_zh: "权限不足: 权限不够"
+                request_id: "req-abc123"
+                timestamp: "2025-01-01T12:00:00Z"
+
+    NotFound:
+      description: 资源不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            notFound:
+              value:
+                code: 700000005
+                message: "Tenant not found: tenant-xyz"
+                message_zh: "租户不存在: tenant-xyz"
+                request_id: "req-abc123"
+                timestamp: "2025-01-01T12:00:00Z"
+
+    InternalError:
+      description: 服务器内部错误
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            internalError:
+              value:
+                code: 500
+                message: "Internal server error"
+                message_zh: "服务器内部错误"
+                request_id: "req-abc123"
+                timestamp: "2025-01-01T12:00:00Z"

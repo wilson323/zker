@@ -2,20 +2,20 @@
 
 ## 概述
 
-本文档详细介绍了 Apache Pulsar 作为 EventBus 在 Coze Studio 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
+本文档详细介绍了 Apache Pulsar 作为 EventBus 在 zker 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
 
 ## 集成背景
 
 ### 为什么选择 Pulsar？
 
-在 Coze Studio 的架构中，EventBus 承担着关键的异步消息传递任务，包括工作流执行、Agent 通信、数据处理管道等核心功能。随着用户规模的增长和业务复杂度的提升，我们需要一个更加强大和灵活的消息队列解决方案。
+在 zker 的架构中，EventBus 承担着关键的异步消息传递任务，包括工作流执行、Agent 通信、数据处理管道等核心功能。随着用户规模的增长和业务复杂度的提升，我们需要一个更加强大和灵活的消息队列解决方案。
 
-Pulsar 作为新一代的分布式消息系统，为 Coze Studio 带来了以下核心优势：
+Pulsar 作为新一代的分布式消息系统，为 zker 带来了以下核心优势：
 
-1. **高性能**: Pulsar 提供低延迟、高吞吐量的消息传递，能够支撑 Coze Studio 大规模并发的 Agent 执行和工作流处理
-2. **多租户**: 原生支持多租户架构，完美契合 Coze Studio 多用户、多工作空间的业务模式
+1. **高性能**: Pulsar 提供低延迟、高吞吐量的消息传递，能够支撑 zker 大规模并发的 Agent 执行和工作流处理
+2. **多租户**: 原生支持多租户架构，完美契合 zker 多用户、多工作空间的业务模式
 3. **持久化**: 支持消息持久化存储，确保 Agent 执行状态和工作流数据的可靠性，避免因系统重启导致的任务丢失
-4. **水平扩展**: 支持计算和存储分离，易于水平扩展，能够随着 Coze Studio 用户增长而平滑扩容
+4. **水平扩展**: 支持计算和存储分离，易于水平扩展，能够随着 zker 用户增长而平滑扩容
 5. **顺序性保障**: Pulsar 提供强一致性的消息顺序保证，确保 Agent 工作流中的步骤按正确顺序执行，避免状态混乱和数据不一致
 6. **丰富特性**: 支持消息去重、延迟消息、死信队列等高级特性，为复杂的 AI 工作流提供更强的可靠性保障
 
@@ -46,7 +46,7 @@ Pulsar 作为新一代的分布式消息系统，为 Coze Studio 带来了以下
 - **RocketMQ**：虽然支持动态扩容，但 NameServer 和 Broker 的协调机制相对复杂
 - **NSQ**：单机架构限制了扩展能力，只能通过增加 Topic 数量来提升吞吐量
 
-这种优秀的扩展能力使得 Pulsar 特别适合 Coze Studio 这种用户增长快速、业务负载波动大的场景。
+这种优秀的扩展能力使得 Pulsar 特别适合 zker 这种用户增长快速、业务负载波动大的场景。
 
 ## 架构设计
 
@@ -54,7 +54,7 @@ Pulsar 作为新一代的分布式消息系统，为 Coze Studio 带来了以下
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │  Pulsar         │    │   EventBus      │
+│   zker   │    │  Pulsar         │    │   EventBus      │
 │   Application   │───▶│   Client        │───▶│   Manager       │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
                                 │
@@ -127,8 +127,8 @@ case consts.MQTypePulsar:
 
 ```bash
 # 克隆项目
-git clone https://github.com/coze-dev/coze-studio.git
-cd coze-studio
+git clone https://github.com/coze-dev/zker.git
+cd zker
 ```
 
 ### 2. 修改 Docker Compose 配置
@@ -163,7 +163,7 @@ services:
 
 ### 3. 配置环境变量
 
-修改 `.env` 文件，配置 Coze Studio 使用 Pulsar：
+修改 `.env` 文件，配置 zker 使用 Pulsar：
 
 ```bash
 # 进入 docker 目录
@@ -186,7 +186,7 @@ MQ_NAME_SERVER=pulsar://pulsar:6650
 ### 4. 启动服务
 
 ```bash
-# 启动包含 Pulsar 的完整 Coze Studio 服务
+# 启动包含 Pulsar 的完整 zker 服务
 docker-compose up -d
 
 # 查看服务启动状态
@@ -211,10 +211,10 @@ docker exec -it coze-pulsar bin/pulsar-admin clusters list
 
 ### 6. 访问服务
 
-- **Coze Studio**: `http://localhost:3000`（根据实际配置）
+- **zker**: `http://localhost:3000`（根据实际配置）
 - **Pulsar Admin**: `http://localhost:8080`
 
-现在 Coze Studio 已经成功集成 Pulsar 作为消息队列，所有的事件总线功能都将通过 Pulsar 处理。
+现在 zker 已经成功集成 Pulsar 作为消息队列，所有的事件总线功能都将通过 Pulsar 处理。
 
 ## 附录
 
@@ -240,7 +240,7 @@ docker exec -it coze-pulsar bin/pulsar-admin clusters list
 #### 1. 设计原则
 
 **架构兼容性设计**：
-- 严格遵循 Coze Studio EventBus 接口规范，确保与现有系统无缝集成
+- 严格遵循 zker EventBus 接口规范，确保与现有系统无缝集成
 - 采用工厂模式实现多种 MQ 的统一管理
 - 保持与 NSQ、Kafka、RocketMQ 实现的接口一致性
 
@@ -332,7 +332,7 @@ docker exec -it coze-pulsar bin/pulsar-admin topics stats persistent://public/de
 docker logs coze-pulsar
 
 # 查看应用日志中的 Pulsar 相关信息
-tail -f logs/coze-studio.log | grep -i "pulsar\|eventbus"
+tail -f logs/zker.log | grep -i "pulsar\|eventbus"
 
 # 启用详细日志
 # 在 Pulsar 配置中设置 rootLogLevel=DEBUG
@@ -393,7 +393,7 @@ PULSAR_JWT_TOKEN=your-jwt-token
 
 ## 总结
 
-Apache Pulsar 在 Coze Studio 中的 EventBus 集成实现了以下目标：
+Apache Pulsar 在 zker 中的 EventBus 集成实现了以下目标：
 
 1. **高性能**: 支持高吞吐量、低延迟的消息传递
 2. **高可靠**: 消息持久化存储，支持消息确认机制
@@ -401,11 +401,11 @@ Apache Pulsar 在 Coze Studio 中的 EventBus 集成实现了以下目标：
 4. **易运维**: 丰富的管理工具和监控指标
 5. **企业级**: 多租户支持，适合企业级应用场景
 
-通过这次集成，Coze Studio 为用户提供了一个高性能、高可靠、易扩展的消息队列解决方案，特别适合需要高吞吐量、低延迟、企业级特性的场景。
+通过这次集成，zker 为用户提供了一个高性能、高可靠、易扩展的消息队列解决方案，特别适合需要高吞吐量、低延迟、企业级特性的场景。
 
 ## 相关链接
 
 - [Apache Pulsar 官方文档](https://pulsar.apache.org/docs/)
 - [Pulsar Go Client 文档](https://pulsar.apache.org/docs/client-libraries-go/)
 - [ASP 社区版文档](https://ascentstream.com/docs/asp/asp-community/overview)
-- [Coze Studio 项目地址](https://github.com/coze-dev/coze-studio)
+- [zker 项目地址](https://github.com/coze-dev/zker)

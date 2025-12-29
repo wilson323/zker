@@ -2,16 +2,16 @@
 
 ## 概述
 
-本文档详细介绍了 NATS 作为 EventBus 在 Coze Studio 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
+本文档详细介绍了 NATS 作为 EventBus 在 zker 中的集成适配情况，包括架构设计、实现细节、配置说明和使用指南。
 
 ## 集成背景
 
 ### 为什么选择 NATS？
 
-在 Coze Studio 的架构中，EventBus 承担着关键的异步消息传递任务，包括工作流执行、Agent 通信、数据处理管道等核心功能。NATS 作为一个轻量级、高性能的消息系统，为 Coze Studio 带来了以下核心优势：
+在 zker 的架构中，EventBus 承担着关键的异步消息传递任务，包括工作流执行、Agent 通信、数据处理管道等核心功能。NATS 作为一个轻量级、高性能的消息系统，为 zker 带来了以下核心优势：
 
 1. **轻量级**: NATS 具有极小的资源占用和简单的部署架构，非常适合云原生环境
-2. **高性能**: 提供低延迟、高吞吐量的消息传递，能够支撑 Coze Studio 大规模并发的 Agent 执行
+2. **高性能**: 提供低延迟、高吞吐量的消息传递，能够支撑 zker 大规模并发的 Agent 执行
 3. **简单易用**: API 简洁直观，降低了开发和维护成本
 4. **JetStream 支持**: 通过 JetStream 提供消息持久化、重放和流处理能力
 5. **云原生**: 原生支持 Kubernetes，易于在容器化环境中部署和管理
@@ -54,7 +54,7 @@
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Coze Studio   │    │   NATS Server   │    │   JetStream     │
+│   zker   │    │   NATS Server   │    │   JetStream     │
 │   Application   │    │                 │    │   Storage       │
 ├─────────────────┤    ├─────────────────┤    ├─────────────────┤
 │   Producer      │───▶│   Core NATS     │    │   Streams       │
@@ -65,7 +65,7 @@
 
 ### 消息流转模式
 
-NATS 在 Coze Studio 中支持两种消息模式：
+NATS 在 zker 中支持两种消息模式：
 
 1. **Core NATS**: 用于实时、轻量级的消息传递
    - 发布/订阅模式
@@ -203,7 +203,7 @@ nats:
 
 ### 应用程序配置
 
-在 Coze Studio 应用中，通过环境变量配置 NATS：
+在 zker 应用中，通过环境变量配置 NATS：
 
 ```go
 // 从环境变量读取配置
@@ -490,7 +490,7 @@ func (p *Producer) Close() error {
 
 ## 总结
 
-NATS 作为 Coze Studio 的 EventBus 解决方案，提供了轻量级、高性能、易于部署的消息传递能力。通过 JetStream 扩展，NATS 还能提供企业级的消息持久化和流处理功能。
+NATS 作为 zker 的 EventBus 解决方案，提供了轻量级、高性能、易于部署的消息传递能力。通过 JetStream 扩展，NATS 还能提供企业级的消息持久化和流处理功能。
 
 选择 NATS 的主要优势：
 - **简单性**: 部署和维护成本低

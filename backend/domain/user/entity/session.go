@@ -24,9 +24,20 @@ const SessionKey = "session_key"
 
 type Session struct {
 	UserID    int64
+	TenantID  string  // 租户ID（多租户隔离）
 	Locale    string
 	UserEmail string
 
 	CreatedAt time.Time
 	ExpiresAt time.Time
+}
+
+// GetTenantID 获取租户ID
+func (s *Session) GetTenantID() string {
+	return s.TenantID
+}
+
+// HasTenantID 检查是否有租户ID
+func (s *Session) HasTenantID() bool {
+	return s.TenantID != ""
 }

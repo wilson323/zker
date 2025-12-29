@@ -1,0 +1,92 @@
+{{ define "dingtalk.default.message" }}
+{
+  "msgtype": "markdown",
+  "markdown": {
+    "title": "[ZKER告警] {{ .GroupLabels.alertname }}",
+    "text": "## ZKER 监控告警通知\n\n" {{
+    }}### 告警信息\n\n" {{
+    }}**告警名称**: {{ .GroupLabels.alertname }}\n\n" {{
+    }}"**状态**: {{ if eq .Status "firing" }}🔥 触发{{ else }}✅ 恢复{{ end }}\n\n" {{
+    }}"**级别**: {{ if eq .GroupLabels.severity "critical" }}🚨 严重{{ else if eq .GroupLabels.severity "warning" }}⚠️ 警告{{ else }}ℹ️ 信息{{ end }}\n\n" {{
+    }}"**触发时间**: {{ .Alerts.StartsAt.Format "2006-01-02 15:04:05" }}\n\n" {{
+
+    range .Alerts
+    }}"### 告警详情\n\n" {{
+    }}"**描述**: {{ .Annotations.description }}\n\n" {{
+    }}"{{ if .Annotations.summary }}摘要**: {{ .Annotations.summary }}\n\n{{ end }}" {{
+    }}"### 标签\n\n" {{
+    range .Labels.SortedPairs
+    }}"**{{ .Name }}**: {{ .Value }}\n\n" {{
+    end
+    end
+    }}"### 操作建议\n\n" {{
+    }}"1. 登录 Grafana 查看监控大盘: [点击打开]({{ .ExternalURL }})\n\n" {{
+    }}"2. 查看相关运维手册\n\n" {{
+    }}"3. 如需帮助，请联系运维团队\n\n" {{
+    }}"---\n\n" {{
+    }}"_此告警由 ZKER 监控系统自动发送_"
+  }
+}
+{{ end }}
+
+{{ define "dingtalk.default.link" }}
+{
+  "msgtype": "link",
+  "link": {
+    "title": "[ZKER告警] {{ .GroupLabels.alertname }} - {{ .Status | toUpper }}",
+    "text": "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}",
+    "messageUrl": "{{ .ExternalURL }}",
+    "picUrl": "https://example.com/alert-icon.png"
+  }
+}
+{{ end }}
+
+{{ define "dingtalk.card.message" }}
+{
+  "msgtype": "feedCard",
+  "feedCard": {
+    "title": "[ZKER告警] {{ .GroupLabels.alertname }}",
+    "links": [
+      {
+        "title": "查看告警详情",
+        "messageURL": "{{ .ExternalURL }}",
+        "picURL": "https://example.com/alert-icon.png"
+      }{{ range .Alerts }},
+      {
+        "title": "{{ .Annotations.summary }}",
+        "messageURL": "{{ .ExternalURL }}",
+        "picURL": "https://example.com/alert-icon.png"
+      }{{ end }}
+    ]
+  }
+}
+{{ end }}
+
+{{ define "dingtalk.actionCard.message" }}
+{
+  "msgtype": "actionCard",
+  "actionCard": {
+    "title": "[ZKER告警] {{ .GroupLabels.alertname }}",
+    "text": "## 告警信息\n\n" {{
+    }}"**告警名称**: {{ .GroupLabels.alertname }}\n\n" {{
+    }}"**状态**: {{ if eq .Status "firing" }}🔥 触发{{ else }}✅ 恢复{{ end }}\n\n" {{
+    }}"**级别**: {{ if eq .GroupLabels.severity "critical" }}🚨 严重{{ else if eq .GroupLabels.severity "warning" }}⚠️ 警告{{ else }}ℹ️ 信息{{ end }}\n\n" {{
+    }}"**触发时间**: {{ .Alerts.StartsAt.Format "2006-01-02 15:04:05" }}\n\n" {{ range .Alerts
+    }}"**描述**: {{ .Annotations.description }}\n\n" {{ end
+    }}"### 标签\n\n" {{ range .Alerts }}{{ range .Labels.SortedPairs
+    }}"**{{ .Name }}**: {{ .Value }}\n\n" {{ end }}{{ end
+    }},
+    "btnOrientation": "1",
+    "btns": [
+      {
+        "title": "查看详情",
+        "actionURL": "{{ .ExternalURL }}"
+      },
+      {
+        "title": "查看运维手册",
+        "actionURL": "https://docs.zker.example.com/runbook/alerts/{{ .GroupLabels.alertname }}"
+      }
+    ]
+  }
+}
+{{ end }}

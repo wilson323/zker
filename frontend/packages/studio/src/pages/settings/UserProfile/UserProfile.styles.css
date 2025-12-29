@@ -1,0 +1,181 @@
+/* frontend/packages/studio/src/pages/settings/UserProfile/UserProfile.styles.css */
+
+.user-profile {
+  padding: 24px;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.profile-header {
+  margin-bottom: 32px;
+}
+
+.profile-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+
+.profile-header p {
+  color: #666;
+  margin: 0;
+}
+
+.profile-alert {
+  margin-bottom: 24px;
+}
+
+.profile-section {
+  margin-bottom: 48px;
+  padding: 24px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.profile-section > h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 24px 0;
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.section-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.avatar-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.avatar-preview {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid #e5e7eb;
+}
+
+.avatar-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #1890ff;
+  color: #fff;
+  font-size: 32px;
+  font-weight: 600;
+}
+
+.upload-hint {
+  font-size: 14px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.profile-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-group > label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.bio-textarea {
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 80px;
+}
+
+.bio-textarea:focus {
+  outline: none;
+  border-color: #1890ff;
+}
+
+.bio-textarea:disabled {
+  background: #f5f5f5;
+  cursor: not-allowed;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.password-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 400px;
+}
+
+.account-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.info-item .label {
+  font-weight: 600;
+  color: #666;
+  min-width: 100px;
+}
+
+.info-item .value {
+  color: #333;
+}
+
+.info-item .value.status.active {
+  color: #52c41a;
+}
+
+.info-item .value.status.inactive {
+  color: #f5222d;
+}
+
+.user-profile-loading {
+  padding: 48px;
+  text-align: center;
+  font-size: 16px;
+  color: #666;
+}
