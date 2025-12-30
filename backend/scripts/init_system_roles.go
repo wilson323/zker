@@ -26,7 +26,7 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 
-	"github.com/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 )
 
 // ==================== 系统预置角色定义 ====================

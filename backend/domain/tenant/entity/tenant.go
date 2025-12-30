@@ -47,16 +47,35 @@ const (
 	SubscriptionTierEnterprise SubscriptionTier = "enterprise" // 企业版
 )
 
+// IsolationStrategy 隔离策略类型
+type IsolationStrategy string
+
+const (
+	// StrategyRowLevel 行级隔离（共享表，通过tenant_id区分）
+	// 适用场景：小型租户，数据量小，成本敏感
+	IsolationStrategyRowLevel IsolationStrategy = "row_level"
+
+	// StrategySchemaLevel Schema级隔离（独立Schema）
+	// 适用场景：中型租户，需要更好的性能和隔离性
+	IsolationStrategySchemaLevel IsolationStrategy = "schema_level"
+
+	// StrategyDatabaseLevel 数据库级隔离（独立数据库实例）
+	// 适用场景：大型企业租户，要求最高隔离性和性能
+	IsolationStrategyDatabaseLevel IsolationStrategy = "database_level"
+)
+
 // Tenant 租户实体
 type Tenant struct {
-	TenantID         string           `json:"tenant_id" gorm:"primaryKey;type:varchar(36)"`
-	TenantName       string           `json:"tenant_name" gorm:"type:varchar(200);not null"`
-	TenantType       TenantType       `json:"tenant_type" gorm:"type:enum('individual','team','enterprise');not null"`
-	Status           TenantStatus     `json:"status" gorm:"type:enum('active','suspended','deleted');default:'active'"`
-	SubscriptionTier SubscriptionTier `json:"subscription_tier" gorm:"type:enum('free','pro','enterprise');default:'free'"`
-	CreatedAt        int64            `json:"created_at" gorm:"not null;default:0"`
-	UpdatedAt        int64            `json:"updated_at" gorm:"not null;default:0"`
-	DeletedAt        *int64           `json:"deleted_at,omitempty" gorm:"index"`
+	TenantID           string             `json:"tenant_id" gorm:"primaryKey;type:varchar(36)"`
+	TenantName         string             `json:"tenant_name" gorm:"type:varchar(200);not null"`
+	TenantType         TenantType         `json:"tenant_type" gorm:"type:enum('individual','team','enterprise');not null"`
+	Subdomain          string             `json:"subdomain" gorm:"type:varchar(64);uniqueIndex;not null"` // 租户子域名（唯一）
+	Status             TenantStatus       `json:"status" gorm:"type:enum('active','suspended','deleted');default:'active'"`
+	SubscriptionTier   SubscriptionTier   `json:"subscription_tier" gorm:"type:enum('free','pro','enterprise');default:'free'"`
+	IsolationStrategy  IsolationStrategy  `json:"isolation_strategy" gorm:"type:enum('row_level','schema_level','database_level');default:'row_level'"` // 隔离策略
+	CreatedAt          int64              `json:"created_at" gorm:"not null;default:0"`
+	UpdatedAt          int64              `json:"updated_at" gorm:"not null;default:0"`
+	DeletedAt          *int64             `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
 	Subscription *Subscription `json:"subscription,omitempty" gorm:"foreignKey:TenantID;references:TenantID"`

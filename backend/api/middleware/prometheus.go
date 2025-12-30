@@ -22,7 +22,7 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 
-	"github.com/coze-studio/coze-studio/backend/infra/monitoring/metrics"
+	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
 )
 
 // PrometheusMiddleware Prometheus监控中间件

@@ -15,11 +15,12 @@
  */
 
 package repository
+import "github.com/pkg/errors"
 
 import (
 	"context"
 
-	"github.com/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
 )
 
 // TenantRepository 租户仓储接口
@@ -32,6 +33,9 @@ type TenantRepository interface {
 
 	// GetByName 根据名称获取租户
 	GetByName(ctx context.Context, name string) (*entity.Tenant, error)
+
+	// GetBySubdomain 根据子域名获取租户
+	GetBySubdomain(ctx context.Context, subdomain string) (*entity.Tenant, error)
 
 	// Update 更新租户
 	Update(ctx context.Context, tenant *entity.Tenant) error
@@ -92,36 +96,6 @@ type SubscriptionFilter struct {
 	PlanTier entity.SubscriptionTier
 	PageToken string
 	PageSize  int
-}
-
-// QuotaRepository 配额仓储接口
-type QuotaRepository interface {
-	// Create 创建配额
-	Create(ctx context.Context, quota *entity.Quota) error
-
-	// GetByID 根据ID获取配额
-	GetByID(ctx context.Context, quotaID string) (*entity.Quota, error)
-
-	// GetByTenantAndResource 根据租户ID和资源类型获取配额
-	GetByTenantAndResource(ctx context.Context, tenantID string, resourceType entity.ResourceType) (*entity.Quota, error)
-
-	// Update 更新配额
-	Update(ctx context.Context, quota *entity.Quota) error
-
-	// UpdateUsedCount 更新使用计数
-	UpdateUsedCount(ctx context.Context, quotaID string, delta int) error
-
-	// ResetUsage 重置使用量
-	ResetUsage(ctx context.Context, quotaID string) error
-
-	// List 获取租户的所有配额
-	List(ctx context.Context, tenantID string) ([]*entity.Quota, error)
-
-	// GetAll 获取所有配额（用于监控）
-	GetAll(ctx context.Context) ([]*entity.Quota, error)
-
-	// GetByTenant 获取租户的所有配额
-	GetByTenant(ctx context.Context, tenantID string) ([]*entity.Quota, error)
 }
 
 // UsageLogRepository 使用日志仓储接口
@@ -185,3 +159,9 @@ type InvoiceFilter struct {
 	PageSize       int
 }
 
+
+// 错误定义
+var (
+	// ErrRecordNotFound 记录未找到
+	ErrRecordNotFound = errors.New("record not found")
+)

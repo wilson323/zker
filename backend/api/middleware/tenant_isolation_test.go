@@ -25,9 +25,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/ut"
 	"go.uber.org/zap"
 
-	"github.com/coze-studio/coze-studio/backend/pkg/ctxcache"
-	"github.com/coze-studio/coze-studio/backend/pkg/logs"
-	"github.com/coze-studio/coze-studio/backend/types/consts"
+	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	"github.com/coze-dev/coze-studio/backend/types/consts"
 )
 
 // TestTenantIsolationMiddleware_Header 租户隔离中间件测试 - 从HTTP Header获取tenant_id

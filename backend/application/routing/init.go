@@ -19,8 +19,8 @@ package routing
 import (
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/routing/repository"
-	routingservice "github.com/coze-studio/backend/domain/routing/service"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	routingservice "github.com/coze-dev/coze-studio/backend/domain/routing/service"
 )
 
 var RoutingAppSVC *RoutingApplicationService

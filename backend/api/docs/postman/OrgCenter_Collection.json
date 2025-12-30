@@ -1,0 +1,872 @@
+{
+  "info": {
+    "name": "组织中心管理API",
+    "description": "企业级组织管理系统的完整API集合，支持组织、部门、员工、岗位管理和通讯录服务",
+    "version": "v1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{api_token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 集合级别前置脚本",
+          "// 自动刷新Token",
+          "",
+          "const token = pm.environment.get('api_token');",
+          "const expiresAt = pm.environment.get('token_expires_at');",
+          "",
+          "if (expiresAt && Date.now() > parseInt(expiresAt)) {",
+          "    console.log('Token已过期，需要刷新');",
+          "    // TODO: 调用刷新Token接口",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// 集合级别测试脚本",
+          "",
+          "pm.test('响应状态码应为200或201', function () {",
+          "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+          "});",
+          "",
+          "pm.test('响应应为JSON格式', function () {",
+          "    pm.response.to.have.header('Content-Type');",
+          "    pm.expect(pm.response.headers.get('Content-Type')).to.include('application/json');",
+          "});",
+          "",
+          "const jsonData = pm.response.json();",
+          "",
+          "pm.test('业务状态码应为0', function () {",
+          "    pm.expect(jsonData.code).to.eql(0);",
+          "});"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "tenant_id",
+      "value": "tenant_001",
+      "type": "string"
+    },
+    {
+      "key": "api_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+      "type": "string"
+    },
+    {
+      "key": "org_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "dept_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "emp_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "认证",
+      "item": [
+        {
+          "name": "登录获取Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('登录成功', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "",
+                  "pm.test('返回Token', function () {",
+                  "    pm.expect(jsonData.data).to.have.property('token');",
+                  "});",
+                  "",
+                  "// 保存Token到环境变量",
+                  "if (jsonData.data && jsonData.data.token) {",
+                  "    pm.environment.set('api_token', jsonData.data.token);",
+                  "    const expiresIn = jsonData.data.expires_in || 7200;",
+                  "    pm.environment.set('token_expires_at', Date.now() + expiresIn * 1000);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"your_password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "auth", "login"]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "认证相关接口"
+    },
+    {
+      "name": "组织管理",
+      "item": [
+        {
+          "name": "创建组织",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('创建成功', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "pm.test('返回组织ID', function () {",
+                  "    pm.expect(jsonData.data).to.have.property('org_id');",
+                  "});",
+                  "",
+                  "// 保存组织ID到环境变量",
+                  "if (jsonData.data && jsonData.data.org_id) {",
+                  "    pm.environment.set('org_id', jsonData.data.org_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"org_name\": \"技术部\",\n  \"org_type\": \"department\",\n  \"org_code\": \"TECH\",\n  \"description\": \"负责产品研发\",\n  \"sort_order\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations"]
+            },
+            "description": "创建新的组织\n\n业务规则：\n- 组织编码在租户内唯一\n- 根组织（公司）不能有父组织\n- 自动计算组织层级和路径"
+          },
+          "response": []
+        },
+        {
+          "name": "获取组织详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "更新组织",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_id\": \"{{org_id}}\",\n  \"org_name\": \"新名称\",\n  \"description\": \"新描述\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "删除组织",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取组织树",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/tree?tenant_id={{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "tree"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "分页查询组织列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations?tenant_id={{tenant_id}}&page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "移动组织",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"org_id\": \"{{org_id}}\",\n  \"new_parent_id\": \"{{new_parent_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}/move",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}", "move"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取子组织",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}/children",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}", "children"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取祖先组织",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}/ancestors",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}", "ancestors"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取后代组织",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/organizations/{{org_id}}/descendants",
+              "host": ["{{base_url}}"],
+              "path": ["api", "organizations", "{{org_id}}", "descendants"]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "组织管理相关接口"
+    },
+    {
+      "name": "部门管理",
+      "item": [
+        {
+          "name": "创建部门",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('创建成功', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.dept_id) {",
+                  "    pm.environment.set('dept_id', jsonData.data.dept_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"org_id\": \"{{org_id}}\",\n  \"dept_name\": \"研发一组\",\n  \"dept_code\": \"RD-001\",\n  \"description\": \"后端开发组\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/org/departments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取部门详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/org/departments/{{dept_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments", "{{dept_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "更新部门",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dept_id\": \"{{dept_id}}\",\n  \"dept_name\": \"新名称\",\n  \"description\": \"新描述\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/org/departments/{{dept_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments", "{{dept_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "删除部门",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/org/departments/{{dept_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments", "{{dept_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取部门树",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/org/departments/tree?tenant_id={{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments", "tree"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "分页查询部门列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/org/departments?tenant_id={{tenant_id}}&page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "org", "departments"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "部门管理相关接口"
+    },
+    {
+      "name": "员工管理",
+      "item": [
+        {
+          "name": "创建员工",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('创建成功', function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+                  "});",
+                  "",
+                  "const jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.emp_id) {",
+                  "    pm.environment.set('emp_id', jsonData.data.emp_id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"org_id\": \"{{org_id}}\",\n  \"dept_id\": \"{{dept_id}}\",\n  \"emp_name\": \"张三\",\n  \"emp_code\": \"E001\",\n  \"employee_type\": \"full_time\",\n  \"job_level\": 5,\n  \"job_title\": \"高级工程师\",\n  \"hire_date\": 1704067200000,\n  \"probation_days\": 90,\n  \"email\": \"zhangsan@example.com\",\n  \"phone\": \"13800138000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取员工详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/{{emp_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "{{emp_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "更新员工信息",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"dept_id\": \"{{dept_id}}\",\n  \"job_level\": 6,\n  \"email\": \"new@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/{{emp_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "{{emp_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "删除员工（软删除）",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/{{emp_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "{{emp_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "更新员工状态",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"active\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/{{emp_id}}/status",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "{{emp_id}}", "status"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "分页查询员工列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees?tenant_id={{tenant_id}}&page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "根据工号查询员工",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/by-code/E001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "by-code", "E001"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "搜索员工",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/employees/search?keyword=张三&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "employees", "search"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "张三"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "员工管理相关接口"
+    },
+    {
+      "name": "岗位管理",
+      "item": [
+        {
+          "name": "创建岗位",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tenant_id\": \"{{tenant_id}}\",\n  \"dept_id\": \"{{dept_id}}\",\n  \"position_name\": \"高级软件工程师\",\n  \"position_code\": \"SSE\",\n  \"level\": 5,\n  \"category\": \"技术\",\n  \"responsibilities\": \"负责核心模块开发\",\n  \"requirements\": \"本科以上，5年经验\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/positions",
+              "host": ["{{base_url}}"],
+              "path": ["api", "positions"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取岗位详情",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/positions/{{position_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "positions", "{{position_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "更新岗位",
+          "request": {
+            "method": "PUT",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position_id\": \"{{position_id}}\",\n  \"position_name\": \"新名称\",\n  \"responsibilities\": \"新职责\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/positions/{{position_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "positions", "{{position_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "删除岗位",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/positions/{{position_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "positions", "{{position_id}}"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "分页查询岗位列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/positions?tenant_id={{tenant_id}}&page=1&page_size=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "positions"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "岗位管理相关接口"
+    },
+    {
+      "name": "通讯录服务",
+      "item": [
+        {
+          "name": "获取组织架构目录",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/directory/organization?tenant_id={{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "directory", "organization"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取部门目录",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/directory/department?tenant_id={{tenant_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "directory", "department"],
+              "query": [
+                {
+                  "key": "tenant_id",
+                  "value": "{{tenant_id}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "搜索员工",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/directory/search?keyword=张三&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "directory", "search"],
+              "query": [
+                {
+                  "key": "keyword",
+                  "value": "张三"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "获取部门员工列表",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/directory/departments/{{dept_id}}/employees",
+              "host": ["{{base_url}}"],
+              "path": ["api", "directory", "departments", "{{dept_id}}", "employees"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "根据工号查询员工",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/directory/employee/by-code/E001",
+              "host": ["{{base_url}}"],
+              "path": ["api", "directory", "employee", "by-code", "E001"]
+            }
+          },
+          "response": []
+        }
+      ],
+      "description": "通讯录服务相关接口"
+    }
+  ]
+}

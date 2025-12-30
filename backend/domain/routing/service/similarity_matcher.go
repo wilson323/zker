@@ -21,7 +21,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 )
 
 // EmbeddingClient 向量嵌入客户端接口

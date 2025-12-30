@@ -31,11 +31,12 @@ const (
 type DataPermissionScope string
 
 const (
-	DataPermissionScopeAll       DataPermissionScope = "ALL"       // 全部数据
-	DataPermissionScopeDepartment DataPermissionScope = "DEPARTMENT" // 部门数据
-	DataPermissionScopeOwn       DataPermissionScope = "OWN"       // 仅自己的数据
-	DataPermissionScopeCustom    DataPermissionScope = "CUSTOM"    // 自定义过滤
-	DataPermissionScopeNone      DataPermissionScope = "NONE"      // 无权限
+	DataPermissionScopeAll                 DataPermissionScope = "ALL"                  // 全部数据
+	DataPermissionScopeDepartment          DataPermissionScope = "DEPARTMENT"           // 本部门数据
+	DataPermissionScopeDepartmentAndSub    DataPermissionScope = "DEPARTMENT_AND_SUB"   // 本部门及子部门数据
+	DataPermissionScopeOwn                 DataPermissionScope = "OWN"                  // 仅自己的数据
+	DataPermissionScopeCustom              DataPermissionScope = "CUSTOM"               // 自定义过滤
+	DataPermissionScopeNone                DataPermissionScope = "NONE"                 // 无权限
 )
 
 // DataPermission 数据权限实体
@@ -119,5 +120,5 @@ type UserDepartment struct {
 
 // TableName 指定表名
 func (UserDepartment) TableName() string {
-	return "user_departures" // 注意：表名是user_departures而非user_departments
+	return "user_departments"
 }

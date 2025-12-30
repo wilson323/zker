@@ -19,8 +19,9 @@ package permission
 import (
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/permission/repository"
-	permissionservice "github.com/coze-studio/backend/domain/permission/service"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
 )
 
 var PermissionAppSVC *PermissionApplicationService
@@ -60,6 +61,11 @@ func InitService(c *ServiceComponents) (*PermissionApplicationService, error) {
 
 	// 4. 设置全局变量
 	PermissionAppSVC = permissionAppSVC
+
+	// 🔧 P0修复：初始化权限中间件
+	if permissionChecker != nil {
+		middleware.InitPermissionMiddleware(permissionChecker)
+	}
 
 	return permissionAppSVC, nil
 }

@@ -24,13 +24,24 @@ const (
 )
 
 type Space struct {
-	ID          int64
-	Name        string
+	ID        int64
+	TenantID  string // 租户ID（多租户隔离）
+	Name      string
 	Description string
-	IconURL     string
-	SpaceType   SpaceType
-	OwnerID     int64
-	CreatorID   int64
-	CreatedAt   int64
-	UpdatedAt   int64
+	IconURL   string
+	SpaceType SpaceType
+	OwnerID   int64
+	CreatorID int64
+	CreatedAt int64
+	UpdatedAt int64
+}
+
+// GetTenantID 获取租户ID
+func (s *Space) GetTenantID() string {
+	return s.TenantID
+}
+
+// HasTenantID 检查是否有租户ID
+func (s *Space) HasTenantID() bool {
+	return s.TenantID != ""
 }

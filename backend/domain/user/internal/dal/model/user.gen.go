@@ -13,6 +13,7 @@ const TableNameUser = "user"
 // User User Table
 type User struct {
 	ID           int64          `gorm:"column:id;primaryKey;autoIncrement:true;comment:Primary Key ID" json:"id"`                               // Primary Key ID
+	TenantID     string         `gorm:"column:tenant_id;type:varchar(64);comment:租户ID（多租户隔离）" json:"tenant_id"`                           // 租户ID（多租户隔离）
 	Name         string         `gorm:"column:name;not null;comment:User Nickname" json:"name"`                                                 // User Nickname
 	UniqueName   string         `gorm:"column:unique_name;not null;comment:User Unique Name" json:"unique_name"`                                // User Unique Name
 	Email        string         `gorm:"column:email;not null;comment:Email" json:"email"`                                                       // Email

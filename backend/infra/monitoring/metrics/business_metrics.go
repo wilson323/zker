@@ -172,14 +172,6 @@ var (
 		[]string{"tenant_id", "bot_id"},
 	)
 
-	// ActiveConversationActive 活跃对话数(Gauge)
-	ActiveConversationActive = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "conversation_active_count",
-			Help: "Number of active conversations",
-		},
-		[]string{"tenant_id", "bot_id"},
-	)
 )
 
 // ========== 知识库相关指标 ==========

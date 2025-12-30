@@ -1,0 +1,181 @@
+openapi: 3.0.0
+info:
+    title: 组织中心管理API
+    version: 1.0.0
+    description: 企业级组织管理系统的RESTful API文档
+    contact:
+        name: API Support
+        email: api-support@coze.com
+    license:
+        name: Apache 2.0
+        url: https://www.apache.org/licenses/LICENSE-2.0.html
+servers:
+    - url: http://localhost:8080
+      description: 开发环境
+    - url: https://api-test.coze.com
+      description: 测试环境
+    - url: https://api.coze.com
+      description: 生产环境
+tags:
+    - name: 组织管理
+      description: 组织架构管理
+    - name: 部门管理
+      description: 部门层级关系维护
+    - name: 员工管理
+      description: 员工全生命周期管理
+    - name: 岗位管理
+      description: 岗位定义和职级管理
+    - name: 通讯录服务
+      description: 组织目录查询和员工搜索
+security:
+    - {}
+paths:
+    /api/directory/department: {}
+    /api/directory/departments/:dept_id/employees: {}
+    /api/directory/employee/by-code/:code: {}
+    /api/directory/organization: {}
+    /api/directory/organizations/:org_id/employees: {}
+    /api/directory/search: {}
+    /api/org/departments: {}
+    /api/org/departments/:id: {}
+    /api/org/departments/:id/ancestors: {}
+    /api/org/departments/:id/children: {}
+    /api/org/departments/:id/descendants: {}
+    /api/org/departments/:id/move: {}
+    /api/org/departments/by-org/:org_id: {}
+    /api/org/departments/tree: {}
+    /api/organizations: {}
+    /api/organizations/:id: {}
+    /api/organizations/:id/ancestors: {}
+    /api/organizations/:id/children: {}
+    /api/organizations/:id/descendants: {}
+    /api/organizations/:id/move: {}
+    /api/organizations/tree: {}
+    /api/positions: {}
+    /api/positions/:id: {}
+    /api/positions/by-category/:category: {}
+    /api/positions/by-code/:code: {}
+    /api/positions/by-dept/:dept_id: {}
+    /api/positions/by-level/:level: {}
+components:
+    schemas:
+        ErrorResponse:
+            type: object
+            required:
+                - code
+                - message
+            properties:
+                code:
+                    type: integer
+                    format: int32
+                    description: 错误码
+                data:
+                    type: object
+                    description: 额外错误详情
+                message:
+                    type: string
+                    description: 错误信息（中文）
+                message_en:
+                    type: string
+                    description: 错误信息（英文）
+        OrganizationData:
+            type: object
+            required:
+                - org_id
+                - tenant_id
+                - org_name
+                - org_type
+                - org_code
+            properties:
+                created_at:
+                    type: integer
+                    format: int64
+                    description: 创建时间
+                description:
+                    type: string
+                    description: 组织描述
+                leader_id:
+                    type: string
+                    description: 负责人ID
+                level:
+                    type: integer
+                    description: 组织层级
+                org_code:
+                    type: string
+                    description: 组织编码
+                org_id:
+                    type: string
+                    description: 组织ID
+                org_name:
+                    type: string
+                    description: 组织名称
+                org_type:
+                    type: string
+                    description: 组织类型
+                    enum:
+                        - company
+                        - division
+                        - department
+                        - project
+                parent_id:
+                    type: string
+                    description: 父组织ID
+                path:
+                    type: string
+                    description: 组织路径
+                status:
+                    type: string
+                    description: 组织状态
+                    enum:
+                        - active
+                        - inactive
+                        - frozen
+                tenant_id:
+                    type: string
+                    description: 租户ID
+                updated_at:
+                    type: integer
+                    format: int64
+                    description: 更新时间
+    responses:
+        BadRequest:
+            description: 请求参数错误
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+        Forbidden:
+            description: 权限不足
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+        InternalServerError:
+            description: 服务器内部错误
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+        NotFound:
+            description: 资源不存在
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+        Unauthorized:
+            description: 未授权
+            content:
+                application/json:
+                    schema:
+                        $ref: '#/components/schemas/ErrorResponse'
+    securitySchemes:
+        ApiKeyAuth:
+            type: apiKey
+            description: API Key认证
+            name: X-API-Key
+            in: header
+        BearerAuth:
+            type: http
+            description: JWT Token认证
+            scheme: bearer
+            bearerFormat: JWT

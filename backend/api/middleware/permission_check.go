@@ -24,11 +24,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"go.uber.org/zap"
 
-	"github.com/coze-studio/backend/domain/permission/entity"
-	"github.com/coze-studio/backend/domain/permission/service"
-	"github.com/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/backend/pkg/loggerx"
-	berrno "github.com/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/service"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 var (
@@ -85,7 +85,7 @@ func RequirePermission(config PermissionCheckConfig) app.HandlerFunc {
 
 		// 3. 检查是否已初始化权限检查器
 		if permissionChecker == nil {
-			loggerx.CtxWarnf(ctx, "[PermissionCheck] permissionChecker not initialized, skipping permission check")
+			logs.CtxWarnf(ctx, "[PermissionCheck] permissionChecker not initialized, skipping permission check")
 			c.Next(ctx)
 			return
 		}
@@ -99,14 +99,14 @@ func RequirePermission(config PermissionCheckConfig) app.HandlerFunc {
 		// 5. 检查数据权限
 		hasPermission, err := permissionChecker.CheckDataPermission(ctx, tenantID, userID, config.ResourceType, config.Action, resourceID)
 		if err != nil {
-			loggerx.CtxErrorf(ctx, "[PermissionCheck] check data permission failed: %v", err)
+			logs.CtxErrorf(ctx, "[PermissionCheck] check data permission failed: %v", err)
 			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
 			c.Abort()
 			return
 		}
 
 		if !hasPermission {
-			loggerx.CtxWarnf(ctx, "[PermissionCheck] permission denied: user_id=%s, tenant_id=%s, resource_type=%s, action=%s, resource_id=%s",
+			logs.CtxWarnf(ctx, "[PermissionCheck] permission denied: user_id=%s, tenant_id=%s, resource_type=%s, action=%s, resource_id=%s",
 				userID, tenantID, config.ResourceType, config.Action, resourceID)
 
 			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrDataPermissionDeniedCode,
@@ -120,7 +120,7 @@ func RequirePermission(config PermissionCheckConfig) app.HandlerFunc {
 			return
 		}
 
-		loggerx.CtxInfof(ctx, "[PermissionCheck] permission granted: user_id=%s, tenant_id=%s, resource_type=%s, action=%s, resource_id=%s",
+		logs.CtxInfof(ctx, "[PermissionCheck] permission granted: user_id=%s, tenant_id=%s, resource_type=%s, action=%s, resource_id=%s",
 			userID, tenantID, config.ResourceType, config.Action, resourceID)
 
 		// 6. 权限检查通过，继续处理请求
@@ -158,7 +158,7 @@ func RequireRole(requiredRole string) app.HandlerFunc {
 
 		// 3. 检查是否已初始化权限检查器
 		if permissionChecker == nil {
-			loggerx.CtxWarnf(ctx, "[RequireRole] permissionChecker not initialized, skipping role check")
+			logs.CtxWarnf(ctx, "[RequireRole] permissionChecker not initialized, skipping role check")
 			c.Next(ctx)
 			return
 		}
@@ -166,14 +166,14 @@ func RequireRole(requiredRole string) app.HandlerFunc {
 		// 4. 检查用户角色
 		hasRole, err := permissionChecker.UserHasRole(ctx, tenantID, userID, requiredRole)
 		if err != nil {
-			loggerx.CtxErrorf(ctx, "[RequireRole] check user role failed: %v", err)
+			logs.CtxErrorf(ctx, "[RequireRole] check user role failed: %v", err)
 			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
 			c.Abort()
 			return
 		}
 
 		if !hasRole {
-			loggerx.CtxWarnf(ctx, "[RequireRole] role required: user_id=%s, tenant_id=%s, required_role=%s",
+			logs.CtxWarnf(ctx, "[RequireRole] role required: user_id=%s, tenant_id=%s, required_role=%s",
 				userID, tenantID, requiredRole)
 
 			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrPermissionDeniedCode,
@@ -183,7 +183,7 @@ func RequireRole(requiredRole string) app.HandlerFunc {
 			return
 		}
 
-		loggerx.CtxInfof(ctx, "[RequireRole] role check passed: user_id=%s, tenant_id=%s, role=%s",
+		logs.CtxInfof(ctx, "[RequireRole] role check passed: user_id=%s, tenant_id=%s, role=%s",
 			userID, tenantID, requiredRole)
 
 		// 5. 角色检查通过，继续处理请求
@@ -226,7 +226,7 @@ func RequireAnyRole(requiredRoles ...string) app.HandlerFunc {
 
 		// 3. 检查是否已初始化权限检查器
 		if permissionChecker == nil {
-			loggerx.CtxWarnf(ctx, "[RequireAnyRole] permissionChecker not initialized, skipping role check")
+			logs.CtxWarnf(ctx, "[RequireAnyRole] permissionChecker not initialized, skipping role check")
 			c.Next(ctx)
 			return
 		}
@@ -236,7 +236,7 @@ func RequireAnyRole(requiredRoles ...string) app.HandlerFunc {
 		for _, role := range requiredRoles {
 			hasRole, err := permissionChecker.UserHasRole(ctx, tenantID, userID, role)
 			if err != nil {
-				loggerx.CtxErrorf(ctx, "[RequireAnyRole] check user role failed: %v", err)
+				logs.CtxErrorf(ctx, "[RequireAnyRole] check user role failed: %v", err)
 				c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
 				c.Abort()
 				return
@@ -248,7 +248,7 @@ func RequireAnyRole(requiredRoles ...string) app.HandlerFunc {
 		}
 
 		if !hasAnyRole {
-			loggerx.CtxWarnf(ctx, "[RequireAnyRole] role required: user_id=%s, tenant_id=%s, required_roles=%v",
+			logs.CtxWarnf(ctx, "[RequireAnyRole] role required: user_id=%s, tenant_id=%s, required_roles=%v",
 				userID, tenantID, requiredRoles)
 
 			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrPermissionDeniedCode,
@@ -258,7 +258,7 @@ func RequireAnyRole(requiredRoles ...string) app.HandlerFunc {
 			return
 		}
 
-		loggerx.CtxInfof(ctx, "[RequireAnyRole] role check passed: user_id=%s, tenant_id=%s, roles=%v",
+		logs.CtxInfof(ctx, "[RequireAnyRole] role check passed: user_id=%s, tenant_id=%s, roles=%v",
 			userID, tenantID, requiredRoles)
 
 		// 5. 角色检查通过，继续处理请求
@@ -295,21 +295,21 @@ func FilterFieldsByPermission(ctx context.Context, c *app.RequestContext, resour
 
 	// 3. 检查是否已初始化权限检查器
 	if permissionChecker == nil {
-		loggerx.CtxWarnf(ctx, "[FilterFieldsByPermission] permissionChecker not initialized")
+		logs.CtxWarnf(ctx, "[FilterFieldsByPermission] permissionChecker not initialized")
 		return nil
 	}
 
 	// 4. 获取字段权限
 	fieldPerms, err := permissionChecker.GetFieldPermissions(ctx, tenantID, userID, resourceType)
 	if err != nil {
-		loggerx.CtxErrorf(ctx, "[FilterFieldsByPermission] get field permissions failed: %v", err)
+		logs.CtxErrorf(ctx, "[FilterFieldsByPermission] get field permissions failed: %v", err)
 		return err
 	}
 
 	// 5. 过滤hidden字段
 	// TODO: 实现字段过滤逻辑（需要使用反射或mapstructure）
 
-	loggerx.CtxInfof(ctx, "[FilterFieldsByPermission] field permissions applied: user_id=%s, tenant_id=%s, resource_type=%s, hidden_fields=%d",
+	logs.CtxInfof(ctx, "[FilterFieldsByPermission] field permissions applied: user_id=%s, tenant_id=%s, resource_type=%s, hidden_fields=%d",
 		userID, tenantID, resourceType, len(fieldPerms))
 
 	return nil
@@ -350,7 +350,7 @@ func ManualPermissionCheck(ctx context.Context, c *app.RequestContext, config Pe
 
 	// 3. 检查是否已初始化权限检查器
 	if permissionChecker == nil {
-		loggerx.CtxWarnf(ctx, "[ManualPermissionCheck] permissionChecker not initialized")
+		logs.CtxWarnf(ctx, "[ManualPermissionCheck] permissionChecker not initialized")
 		return true // 降级：未初始化则通过
 	}
 
@@ -363,7 +363,7 @@ func ManualPermissionCheck(ctx context.Context, c *app.RequestContext, config Pe
 	// 5. 检查权限
 	hasPermission, err := permissionChecker.CheckDataPermission(ctx, tenantID, userID, config.ResourceType, config.Action, resourceID)
 	if err != nil {
-		loggerx.CtxErrorf(ctx, "[ManualPermissionCheck] check permission failed: %v", err)
+		logs.CtxErrorf(ctx, "[ManualPermissionCheck] check permission failed: %v", err)
 		return false
 	}
 
@@ -398,7 +398,7 @@ func GetCurrentUserPermissions(ctx context.Context, c *app.RequestContext) ([]st
 
 	// 3. 检查是否已初始化权限检查器
 	if permissionChecker == nil {
-		loggerx.CtxWarnf(ctx, "[GetCurrentUserPermissions] permissionChecker not initialized")
+		logs.CtxWarnf(ctx, "[GetCurrentUserPermissions] permissionChecker not initialized")
 		return []string{}, nil
 	}
 

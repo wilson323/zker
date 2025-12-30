@@ -19,7 +19,8 @@ package service
 import (
 	"context"
 
-	"github.com/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
 )
 
 // DepartmentPermissionChecker 部门权限检查器
@@ -157,7 +158,7 @@ func (d *DepartmentPermissionChecker) GetDepartmentTree(ctx context.Context, ten
 }
 
 // buildDepartmentTree 递归构建部门树
-func (d *DepartmentPermissionChecker) buildDepartmentTree(depts []*Department, parentID string) []*DepartmentTreeNode {
+func (d *DepartmentPermissionChecker) buildDepartmentTree(depts []*entity.Department, parentID string) []*DepartmentTreeNode {
 	nodes := make([]*DepartmentTreeNode, 0)
 
 	for _, dept := range depts {

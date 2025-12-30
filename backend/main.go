@@ -25,6 +25,8 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/cloudwego/hertz/pkg/app/server"
 	"github.com/cloudwego/hertz/pkg/common/config"
@@ -34,6 +36,9 @@ import (
 	"github.com/coze-dev/coze-studio/backend/api/middleware"
 	"github.com/coze-dev/coze-studio/backend/api/router"
 	"github.com/coze-dev/coze-studio/backend/application"
+	infraLogging "github.com/coze-dev/coze-studio/backend/infra/logging"
+	"github.com/coze-dev/coze-studio/backend/infra/monitoring"
+	"github.com/coze-dev/coze-studio/backend/infra/tracing"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/conv"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ternary"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
@@ -51,11 +56,50 @@ func main() {
 
 	setLogLevel()
 
+	// 🔧 P0修复：初始化监控日志系统（必须在最前面）
+	env := getEnv("APP_ENV", "development")
+	serviceName := getEnv("SERVICE_NAME", "coze-api")
+
+	// 1. 初始化结构化日志系统
+	if err := initLogging(env); err != nil {
+		logs.Warnf("Failed to initialize structured logging: %v (fallback to default logging)", err)
+	} else {
+		defer func() {
+			if err := infraLogging.Sync(); err != nil {
+				logs.Warnf("Failed to sync logging: %v", err)
+			}
+		}()
+		logs.Info("Structured logging system initialized")
+	}
+
+	// 2. 初始化分布式追踪
+	jaegerEndpoint := getEnv("JAEGER_ENDPOINT", "http://localhost:14268/api/traces")
+	if err := initTracing(serviceName, jaegerEndpoint); err != nil {
+		logs.Warnf("Failed to initialize tracing: %v (tracing disabled)", err)
+	} else {
+		defer func() {
+			if err := tracing.Shutdown(ctx); err != nil {
+				logs.Warnf("Failed to shutdown tracing: %v", err)
+			}
+		}()
+		logs.Info("Distributed tracing system initialized")
+	}
+
 	if err := application.Init(ctx); err != nil {
 		panic("InitializeInfra failed, err=" + err.Error())
 	}
 
 	startHttpServer()
+}
+
+// initLogging 初始化结构化日志系统
+func initLogging(env string) error {
+	return infraLogging.Init(env)
+}
+
+// initTracing 初始化分布式追踪
+func initTracing(serviceName, jaegerEndpoint string) error {
+	return tracing.Init(serviceName, jaegerEndpoint)
 }
 
 func startHttpServer() {
@@ -83,6 +127,11 @@ func startHttpServer() {
 
 	s := server.Default(opts...)
 
+	// 🔧 P0修复：注册Prometheus监控端点和健康检查端点
+	monitoring.RegisterMetricsHandler(s)
+	logs.Info("Prometheus metrics endpoint registered at /metrics")
+	logs.Info("Health check endpoint registered at /health")
+
 	// cors option
 	config := cors.DefaultConfig()
 	config.AllowAllOrigins = true
@@ -100,8 +149,34 @@ func startHttpServer() {
 	s.Use(middleware.SessionAuthMW())
 	s.Use(middleware.I18nMW()) // must after SessionAuthMW
 
+	// 🔧 P0修复：添加Prometheus监控中间件
+	s.Use(monitoring.HTTPMiddleware())
+	logs.Info("Prometheus monitoring middleware enabled")
+
 	router.GeneratedRegister(s)
+
+	// 🔧 P0修复：优雅关闭
+	go handleGracefulShutdown(s)
+
 	s.Spin()
+}
+
+// handleGracefulShutdown 处理优雅关闭
+func handleGracefulShutdown(s *server.Hertz) {
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	logs.Info("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := s.Shutdown(ctx); err != nil {
+		logs.Errorf("Server shutdown error: %v", err)
+	}
+
+	logs.Info("Server exited gracefully")
 }
 
 func loadEnv() (err error) {

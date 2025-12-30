@@ -23,19 +23,19 @@
 -- =====================================================
 
 -- =====================================================
--- Step 1: users表添加tenant_id列
+-- Step 1: user表添加tenant_id列
 -- =====================================================
 
 -- 添加tenant_id列（允许NULL，兼容现有数据）
-ALTER TABLE `opencoze`.`users`
+ALTER TABLE `opencoze`.`user`
 ADD COLUMN `tenant_id` VARCHAR(36) NULL COMMENT '租户ID（UUID）'
 AFTER `session_key`;
 
 -- 创建索引（优化查询性能）
-CREATE INDEX `idx_tenant_id` ON `opencoze`.`users` (`tenant_id`);
+CREATE INDEX `idx_tenant_id` ON `opencoze`.`user` (`tenant_id`);
 
 -- 创建复合索引（优化租户+用户查询）
-CREATE INDEX `idx_tenant_id_email` ON `opencoze`.`users` (`tenant_id`, `email`);
+CREATE INDEX `idx_tenant_id_email` ON `opencoze`.`user` (`tenant_id`, `email`);
 
 -- 验证列是否添加成功
 SELECT
@@ -45,7 +45,7 @@ SELECT
     COLUMN_COMMENT
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = 'opencoze'
-  AND TABLE_NAME = 'users'
+  AND TABLE_NAME = 'user'
   AND COLUMN_NAME = 'tenant_id';
 
 -- =====================================================
@@ -70,7 +70,7 @@ CREATE TABLE `opencoze`.`user_tenants` (
     `deleted_at` BIGINT UNSIGNED NULL COMMENT '删除时间（毫秒）',
 
     -- 外键约束
-    FOREIGN KEY (`user_id`) REFERENCES `opencoze`.`users`(`id`) ON DELETE CASCADE,
+    FOREIGN KEY (`user_id`) REFERENCES `opencoze`.`user`(`id`) ON DELETE CASCADE,
     FOREIGN KEY (`tenant_id`) REFERENCES `opencoze`.`tenants`(`tenant_id`) ON DELETE CASCADE,
 
     -- 唯一约束：一个用户在一个租户中只能有一条记录
@@ -91,7 +91,7 @@ WHERE TABLE_SCHEMA = 'opencoze'
   AND TABLE_NAME = 'user_tenants';
 
 -- =====================================================
--- Step 3: 为现有users创建个人租户并关联
+-- Step 3: 为现有user创建个人租户并关联
 -- 策略: 为每个用户创建一个individual类型的租户
 -- =====================================================
 
@@ -113,11 +113,11 @@ SELECT
     'free' AS `subscription_tier`,
     UNIX_TIMESTAMP(NOW()) * 1000 AS `created_at`,
     UNIX_TIMESTAMP(NOW()) * 1000 AS `updated_at`
-FROM `opencoze`.`users`
+FROM `opencoze`.`user`
 WHERE `deleted_at` IS NULL;
 
 -- 3.2 更新users表的tenant_id列
-UPDATE `opencoze`.`users` u
+UPDATE `opencoze`.`user` u
 SET u.`tenant_id` = CONCAT('individual-user-', CAST(u.`id` AS CHAR))
 WHERE u.`deleted_at` IS NULL
   AND u.`tenant_id` IS NULL;
@@ -176,7 +176,7 @@ SELECT
     TRUE AS `is_default`,
     UNIX_TIMESTAMP(NOW()) * 1000 AS `created_at`,
     UNIX_TIMESTAMP(NOW()) * 1000 AS `updated_at`
-FROM `opencoze`.`users` u
+FROM `opencoze`.`user` u
 WHERE u.`deleted_at` IS NULL
   AND u.`tenant_id` IS NOT NULL
   AND NOT EXISTS (
@@ -189,20 +189,20 @@ WHERE u.`deleted_at` IS NULL
 -- Step 4: 数据验证
 -- =====================================================
 
--- 验证1: 所有users都应该有tenant_id
+-- 验证1: 所有user都应该有tenant_id
 SELECT
     COUNT(*) AS users_without_tenant,
-    'ERROR: Users without tenant_id' AS message
-FROM `opencoze`.`users`
+    'ERROR: User without tenant_id' AS message
+FROM `opencoze`.`user`
 WHERE `tenant_id` IS NULL
   AND `deleted_at` IS NULL;
 -- 期望结果: 0
 
--- 验证2: 所有users在user_tenants表中都应该有对应记录
+-- 验证2: 所有user在user_tenants表中都应该有对应记录
 SELECT
     COUNT(*) AS orphan_users,
-    'ERROR: Users without user_tenant relation' AS message
-FROM `opencoze`.`users` u
+    'ERROR: User without user_tenant relation' AS message
+FROM `opencoze`.`user` u
 LEFT JOIN `opencoze`.`user_tenants` ut ON u.`id` = ut.`user_id` AND ut.`deleted_at` IS NULL
 WHERE u.`deleted_at` IS NULL
   AND ut.`user_tenant_id` IS NULL;
@@ -223,7 +223,7 @@ SELECT
     u.`id` AS user_id,
     u.`email`,
     'WARNING: User without default tenant' AS message
-FROM `opencoze`.`users` u
+FROM `opencoze`.`user` u
 LEFT JOIN `opencoze`.`user_tenants` ut ON u.`id` = ut.`user_id` AND ut.`is_default` = TRUE AND ut.`deleted_at` IS NULL
 WHERE u.`deleted_at` IS NULL
   AND ut.`user_tenant_id` IS NULL
@@ -232,17 +232,17 @@ LIMIT 10;
 
 -- 验证5: 统计数据
 SELECT
-    'Total Users' AS metric,
+    'Total User' AS metric,
     COUNT(*) AS value
-FROM `opencoze`.`users`
+FROM `opencoze`.`user`
 WHERE `deleted_at` IS NULL
 
 UNION ALL
 
 SELECT
-    'Users with Tenant ID' AS metric,
+    'User with Tenant ID' AS metric,
     COUNT(*) AS value
-FROM `opencoze`.`users`
+FROM `opencoze`.`user`
 WHERE `tenant_id` IS NOT NULL
   AND `deleted_at` IS NULL
 

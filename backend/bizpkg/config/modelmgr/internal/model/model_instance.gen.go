@@ -16,6 +16,7 @@ const TableNameModelInstance = "model_instance"
 // ModelInstance Model Instance Management Table
 type ModelInstance struct {
 	ID          int64                           `gorm:"column:id;primaryKey;autoIncrement:true;comment:id" json:"id"`                                          // id
+	TenantID    string                          `gorm:"column:tenant_id;type:varchar(64);not null;default:default;comment:租户ID（多租户隔离）" json:"tenant_id"` // 租户ID（多租户隔离）
 	Type        int32                           `gorm:"column:type;not null;comment:Model Type 0-LLM 1-TextEmbedding 2-Rerank" json:"type"`                    // Model Type 0-LLM 1-TextEmbedding 2-Rerank
 	Provider    *config.ModelProvider           `gorm:"column:provider;not null;comment:Provider Information;serializer:json" json:"provider"`                 // Provider Information
 	DisplayInfo *config.DisplayInfo             `gorm:"column:display_info;not null;comment:Display Information;serializer:json" json:"display_info"`          // Display Information

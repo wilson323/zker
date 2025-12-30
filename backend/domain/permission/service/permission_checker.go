@@ -23,8 +23,8 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/permission/entity"
-	"github.com/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
 )
 
 // PermissionDeniedError 权限拒绝错误
@@ -72,21 +72,45 @@ func NewPermissionChecker(
 	}
 }
 
-// CheckDataPermission 检查数据权限
+// CheckDataPermission 检查数据权限（5级权限范围）
+//
+// 参数说明：
+//   - ctx: 上下文
+//   - tenantID: 租户ID
+//   - userID: 用户ID
+//   - resourceType: 资源类型（bots, conversations, knowledge, workflows, plugins）
+//   - action: 操作类型（create, read, update, delete）
+//   - resourceID: 资源ID
+//
+// 返回值：
+//   - bool: 是否有权限
+//   - error: 错误信息
 func (p *PermissionChecker) CheckDataPermission(
 	ctx context.Context,
-	userID, tenantID string,
+	tenantID, userID string,
 	resourceType entity.ResourceType,
+	action string,
 	resourceID string,
-) error {
-	// 1. 获取用户的所有角色
+) (bool, error) {
+	// 1. 参数验证
+	if tenantID == "" {
+		return false, fmt.Errorf("tenant_id is required")
+	}
+	if userID == "" {
+		return false, fmt.Errorf("user_id is required")
+	}
+	if resourceType == "" {
+		return false, fmt.Errorf("resource_type is required")
+	}
+
+	// 2. 获取用户的所有角色
 	roles, err := p.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
 	if err != nil {
-		return fmt.Errorf("failed to get user roles: %w", err)
+		return false, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
 	if len(roles) == 0 {
-		return &PermissionDeniedError{
+		return false, &PermissionDeniedError{
 			UserID:       userID,
 			ResourceType: string(resourceType),
 			ResourceID:   resourceID,
@@ -94,7 +118,7 @@ func (p *PermissionChecker) CheckDataPermission(
 		}
 	}
 
-	// 2. 检查数据权限
+	// 3. 检查数据权限
 	for _, role := range roles {
 		perm, err := p.dataPermRepo.GetByRoleAndResource(ctx, role.RoleID, resourceType)
 		if err != nil {
@@ -105,60 +129,25 @@ func (p *PermissionChecker) CheckDataPermission(
 			continue
 		}
 
-		switch perm.Scope {
-		case entity.DataPermissionScopeAll:
-			// 有全部权限，直接返回
-			return nil
+		// 评估数据范围权限
+		allowed := p.evaluateDataScope(ctx, perm.Scope, userID, resourceType, resourceID, perm.CustomFilter)
+		if allowed {
+			return true, nil
+		}
 
-		case entity.DataPermissionScopeNone:
-			// 明确无权限
-			return &PermissionDeniedError{
+		// 如果明确是无权限，直接返回
+		if perm.Scope == entity.DataPermissionScopeNone {
+			return false, &PermissionDeniedError{
 				UserID:       userID,
 				ResourceType: string(resourceType),
 				ResourceID:   resourceID,
 				Reason:       "role has no permission for this resource",
 			}
-
-		case entity.DataPermissionScopeOwn:
-			// 检查是否是资源的创建者
-			if !p.isOwner(ctx, userID, resourceType, resourceID) {
-				return &PermissionDeniedError{
-					UserID:       userID,
-					ResourceType: string(resourceType),
-					ResourceID:   resourceID,
-					Reason:       "can only access own resources",
-				}
-			}
-			return nil
-
-		case entity.DataPermissionScopeDepartment:
-			// 检查是否同部门
-			if !p.isSameDepartment(ctx, userID, resourceType, resourceID) {
-				return &PermissionDeniedError{
-					UserID:       userID,
-					ResourceType: string(resourceType),
-					ResourceID:   resourceID,
-					Reason:       "can only access department resources",
-				}
-			}
-			return nil
-
-		case entity.DataPermissionScopeCustom:
-			// 根据 custom_filter 进行过滤
-			if !p.matchCustomFilter(ctx, userID, perm.CustomFilter, resourceType, resourceID) {
-				return &PermissionDeniedError{
-					UserID:       userID,
-					ResourceType: string(resourceType),
-					ResourceID:   resourceID,
-					Reason:       "does not match custom filter",
-				}
-			}
-			return nil
 		}
 	}
 
 	// 所有角色都没有权限
-	return &PermissionDeniedError{
+	return false, &PermissionDeniedError{
 		UserID:       userID,
 		ResourceType: string(resourceType),
 		ResourceID:   resourceID,
@@ -166,29 +155,85 @@ func (p *PermissionChecker) CheckDataPermission(
 	}
 }
 
+// evaluateDataScope 评估数据范围权限
+func (p *PermissionChecker) evaluateDataScope(
+	ctx context.Context,
+	scope entity.DataPermissionScope,
+	userID string,
+	resourceType entity.ResourceType,
+	resourceID string,
+	customFilter string,
+) bool {
+	switch scope {
+	case entity.DataPermissionScopeAll:
+		// 全部数据权限
+		return true
+
+	case entity.DataPermissionScopeDepartment:
+		// 部门数据权限：检查资源是否属于用户部门
+		return p.isSameDepartment(ctx, userID, resourceType, resourceID)
+
+	case entity.DataPermissionScopeOwn:
+		// 仅自己数据权限：检查资源是否由用户创建
+		return p.isOwner(ctx, userID, resourceType, resourceID)
+
+	case entity.DataPermissionScopeCustom:
+		// 自定义过滤权限：根据 custom_filter 进行过滤
+		return p.matchCustomFilter(ctx, userID, customFilter, resourceType, resourceID)
+
+	case entity.DataPermissionScopeNone:
+		// 无权限
+		return false
+
+	default:
+		// 未知范围，默认拒绝
+		return false
+	}
+}
+
 // GetFieldPermissions 获取字段权限（合并所有角色的字段权限）
+//
+// 参数说明：
+//   - ctx: 上下文
+//   - tenantID: 租户ID
+//   - userID: 用户ID
+//   - resourceType: 资源类型
+//
+// 返回值：
+//   - map[string]string: 字段权限映射（字段名 -> 权限级别：hidden/readonly/editable）
+//   - error: 错误信息
 func (p *PermissionChecker) GetFieldPermissions(
 	ctx context.Context,
-	userID, tenantID string,
+	tenantID, userID string,
 	resourceType string,
 ) (map[string]string, error) {
-	// 1. 获取用户的所有角色
+	// 1. 参数验证
+	if tenantID == "" || userID == "" || resourceType == "" {
+		return nil, fmt.Errorf("tenant_id, user_id and resource_type are required")
+	}
+
+	// 2. 获取用户的所有角色
 	roles, err := p.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user roles: %w", err)
 	}
 
-	// 2. 合并所有角色的字段权限
+	// 3. 合并所有角色的字段权限（取最大权限）
 	fieldPerms := make(map[string]string)
 	for _, role := range roles {
-		perms, _ := p.fieldPermRepo.GetByRoleAndResource(ctx, role.RoleID, resourceType)
+		perms, err := p.fieldPermRepo.GetByRoleAndResource(ctx, role.RoleID, resourceType)
+		if err != nil {
+			continue
+		}
+
 		for _, perm := range perms {
 			fieldName := perm.FieldName
 			permLevel := string(perm.PermissionLevel)
 
 			// 如果已有权限，优先级更高：editable > readonly > hidden
 			if existing, ok := fieldPerms[fieldName]; ok {
-				if existing == "editable" || permLevel == "hidden" {
+				if p.compareFieldLevel(existing, permLevel) >= 0 {
+					// 已有权限更高或相等，跳过
 					continue
 				}
 			}
@@ -202,11 +247,11 @@ func (p *PermissionChecker) GetFieldPermissions(
 // FilterResourcesByDepartment 按部门过滤资源
 func (p *PermissionChecker) FilterResourcesByDepartment(
 	ctx context.Context,
-	userID, tenantID string,
+	tenantID, userID string,
 	resources []map[string]interface{},
 ) ([]map[string]interface{}, error) {
 	// 1. 获取用户可访问的部门ID列表
-	deptIDs, err := p.GetAccessibleDepartmentIDs(ctx, userID, tenantID)
+	deptIDs, err := p.GetAccessibleDepartmentIDs(ctx, tenantID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +276,7 @@ func (p *PermissionChecker) FilterResourcesByDepartment(
 // GetAccessibleDepartmentIDs 获取用户可访问的部门ID列表
 func (p *PermissionChecker) GetAccessibleDepartmentIDs(
 	ctx context.Context,
-	userID, tenantID string,
+	tenantID, userID string,
 ) ([]string, error) {
 	// 1. 获取用户所属部门
 	userDepts, err := p.userDeptRepo.GetByUser(ctx, userID, tenantID)
@@ -253,6 +298,119 @@ func (p *PermissionChecker) GetAccessibleDepartmentIDs(
 	}
 
 	return deptIDs, nil
+}
+
+// UserHasRole 检查用户是否拥有指定角色
+//
+// 参数说明：
+//   - ctx: 上下文
+//   - tenantID: 租户ID
+//   - userID: 用户ID
+//   - roleCode: 角色代码
+//
+// 返回值：
+//   - bool: 是否拥有该角色
+//   - error: 错误信息
+func (p *PermissionChecker) UserHasRole(
+	ctx context.Context,
+	tenantID, userID string,
+	roleCode string,
+) (bool, error) {
+	// 1. 参数验证
+	if tenantID == "" || userID == "" || roleCode == "" {
+		return false, fmt.Errorf("tenant_id, user_id and role_code are required")
+	}
+
+	// 2. 获取用户所有角色
+	roles, err := p.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// 3. 检查是否拥有指定角色
+	for _, role := range roles {
+		if role.RoleCode == roleCode {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetUserPermissions 获取用户所有权限
+//
+// 参数说明：
+//   - ctx: 上下文
+//   - tenantID: 租户ID
+//   - userID: 用户ID
+//
+// 返回值：
+//   - []string: 权限代码列表
+//   - error: 错误信息
+func (p *PermissionChecker) GetUserPermissions(
+	ctx context.Context,
+	tenantID, userID string,
+) ([]string, error) {
+	// 1. 参数验证
+	if tenantID == "" || userID == "" {
+		return nil, fmt.Errorf("tenant_id and user_id are required")
+	}
+
+	// 2. 获取用户所有角色
+	roles, err := p.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user roles: %w", err)
+	}
+
+	// 3. 收集所有角色的权限（去重）
+	permissionMap := make(map[string]bool)
+	for _, role := range roles {
+		// 获取角色的权限列表
+		perms, err := p.dataPermRepo.GetByRole(ctx, role.RoleID)
+		if err != nil {
+			continue
+		}
+
+		for _, perm := range perms {
+			// 生成权限代码：{resource_type}:{action}
+			permCode := fmt.Sprintf("%s:*", string(perm.ResourceType))
+			permissionMap[permCode] = true
+		}
+	}
+
+	// 4. 转换为切片返回
+	permissions := make([]string, 0, len(permissionMap))
+	for perm := range permissionMap {
+		permissions = append(permissions, perm)
+	}
+
+	return permissions, nil
+}
+
+// compareFieldLevel 比较字段权限级别
+//
+// 权限级别: hidden (0) < readonly (1) < editable (2)
+//
+// 返回值：
+//   - 正数: level1 > level2
+//   - 0: level1 == level2
+//   - 负数: level1 < level2
+func (p *PermissionChecker) compareFieldLevel(level1, level2 string) int {
+	levels := map[string]int{
+		"hidden":   0,
+		"readonly": 1,
+		"editable": 2,
+	}
+
+	l1 := levels[level1]
+	l2 := levels[level2]
+
+	if l1 > l2 {
+		return 1
+	} else if l1 < l2 {
+		return -1
+	}
+	return 0
 }
 
 // isOwner 检查是否是资源创建者

@@ -26,14 +26,14 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
-	"github.com/coze-studio/coze-studio/backend/api/middleware"
-	"github.com/coze-studio/coze-studio/backend/domain/tenant/service"
-	"github.com/coze-studio/coze-studio/backend/domain/tenant/entity"
-	"github.com/coze-studio/coze-studio/backend/domain/user/entity"
-	"github.com/coze-studio/coze-studio/backend/pkg/ctxcache"
-	"github.com/coze-studio/coze-studio/backend/pkg/errorx"
-	berrno "github.com/coze-studio/coze-studio/backend/types/errno"
-	"github.com/coze-studio/coze-studio/backend/types/consts"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/user/entity"
+	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/types/consts"
 )
 
 // =====================================================

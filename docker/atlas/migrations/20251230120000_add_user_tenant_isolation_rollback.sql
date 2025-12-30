@@ -42,22 +42,22 @@ WHERE TABLE_SCHEMA = 'opencoze'
 -- 期望结果: 0
 
 -- =====================================================
--- Step 2: 删除users表的tenant_id列
+-- Step 2: 删除user表的tenant_id列
 -- =====================================================
 
 -- 删除索引
-DROP INDEX IF EXISTS `idx_tenant_id` ON `opencoze`.`users`;
-DROP INDEX IF EXISTS `idx_tenant_id_email` ON `opencoze`.`users`;
+DROP INDEX IF EXISTS `idx_tenant_id` ON `opencoze`.`user`;
+DROP INDEX IF EXISTS `idx_tenant_id_email` ON `opencoze`.`user`;
 
 -- 删除列
-ALTER TABLE `opencoze`.`users`
+ALTER TABLE `opencoze`.`user`
 DROP COLUMN IF EXISTS `tenant_id`;
 
 -- 验证列是否删除成功
 SELECT COUNT(*) AS column_exists
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = 'opencoze'
-  AND TABLE_NAME = 'users'
+  AND TABLE_NAME = 'user'
   AND COLUMN_NAME = 'tenant_id';
 -- 期望结果: 0
 
@@ -95,13 +95,13 @@ WHERE `tenant_id` LIKE 'individual-user-%';
 -- Step 4: 验证回滚结果
 -- =====================================================
 
--- 验证1: users表不应该有tenant_id列
+-- 验证1: user表不应该有tenant_id列
 SELECT
     COLUMN_NAME,
-    'ERROR: tenant_id column still exists in users table' AS message
+    'ERROR: tenant_id column still exists in user table' AS message
 FROM INFORMATION_SCHEMA.COLUMNS
 WHERE TABLE_SCHEMA = 'opencoze'
-  AND TABLE_NAME = 'users'
+  AND TABLE_NAME = 'user'
   AND COLUMN_NAME = 'tenant_id';
 -- 期望结果: 0 rows
 

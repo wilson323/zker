@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/coze-dev/coze-studio/backend/application/permission"
+	"github.com/coze-dev/coze-studio/backend/application/tenant"
 
 	"github.com/coze-dev/coze-studio/backend/application/app"
 	"github.com/coze-dev/coze-studio/backend/application/base/appinfra"
@@ -98,6 +99,7 @@ type basicServices struct {
 	uploadSVC    *upload.UploadService
 
 	permissionSVC *permission.PermissionApplicationService
+	tenantSVC     *tenant.TenantApplicationService
 }
 
 type primaryServices struct {
@@ -193,7 +195,14 @@ func initBasicServices(ctx context.Context, infra *appinfra.AppDependencies, e *
 		Storage: infra.OSS,
 	})
 
-	permissionSVC := permission.InitService(&permission.ServiceComponents{})
+	permissionSVC := permission.InitService(&permission.ServiceComponents{DB: infra.DB})
+
+	// 🔧 P0修复：初始化租户服务（包含配额中间件初始化）
+	// 必须在 permission 之后初始化，因为租户服务可能依赖权限检查
+	tenantSVC := tenant.InitService(&tenant.ServiceComponents{
+		DB:    infra.DB,
+		Cache: infra.CacheCli,
+	})
 
 	return &basicServices{
 		infra:        infra,
@@ -207,6 +216,7 @@ func initBasicServices(ctx context.Context, infra *appinfra.AppDependencies, e *
 		uploadSVC:    uploadSVC,
 
 		permissionSVC: permissionSVC,
+		tenantSVC:     tenantSVC,
 	}, nil
 }
 

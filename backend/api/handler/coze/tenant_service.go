@@ -18,12 +18,13 @@ package coze
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/tenant"
-	tenantapp "github.com/coze-studio/backend/application/tenant"
+	tenantapp "github.com/coze-dev/coze-studio/backend/application/tenant"
 )
 
 // ==================== 租户管理接口 ====================
@@ -485,4 +486,118 @@ func GetMonitoringStatus(ctx context.Context, c *app.RequestContext) {
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+// ==================== 数据隔离接口 ====================
+
+// ExportTenantData 导出租户数据
+// @router /api/tenants/:tenant_id/export [POST]
+func ExportTenantData(ctx context.Context, c *app.RequestContext) {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		invalidParamRequestResponse(c, "tenant_id is required")
+		return
+	}
+
+	// 获取导出选项
+	includeBots := c.DefaultQuery("include_bots", "true") == "true"
+	includeWorkflows := c.DefaultQuery("include_workflows", "true") == "true"
+	includeKnowledge := c.DefaultQuery("include_knowledge", "true") == "true"
+	includeConversations := c.DefaultQuery("include_conversations", "false") == "true"
+
+	exportID, err := tenantapp.TenantAppSVC.ExportTenantData(ctx, tenantID, &tenant.ExportDataRequest{
+		IncludeBots:         includeBots,
+		IncludeWorkflows:    includeWorkflows,
+		IncludeKnowledge:    includeKnowledge,
+		IncludeConversations: includeConversations,
+	})
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &tenant.ExportDataResponse{
+		Code:     0,
+		Message:  "Export started",
+		ExportID: exportID,
+	})
+}
+
+// GetExportStatus 获取导出状态
+// @router /api/tenants/:tenant_id/export/:export_id [GET]
+func GetExportStatus(ctx context.Context, c *app.RequestContext) {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		invalidParamRequestResponse(c, "tenant_id is required")
+		return
+	}
+
+	exportID := c.Param("export_id")
+	if exportID == "" {
+		invalidParamRequestResponse(c, "export_id is required")
+		return
+	}
+
+	status, downloadURL, err := tenantapp.TenantAppSVC.GetExportStatus(ctx, tenantID, exportID)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &tenant.ExportStatusResponse{
+		Code:        0,
+		Message:     "success",
+		Status:      status,
+		DownloadURL: downloadURL,
+	})
+}
+
+// DeleteTenantData 删除租户数据（软删除）
+// @router /api/tenants/:tenant_id/data [DELETE]
+func DeleteTenantData(ctx context.Context, c *app.RequestContext) {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		invalidParamRequestResponse(c, "tenant_id is required")
+		return
+	}
+
+	// 获取删除确认
+	confirm := c.Query("confirm")
+	if confirm != "true" {
+		invalidParamRequestResponse(c, "confirmation required: add ?confirm=true to confirm deletion")
+		return
+	}
+
+	err := tenantapp.TenantAppSVC.DeleteTenantData(ctx, tenantID)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"code":    0,
+		"message": "Tenant data deletion initiated",
+	})
+}
+
+// GetTenantStats 获取租户统计信息
+// @router /api/tenants/:tenant_id/stats [GET]
+func GetTenantStats(ctx context.Context, c *app.RequestContext) {
+	tenantID := c.Param("tenant_id")
+	if tenantID == "" {
+		invalidParamRequestResponse(c, "tenant_id is required")
+		return
+	}
+
+	stats, err := tenantapp.TenantAppSVC.GetTenantStats(ctx, tenantID)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &tenant.TenantStatsResponse{
+		Code:    0,
+		Message: "success",
+		Data:    stats,
+	})
 }

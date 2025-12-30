@@ -1,0 +1,438 @@
+/*
+ * Copyright 2025 coze-dev Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package service
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
+
+	"github.com/coze-dev/coze-studio/backend/domain/billing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/billing/repository"
+)
+
+// ============================================================
+// 测试用例
+// ============================================================
+
+// TestBudgetManagementService_GetBudget 测试获取预算配置
+func TestBudgetManagementService_GetBudget(t *testing.T) {
+	// 准备测试数据
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	// 构建预期的预算配置
+	channelsJSON, _ := json.Marshal([]string{"email", "webhook"})
+	recipientsJSON, _ := json.Marshal([]string{"admin@example.com"})
+
+	expectedBudget := &entity.BudgetSettings{
+		ID:                     1,
+		TenantID:               tenantID,
+		BudgetType:             entity.BudgetTypeMonthly,
+		BudgetAmount:           10000.00,
+		Currency:               "CNY",
+		AlertThreshold1:        80,
+		AlertThreshold2:        95,
+		HardCapEnabled:         true,
+		HardCapAmount:          float64Ptr(12000.00),
+		AutoDowngradeEnabled:   false,
+		DowngradeThreshold:     90,
+		NotificationChannels:   string(channelsJSON),
+		NotificationRecipients: string(recipientsJSON),
+		CreatedAt:              time.Now(),
+		UpdatedAt:              time.Now(),
+	}
+
+	// 设置Mock期望
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(expectedBudget, nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.GetBudget(ctx, tenantID)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, tenantID, result.TenantID)
+	assert.Equal(t, entity.BudgetTypeMonthly, result.BudgetType)
+	assert.Equal(t, 10000.00, result.BudgetAmount)
+	assert.Equal(t, "CNY", result.Currency)
+	assert.Equal(t, 80, result.AlertThreshold1)
+	assert.Equal(t, 95, result.AlertThreshold2)
+	assert.True(t, result.HardCapEnabled)
+	assert.NotNil(t, result.HardCapAmount)
+	assert.Equal(t, 12000.00, *result.HardCapAmount)
+	assert.Equal(t, []string{"email", "webhook"}, result.NotificationChannels)
+	assert.Equal(t, []string{"admin@example.com"}, result.NotificationRecipients)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_CreateBudget 测试创建预算配置
+func TestBudgetManagementService_CreateBudget(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+
+	req := &CreateBudgetRequest{
+		TenantID:              "tenant-001",
+		BudgetType:            entity.BudgetTypeMonthly,
+		BudgetAmount:          10000.00,
+		Currency:              "CNY",
+		AlertThreshold1:       80,
+		AlertThreshold2:       95,
+		HardCapEnabled:        true,
+		HardCapAmount:         float64Ptr(12000.00),
+		AutoDowngradeEnabled:  false,
+		DowngradeThreshold:    90,
+		NotificationChannels:  []string{"email", "webhook"},
+		NotificationRecipients: []string{"admin@example.com"},
+	}
+
+	// 模拟预算不存在
+	mockBudgetRepo.On("GetByTenantID", ctx, req.TenantID).Return(nil, gorm.ErrRecordNotFound)
+
+	// 模拟创建成功
+	mockBudgetRepo.On("Create", ctx, mock.AnythingOfType("*entity.BudgetSettings")).Return(nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.CreateBudget(ctx, req)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, req.TenantID, result.TenantID)
+	assert.Equal(t, req.BudgetType, result.BudgetType)
+	assert.Equal(t, req.BudgetAmount, result.BudgetAmount)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_CreateBudget_AlreadyExists 测试创建已存在的预算
+func TestBudgetManagementService_CreateBudget_AlreadyExists(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	req := &CreateBudgetRequest{
+		TenantID:              tenantID,
+		BudgetType:            entity.BudgetTypeMonthly,
+		BudgetAmount:          10000.00,
+		Currency:              "CNY",
+		AlertThreshold1:       80,
+		AlertThreshold2:       95,
+		HardCapEnabled:        false,
+		AutoDowngradeEnabled:  false,
+		DowngradeThreshold:    90,
+		NotificationChannels:  []string{"email"},
+		NotificationRecipients: []string{"admin@example.com"},
+	}
+
+	existingBudget := &entity.BudgetSettings{
+		TenantID: tenantID,
+	}
+
+	// 模拟预算已存在
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(existingBudget, nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.CreateBudget(ctx, req)
+
+	// 断言
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "already exists")
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_UpdateBudget 测试更新预算配置
+func TestBudgetManagementService_UpdateBudget(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	newAmount := 15000.00
+	req := &UpdateBudgetRequest{
+		BudgetAmount: &newAmount,
+	}
+
+	existingBudget := &entity.BudgetSettings{
+		ID:                     1,
+		TenantID:               tenantID,
+		BudgetType:             entity.BudgetTypeMonthly,
+		BudgetAmount:           10000.00,
+		Currency:               "CNY",
+		AlertThreshold1:        80,
+		AlertThreshold2:        95,
+		HardCapEnabled:         true,
+		NotificationChannels:   `["email"]`,
+		NotificationRecipients: `["admin@example.com"]`,
+	}
+
+	// 模拟获取现有配置
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(existingBudget, nil)
+
+	// 模拟更新成功
+	mockBudgetRepo.On("Update", ctx, mock.AnythingOfType("*entity.BudgetSettings")).Return(nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.UpdateBudget(ctx, tenantID, req)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, newAmount, result.BudgetAmount)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_DeleteBudget 测试删除预算配置
+func TestBudgetManagementService_DeleteBudget(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	existingBudget := &entity.BudgetSettings{
+		ID:       1,
+		TenantID: tenantID,
+	}
+
+	// 模拟获取现有配置
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(existingBudget, nil)
+
+	// 模拟删除成功
+	mockBudgetRepo.On("Delete", ctx, tenantID).Return(nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	err := service.DeleteBudget(ctx, tenantID)
+
+	// 断言
+	require.NoError(t, err)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_CheckBudget 测试预算检查
+func TestBudgetManagementService_CheckBudget(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	budget := &entity.BudgetSettings{
+		TenantID:        tenantID,
+		BudgetType:      entity.BudgetTypeMonthly,
+		BudgetAmount:    10000.00,
+		AlertThreshold1: 80,
+		AlertThreshold2: 95,
+		HardCapEnabled:  false,
+	}
+
+	now := time.Now()
+	startDate := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, now.Location())
+
+	// Mock配置
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(budget, nil)
+	mockSummaryRepo.On("GetTotalCost", ctx, tenantID, startDate, mock.AnythingOfType("time.Time")).Return(8500.00, nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.CheckBudget(ctx, tenantID)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, tenantID, result.TenantID)
+	assert.Equal(t, 10000.00, result.BudgetAmount)
+	assert.Equal(t, 8500.00, result.UsedAmount)
+	assert.Equal(t, 85.0, result.UsagePercent)
+	assert.True(t, result.AlertTriggered)
+	assert.NotNil(t, result.AlertLevel)
+	assert.Equal(t, entity.AlertLevelCritical, *result.AlertLevel)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+	mockSummaryRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_GetBudgetUsage 测试获取预算使用情况
+func TestBudgetManagementService_GetBudgetUsage(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	channelsJSON, _ := json.Marshal([]string{"email"})
+	recipientsJSON, _ := json.Marshal([]string{"admin@example.com"})
+
+	budget := &entity.BudgetSettings{
+		TenantID:               tenantID,
+		BudgetType:             entity.BudgetTypeMonthly,
+		BudgetAmount:           10000.00,
+		Currency:               "CNY",
+		AlertThreshold1:        80,
+		AlertThreshold2:        95,
+		HardCapEnabled:         false,
+		NotificationChannels:   string(channelsJSON),
+		NotificationRecipients: string(recipientsJSON),
+	}
+
+	now := time.Now()
+	summaries := []*entity.TokenUsageSummary{
+		{
+			TotalTokens:     1000000,
+			TotalRequests:   100,
+			TotalCost:       500.00,
+		},
+	}
+
+	alerts := []*entity.BudgetAlert{
+		{
+			ID:         1,
+			AlertLevel: entity.AlertLevelWarning,
+			CreatedAt:  now,
+		},
+	}
+
+	// Mock配置
+	mockBudgetRepo.On("GetByTenantID", ctx, tenantID).Return(budget, nil)
+	mockSummaryRepo.On("GetByDateRange", ctx, tenantID, nil, mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(summaries, nil)
+	mockAlertRepo.On("GetByTenant", ctx, tenantID, 100).Return(alerts, nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	result, err := service.GetBudgetUsage(ctx, tenantID)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, 10000.00, result.BudgetAmount)
+	assert.Equal(t, 500.00, result.UsedAmount)
+	assert.Equal(t, 9500.00, result.RemainingAmount)
+	assert.Equal(t, 5.0, result.UsagePercent)
+	assert.Equal(t, int64(1000000), result.TotalTokens)
+	assert.Equal(t, 100, result.TotalRequests)
+	assert.Equal(t, 1, result.AlertCount)
+	assert.NotNil(t, result.LastAlertAt)
+	assert.NotNil(t, result.LastAlertLevel)
+
+	// 验证Mock调用
+	mockBudgetRepo.AssertExpectations(t)
+	mockSummaryRepo.AssertExpectations(t)
+	mockAlertRepo.AssertExpectations(t)
+}
+
+// TestBudgetManagementService_GetAlerts 测试获取告警历史
+func TestBudgetManagementService_GetAlerts(t *testing.T) {
+	mockBudgetRepo := new(MockBudgetSettingsRepository)
+	mockAlertRepo := new(MockBudgetAlertRepository)
+	mockSummaryRepo := new(MockTokenUsageSummaryRepository)
+
+	ctx := context.Background()
+	tenantID := "tenant-001"
+
+	alerts := []*entity.BudgetAlert{
+		{
+			ID:                  1,
+			TenantID:            tenantID,
+			AlertType:           entity.AlertTypeThreshold1,
+			BudgetAmount:        10000.00,
+			UsedAmount:          8500.00,
+			UsagePercent:        85.0,
+			AlertLevel:          entity.AlertLevelWarning,
+			NotificationChannels: `["email"]`,
+			NotificationStatus:  entity.NotificationStatusSent,
+			CreatedAt:           time.Now(),
+		},
+	}
+
+	// Mock配置
+	mockAlertRepo.On("List", ctx, mock.MatchedBy(func(f *repository.BudgetAlertFilter) bool {
+		return f.TenantID == tenantID && f.PageSize == 20
+	})).Return(alerts, int64(1), nil)
+
+	// 创建服务
+	service := NewBudgetManagementService(mockBudgetRepo, mockAlertRepo, mockSummaryRepo, nil, nil)
+
+	// 执行测试
+	reqFilter := &AlertFilter{
+		PageSize: 20,
+	}
+	result, pagination, err := service.GetAlerts(ctx, tenantID, reqFilter)
+
+	// 断言
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Len(t, result, 1)
+	assert.Equal(t, uint64(1), result[0].ID)
+	assert.Equal(t, tenantID, result[0].TenantID)
+	assert.Equal(t, entity.AlertTypeThreshold1, result[0].AlertType)
+	assert.NotNil(t, pagination)
+	assert.Equal(t, int64(1), pagination.TotalCount)
+
+	// 验证Mock调用
+	mockAlertRepo.AssertExpectations(t)
+}

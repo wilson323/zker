@@ -26,16 +26,16 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 	"go.uber.org/zap"
 
-	"github.com/coze-studio/coze-studio/backend/api/internal/httputil"
-	"github.com/coze-studio/coze-studio/backend/domain/tenant/service"
-	"github.com/coze-studio/coze-studio/backend/domain/tenant/entity"
-	"github.com/coze-studio/coze-studio/backend/pkg/ctxcache"
-	pkgerrorx "github.com/coze-studio/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/coze-studio/backend/pkg/logs"
-	"github.com/coze-studio/coze-studio/backend/types/consts"
-	berrno "github.com/coze-studio/coze-studio/backend/types/errno"
-	"github.com/coze-studio/coze-studio/backend/infra/tracing"
-	"github.com/coze-studio/coze-studio/backend/infra/cache"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
+	pkgerrorx "github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	"github.com/coze-dev/coze-studio/backend/types/consts"
+	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/infra/tracing"
+	"github.com/coze-dev/coze-studio/backend/infra/cache"
 )
 
 const (
@@ -46,7 +46,14 @@ const (
 	TenantIDHeader = "X-Tenant-ID"
 
 	// DefaultTenantID 默认租户ID（兼容模式：当无法获取tenant_id时使用）
+	// TODO: 数据迁移完成后移除兼容模式，强制要求租户ID
 	DefaultTenantID = "default"
+
+	// EnableStrictTenantIsolation 启用严格租户隔离模式
+	// true: 强制要求tenant_id，不存在则拒绝请求
+	// false: 兼容模式，使用默认租户ID
+	// TODO: 数据迁移完成后设置为 true
+	EnableStrictTenantIsolation = false
 
 	// CacheKeyPrefix 租户缓存key前缀
 	CacheKeyPrefix = "tenant:info:"
@@ -137,7 +144,8 @@ func TenantIsolationMiddleware() app.HandlerFunc {
 // 1. HTTP Header: X-Tenant-ID（用于API调用）
 // 2. Session: session.TenantID（✅ 已启用）
 // 3. JWT Token: claims.tenant_id（TODO: JWT改造后启用）
-// 4. 默认值: default（兼容模式，数据迁移后移除）
+// 4. 严格模式：返回错误（EnableStrictTenantIsolation = true）
+// 5. 兼容模式：使用默认租户ID（EnableStrictTenantIsolation = false，数据迁移后移除）
 func extractTenantID(c context.Context, ctx *app.RequestContext) (string, error) {
 	// 1. 从HTTP Header获取（优先级最高）
 	if tenantID := string(ctx.GetHeader(TenantIDHeader)); tenantID != "" {
@@ -158,7 +166,13 @@ func extractTenantID(c context.Context, ctx *app.RequestContext) (string, error)
 	// 	return claims.TenantID, nil
 	// }
 
-	// 4. 兼容模式：使用默认租户ID（数据迁移后移除）
+	// 4. 严格模式检查
+	if EnableStrictTenantIsolation {
+		logs.CtxErrorf(c, "[TenantIsolation] strict mode enabled but no tenant_id found")
+		return "", pkgerrorx.New(berrno.ErrMissingTenantID)
+	}
+
+	// 5. 兼容模式：使用默认租户ID（数据迁移后移除）
 	logs.CtxWarnf(c, "[TenantIsolation] no tenant_id found, using default: %s", DefaultTenantID)
 	return DefaultTenantID, nil
 }

@@ -67,6 +67,18 @@ const (
 	// 并发配额 (300 060 000 ~ 300 069 999)
 	ErrQuotaConcurrentExceededCode    = 300060001 // 并发数超限
 	ErrQuotaConcurrentCheckFailedCode = 300060002 // 并发配额检查失败
+
+	// ===== 便捷错误码常量（向后兼容） =====
+	ErrQuotaCalculateFailedCode        = 300050004 // 计算配额失败
+	ErrQuotaBotInvalidCode             = 300010006 // Bot配额无效
+	ErrQuotaKnowledgeDocExceededCode   = 300020003 // 文档数量超限（同 ErrQuotaKnowledgeDocumentExceededCode）
+	ErrQuotaKnowledgeInvalidCode       = 300020005 // 知识库配额无效
+	ErrQuotaWorkflowExecExceededCode   = 300030003 // 工作流执行次数超限（同 ErrQuotaWorkflowExecutionExceededCode）
+	ErrQuotaWorkflowInvalidCode        = 300030005 // 工作流配额无效
+	ErrQuotaAPICallInvalidCode         = 300040005 // API调用配额无效
+	ErrQuotaAPICallCheckFailedCode     = 300040006 // API调用配额检查失败
+	ErrQuotaStorageFileCountExceededCode = 300050004 // 存储文件数量超限
+	ErrQuotaStorageInvalidCode         = 300050005 // 存储配额无效
 )
 
 func init() {

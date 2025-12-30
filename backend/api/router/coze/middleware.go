@@ -1659,3 +1659,43 @@ func _listchatmessageapiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
+
+func _permissionsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _temporary_grantsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createtemporarygrantMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _usetemporarygrantMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _revoketemporarygrantMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _gettemporarygrantMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listtemporarygrantsMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getgranthistoryMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}

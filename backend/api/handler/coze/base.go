@@ -24,10 +24,21 @@ import (
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 )
 
-func invalidParamRequestResponse(c *app.RequestContext, errMsg string) {
+// InvalidParamRequestResponse 返回无效参数错误响应
+func InvalidParamRequestResponse(c *app.RequestContext, errMsg string) {
 	httputil.BadRequest(c, errMsg)
 }
 
-func internalServerErrorResponse(ctx context.Context, c *app.RequestContext, err error) {
+// InternalServerErrorResponse 返回内部服务器错误响应
+func InternalServerErrorResponse(ctx context.Context, c *app.RequestContext, err error) {
 	httputil.InternalError(ctx, c, err)
+}
+
+// 内部使用（保持向后兼容）
+func invalidParamRequestResponse(c *app.RequestContext, errMsg string) {
+	InvalidParamRequestResponse(c, errMsg)
+}
+
+func internalServerErrorResponse(ctx context.Context, c *app.RequestContext, err error) {
+	InternalServerErrorResponse(ctx, c, err)
 }

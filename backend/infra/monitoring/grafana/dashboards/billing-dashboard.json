@@ -1,0 +1,467 @@
+{
+  "dashboard": {
+    "title": "ZKER 计费系统监控大盘",
+    "tags": ["zker", "billing", "token", "budget"],
+    "timezone": "browser",
+    "schemaVersion": 16,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Token记录概览",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_token_records_total[5m]))",
+            "legendFormat": "记录速率 (rec/s)",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_cost_total[5m])) * 3600",
+            "legendFormat": "预估小时成本 (¥/h)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 80, "color": "yellow"},
+                {"value": 100, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "实时Token记录速率",
+        "type": "graph",
+        "gridPos": {"x": 6, "y": 0, "w": 12, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_token_records_total[1m]))",
+            "legendFormat": "Token记录 (rec/s)",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_cost_total[1m]))",
+            "legendFormat": "成本速率 (¥/s)",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(billing_tokens_total{token_type=\"input\"}[1m]))",
+            "legendFormat": "输入Token (tok/s)",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(rate(billing_tokens_total{token_type=\"output\"}[1m]))",
+            "legendFormat": "输出Token (tok/s)",
+            "refId": "D"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "速率"},
+          {"format": "currencyCNY", "label": "成本"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Token记录延迟分布",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(billing_token_record_duration_seconds_bucket[5m]))",
+            "legendFormat": "P50延迟",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.90, rate(billing_token_record_duration_seconds_bucket[5m]))",
+            "legendFormat": "P90延迟",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(billing_token_record_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99延迟",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "延迟"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "预算使用率 TOP10",
+        "type": "table",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "topk(10, billing_budget_usage_percent)",
+            "legendFormat": "{{tenant_id}} - {{budget_type}}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "indexByName": {"Value": 0},
+              "renameByName": {
+                "Value": "使用率 (%)",
+                "tenant_id": "租户ID",
+                "budget_type": "预算类型",
+                "alert_level": "告警级别"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "red"}
+              ]
+            },
+            "custom": {
+              "align": "left",
+              "filterable": true
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "告警统计",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 10, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_budget_alerts_total{alert_level=\"warning\"}[5m]))",
+            "legendFormat": "警告级别告警",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_budget_alerts_total{alert_level=\"critical\"}[5m]))",
+            "legendFormat": "严重级别告警",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(billing_budget_alerts_total[5m]))",
+            "legendFormat": "告警总数",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "告警数"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "模型使用分布",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 10, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (model_provider) (billing_cost_total)",
+            "legendFormat": "{{model_provider}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "table", "placement": "right"},
+          "pieType": "pie"
+        }
+      },
+      {
+        "id": 7,
+        "title": "模型成本占比",
+        "type": "bargauge",
+        "gridPos": {"x": 18, "y": 10, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "topk(5, sum by (model_provider, model_name) (billing_cost_total))",
+            "legendFormat": "{{model_provider}}/{{model_name}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyCNY",
+            "min": 0,
+            "max": 10000,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 3000, "color": "yellow"},
+                {"value": 7000, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "API性能",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(http_requests_total{handler=~\"/api/billing.*\"}[1m]))",
+            "legendFormat": "QPS",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(http_requests_total{handler=~\"/api/billing.*\",status=~\"5..\"}[1m])) / sum(rate(http_requests_total{handler=~\"/api/billing.*\"}[1m]))",
+            "legendFormat": "错误率",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "QPS"},
+          {"format": "percentunit", "label": "错误率"}
+        ]
+      },
+      {
+        "id": 9,
+        "title": "API P99延迟",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 16, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{handler=~\"/api/billing.*\"}[5m])) by (le))",
+            "legendFormat": "P99",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "min": 0,
+            "max": 5,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 0.5, "color": "yellow"},
+                {"value": 1, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "成本趋势",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 22, "w": 18, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_cost_total[1h]))",
+            "legendFormat": "当前小时成本 (¥/h)",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_cost_total[24h])) * 24",
+            "legendFormat": "预估日成本 (¥/d)",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyCNY", "label": "成本"},
+          {"format": "currencyCNY"}
+        ]
+      },
+      {
+        "id": 11,
+        "title": "定价计算性能",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 22, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.99, rate(billing_pricing_calculation_duration_seconds_bucket[5m]))",
+            "legendFormat": "P99延迟",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_pricing_errors_total[5m]))",
+            "legendFormat": "错误速率",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "延迟"},
+          {"format": "short", "label": "错误数"}
+        ]
+      },
+      {
+        "id": 12,
+        "title": "数据库操作",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 28, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_token_log_db_operations_total{operation=\"batch_create\"}[1m]))",
+            "legendFormat": "批量写入 (ops/s)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(billing_token_log_db_operation_duration_seconds_bucket[5m]))",
+            "legendFormat": "P95延迟",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(billing_token_log_db_operations_total{result=\"failure\"}[1m]))",
+            "legendFormat": "失败率",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "操作数"},
+          {"format": "s", "label": "延迟"}
+        ]
+      },
+      {
+        "id": 13,
+        "title": "通知发送统计",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 28, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(billing_alert_notification_total{channel=\"email\"}[5m]))",
+            "legendFormat": "邮件通知",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(billing_alert_notification_total{channel=\"webhook\"}[5m]))",
+            "legendFormat": "Webhook通知",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(billing_alert_notification_total{result=\"failure\"}[5m]))",
+            "legendFormat": "失败数",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "缓存命中率",
+        "type": "gauge",
+        "gridPos": {"x": 18, "y": 28, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(cache_hit_total{cache_type=\"pricing\"}[5m])) / (sum(rate(cache_hit_total{cache_type=\"pricing\"}[5m])) + sum(rate(cache_miss_total{cache_type=\"pricing\"}[5m])))",
+            "legendFormat": "定价缓存",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percentunit",
+            "min": 0,
+            "max": 1,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "red"},
+                {"value": 0.7, "color": "yellow"},
+                {"value": 0.9, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 15,
+        "title": "汇总更新状态",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 34, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum by (tenant_id) (billing_summary_update_total)",
+            "legendFormat": "",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "tenant_id": "租户ID",
+                "Value": "更新次数"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 16,
+        "title": "业务健康度",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 34, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "billing_active_tenants",
+            "legendFormat": "活跃租户数",
+            "refId": "A"
+          },
+          {
+            "expr": "billing_total_revenue{period=\"daily\"}",
+            "legendFormat": "日总收入 (¥)",
+            "refId": "B"
+          },
+          {
+            "expr": "billing_total_revenue{period=\"monthly\"}",
+            "legendFormat": "月总收入 (¥)",
+            "refId": "C"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

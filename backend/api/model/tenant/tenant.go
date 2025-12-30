@@ -323,3 +323,47 @@ type MonitoringResponse struct {
 	Message string             `json:"message"`
 	Data    MonitoringStatus   `json:"data"`
 }
+
+// ==================== 数据导出和删除 DTOs ====================
+
+// ExportDataRequest 导出数据请求
+type ExportDataRequest struct {
+	IncludeBots         bool `json:"include_bots"`
+	IncludeWorkflows    bool `json:"include_workflows"`
+	IncludeKnowledge    bool `json:"include_knowledge"`
+	IncludeConversations bool `json:"include_conversations"`
+}
+
+// ExportDataResponse 导出数据响应
+type ExportDataResponse struct {
+	Code     int    `json:"code"`
+	Message  string `json:"message"`
+	ExportID string `json:"export_id"`
+}
+
+// ExportStatusResponse 导出状态响应
+type ExportStatusResponse struct {
+	Code        int    `json:"code"`
+	Message     string `json:"message"`
+	Status      string `json:"status"`       // pending, processing, completed, failed
+	DownloadURL string `json:"download_url,omitempty"`
+}
+
+// TenantStats 租户统计信息
+type TenantStats struct {
+	TenantID          string `json:"tenant_id"`
+	BotCount          int    `json:"bot_count"`
+	WorkflowCount     int    `json:"workflow_count"`
+	KnowledgeCount    int    `json:"knowledge_count"`
+	ConversationCount int    `json:"conversation_count"`
+	StorageUsedMB     int64  `json:"storage_used_mb"`
+	UserCount         int    `json:"user_count"`
+	APICallCount      int64  `json:"api_call_count"`
+}
+
+// TenantStatsResponse 租户统计响应
+type TenantStatsResponse struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    TenantStats `json:"data"`
+}

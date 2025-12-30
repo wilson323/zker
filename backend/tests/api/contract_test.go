@@ -28,8 +28,8 @@ import (
 	"github.com/cloudwego/hertz/pkg/common/ut"
 	"github.com/stretchr/testify/suite"
 
-	"github.com/coze-studio/coze-studio/backend/api/middleware"
-	"github.com/coze-studio/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // TenantAPITestSuite 租户API契约测试套件

@@ -1,85 +1,61 @@
-/*
- * Copyright 2025 coze-dev Authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
+// backend/types/errno/user.go
 package errno
 
 import (
-	"github.com/coze-dev/coze-studio/backend/pkg/errorx/code"
+	"net/http"
 )
 
-// Passport: 700 000 000 ~ 700 999 999
+// 用户相关错误码常量
 const (
-	ErrUserAuthenticationFailed = 700012006 // Don't change this code. It is used in the frontend.
-
-	ErrUserEmailAlreadyExistCode      = 700000001
-	ErrUserUniqueNameAlreadyExistCode = 700000002
-	ErrUserInfoInvalidateCode         = 700000003
-	ErrUserSessionInvalidateCode      = 700000004
-	ErrUserResourceNotFound           = 700000005
-	ErrUserInvalidParamCode           = 700000006
-	ErrUserPermissionCode             = 700000007
-	ErrNotAllowedRegisterCode         = 700000008
+	ErrUserAuthenticationFailed  = 7000001
+	ErrUserEmailAlreadyExistCode = 7000010
+	ErrUserInfoInvalidateCode    = 7000002
+	ErrUserResourceNotFound      = 7000003
+	ErrUserInvalidParamCode      = 7000020
+	ErrUserPermissionCode        = 7000040
 )
 
-func init() {
-
-	code.Register(
-		ErrNotAllowedRegisterCode,
-		"The user registration has been disabled by the administrator. Please contact the administrator!",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserPermissionCode,
-		"unauthorized access : {msg}",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserInvalidParamCode,
-		"invalid parameter : {msg}",
-		code.WithAffectStability(false),
-	)
-	code.Register(
-		ErrUserResourceNotFound,
-		"{type} not found: {id}",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserInfoInvalidateCode,
-		"invalid email or password, please try again.",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserUniqueNameAlreadyExistCode,
-		"unique name already exist : {name}",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserEmailAlreadyExistCode,
-		"email already exist : {email}",
-		code.WithAffectStability(false),
-	)
-
-	code.Register(
-		ErrUserAuthenticationFailed,
-		"authentication failed: {reason}",
-		code.WithAffectStability(false),
-	)
-}
+var (
+	USER201001 = &BaseErrorCode{
+		code:       "USER201001",
+		message:    "Invalid username format",
+		messageZH:  "用户名格式错误",
+		messageEN:  "Invalid username format",
+		httpStatus: http.StatusBadRequest,
+	}
+	USER201002 = &BaseErrorCode{
+		code:       "USER201002",
+		message:    "Email already exists",
+		messageZH:  "邮箱已存在",
+		messageEN:  "Email already exists",
+		httpStatus: http.StatusConflict,
+	}
+	USER401001 = &BaseErrorCode{
+		code:       "USER401001",
+		message:    "User not found",
+		messageZH:  "用户不存在",
+		messageEN:  "User not found",
+		httpStatus: http.StatusNotFound,
+	}
+	USER403001 = &BaseErrorCode{
+		code:       "USER403001",
+		message:    "Account has been disabled",
+		messageZH:  "账号已禁用",
+		messageEN:  "Account has been disabled",
+		httpStatus: http.StatusForbidden,
+	}
+	USER500001 = &BaseErrorCode{
+		code:       "USER500001",
+		message:    "Failed to create user",
+		messageZH:  "用户创建失败",
+		messageEN:  "Failed to create user",
+		httpStatus: http.StatusInternalServerError,
+	}
+	USER500002 = &BaseErrorCode{
+		code:       "USER500002",
+		message:    "Failed to update user",
+		messageZH:  "用户更新失败",
+		messageEN:  "Failed to update user",
+		httpStatus: http.StatusInternalServerError,
+	}
+)

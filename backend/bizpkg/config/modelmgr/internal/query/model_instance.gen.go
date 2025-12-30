@@ -28,6 +28,7 @@ func newModelInstance(db *gorm.DB, opts ...gen.DOOption) modelInstance {
 	tableName := _modelInstance.modelInstanceDo.TableName()
 	_modelInstance.ALL = field.NewAsterisk(tableName)
 	_modelInstance.ID = field.NewInt64(tableName, "id")
+	_modelInstance.TenantID = field.NewString(tableName, "tenant_id")
 	_modelInstance.Type = field.NewInt32(tableName, "type")
 	_modelInstance.Provider = field.NewField(tableName, "provider")
 	_modelInstance.DisplayInfo = field.NewField(tableName, "display_info")
@@ -50,6 +51,7 @@ type modelInstance struct {
 
 	ALL         field.Asterisk
 	ID          field.Int64  // id
+	TenantID    field.String // 租户ID（多租户隔离）
 	Type        field.Int32  // Model Type 0-LLM 1-TextEmbedding 2-Rerank
 	Provider    field.Field  // Provider Information
 	DisplayInfo field.Field  // Display Information
@@ -77,6 +79,7 @@ func (m modelInstance) As(alias string) *modelInstance {
 func (m *modelInstance) updateTableName(table string) *modelInstance {
 	m.ALL = field.NewAsterisk(table)
 	m.ID = field.NewInt64(table, "id")
+	m.TenantID = field.NewString(table, "tenant_id")
 	m.Type = field.NewInt32(table, "type")
 	m.Provider = field.NewField(table, "provider")
 	m.DisplayInfo = field.NewField(table, "display_info")
@@ -103,8 +106,9 @@ func (m *modelInstance) GetFieldByName(fieldName string) (field.OrderExpr, bool)
 }
 
 func (m *modelInstance) fillFieldMap() {
-	m.fieldMap = make(map[string]field.Expr, 11)
+	m.fieldMap = make(map[string]field.Expr, 12)
 	m.fieldMap["id"] = m.ID
+	m.fieldMap["tenant_id"] = m.TenantID
 	m.fieldMap["type"] = m.Type
 	m.fieldMap["provider"] = m.Provider
 	m.fieldMap["display_info"] = m.DisplayInfo

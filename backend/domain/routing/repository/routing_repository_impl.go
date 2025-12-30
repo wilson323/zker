@@ -23,7 +23,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 )
 
 // routingRuleRepository 路由规则仓储实现

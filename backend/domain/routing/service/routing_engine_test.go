@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 )
 
 // MockIntentMatcher Mock意图匹配器

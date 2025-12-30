@@ -176,7 +176,7 @@ func (r *RedisClusterClient) SMembers(ctx context.Context, key string) ([]string
 }
 
 // ZAdd 添加到有序集合
-func (r *RedisClusterClient) ZAdd(ctx context.Context, key string, members ...*redis.Z) error {
+func (r *RedisClusterClient) ZAdd(ctx context.Context, key string, members ...redis.Z) error {
 	return r.client.ZAdd(ctx, key, members...).Err()
 }
 

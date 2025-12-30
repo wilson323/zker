@@ -23,7 +23,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/coze-studio/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // ErrorInfo 错误信息结构

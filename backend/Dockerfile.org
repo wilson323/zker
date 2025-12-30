@@ -1,0 +1,146 @@
+# ========================================
+# 组织中心 (Organization Center) Dockerfile
+# 多阶段构建优化 + 安全加固 + 镜像优化
+# ========================================
+# 用途: 构建组织中心 API 的生产级 Docker 镜像
+# 特性: 多阶段构建、层缓存、非root用户、健康检查
+# ========================================
+
+# ==================== Stage 1: Builder ====================
+FROM golang:1.24-alpine AS builder
+
+# 声明构建参数
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+ARG GO_VERSION=1.24
+
+# 设置工作目录
+WORKDIR /build
+
+# 安装构建依赖
+RUN apk add --no-cache \
+    git \
+    gcc \
+    musl-dev \
+    make \
+    ca-certificates
+
+# 复制 go.mod 和 go.sum（利用 Docker 缓存层）
+COPY go.mod go.sum ./
+
+# 下载依赖
+RUN go mod download && \
+    go mod verify && \
+    echo "✅ 依赖下载完成"
+
+# 复制源代码
+COPY . .
+
+# 构建应用（静态链接 + 优化）
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+    -ldflags="-s -w \
+    -X main.Version=${VERSION} \
+    -X main.BuildTime=${BUILD_DATE} \
+    -X main.GitCommit=${VCS_REF}" \
+    -o /tmp/org-center-api \
+    main.go && \
+    echo "✅ 构建完成"
+
+# 验证二进制文件
+RUN /tmp/org-center-api --version || echo "Version: ${VERSION}"
+
+# ==================== Stage 2: Runner ====================
+FROM alpine:3.19
+
+# 声明构建参数
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+# 添加元数据标签
+LABEL maintainer="ZKER Team <dev@zker.example.com>" \
+      org.opencontainers.image.title="Organization Center API" \
+      org.opencontainers.image.description="Enterprise-grade Organization Management API" \
+      org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.opencontainers.image.source="https://github.com/coze-dev/coze-studio" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.vendor="ZKER"
+
+# 安装运行时依赖
+RUN apk add --no-cache \
+    ca-certificates \
+    tzdata \
+    curl \
+    dumb-init \
+    && \
+    # 清理 APK 缓存
+    rm -rf /var/cache/apk/* && \
+    echo "✅ 运行时依赖安装完成"
+
+# 设置时区
+ENV TZ=Asia/Shanghai \
+    LANG=C.UTF-8 \
+    LC_ALL=C.UTF-8
+
+# 创建非 root 用户
+RUN addgroup -g 1000 orgcenter && \
+    adduser -D -u 1000 -G orgcenter orgcenter && \
+    echo "✅ 用户创建完成"
+
+# 创建工作目录
+WORKDIR /app
+
+# 从 builder 阶段复制二进制文件
+COPY --from=builder --chown=orgcenter:orgcenter /tmp/org-center-api /app/org-center-api
+
+# 复制配置文件和静态资源
+COPY --chown=orgcenter:orgcenter conf /app/resources/conf/
+COPY --chown=orgcenter:orgcenter infra/document/parser/impl/builtin/parse_pdf.py /app/
+COPY --chown=orgcenter:orgcenter infra/document/parser/impl/builtin/parse_docx.py /app/
+
+# 切换到非 root 用户
+USER orgcenter
+
+# 暴露端口
+EXPOSE 8080
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# 使用 dumb-init 作为 PID 1
+ENTRYPOINT ["/usr/bin/dumb-init", "--"]
+
+# 启动应用
+CMD ["/app/org-center-api"]
+
+# ==================== 镜像优化说明 ====================
+#
+# 1. 多阶段构建:
+#    - Builder 阶段: 使用 golang:1.24-alpine 编译
+#    - Runner 阶段: 使用 alpine:3.19 运行
+#    - 优势: 最终镜像不包含构建工具，体积小
+#
+# 2. 层缓存优化:
+#    - 先复制 go.mod/go.sum，再下载依赖
+#    - 依赖不变时，Docker 会使用缓存层
+#
+# 3. 安全加固:
+#    - 使用非 root 用户运行 (orgcenter:1000)
+#    - 最小化运行时依赖
+#    - 使用 dumb-init 处理僵尸进程
+#
+# 4. 镜像优化:
+#    - 静态链接 (CGO_ENABLED=0)
+#    - 去除调试信息 (-ldflags="-s -w")
+#    - 清理 APK 缓存
+#
+# 5. 可观测性:
+#    - 添加 OCI 元数据标签
+#    - 内置健康检查
+#
+# 预期镜像大小: ~50MB (Alpine base ~7MB + Go binary ~40MB)
+# ========================================

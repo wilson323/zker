@@ -242,25 +242,6 @@ var (
 		[]string{"tenant_id", "role_id", "result"}, // result: success, failure
 	)
 
-	// PermissionCheckTotal 权限检查总数(Counter)
-	PermissionCheckTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "permission_check_total",
-			Help: "Total number of permission checks",
-		},
-		[]string{"tenant_id", "permission_type", "result"}, // permission_type: data, field; result: allowed, denied
-	)
-
-	// PermissionCheckDuration 权限检查延迟(Histogram)
-	PermissionCheckDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "permission_check_duration_seconds",
-			Help:    "Permission check latency in seconds",
-			Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
-		},
-		[]string{"tenant_id", "permission_type", "result"},
-	)
-
 	// PermissionDeniedTotal 权限拒绝次数(Counter)
 	PermissionDeniedTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
@@ -268,33 +249,6 @@ var (
 			Help: "Total number of permission denials",
 		},
 		[]string{"tenant_id", "permission_type", "reason"}, // reason: insufficient_scope, no_role, custom_filter_failed
-	)
-
-	// DepartmentTotal 部门总数(Gauge)
-	DepartmentTotal = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "department_total",
-			Help: "Total number of departments",
-		},
-		[]string{"tenant_id"},
-	)
-
-	// DepartmentDepthMax 部门最大深度(Gauge)
-	DepartmentDepthMax = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "department_depth_max",
-			Help: "Maximum department depth",
-		},
-		[]string{"tenant_id"},
-	)
-
-	// DepartmentMemberTotal 部门成员总数(Gauge)
-	DepartmentMemberTotal = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "department_member_total",
-			Help: "Total number of department members",
-		},
-		[]string{"tenant_id", "department_id"},
 	)
 
 	// DataPermissionScopeTotal 数据权限范围分布(Gauge)
@@ -375,26 +329,9 @@ func RecordUserRoleAssignment(tenantID, roleID, result string) {
 	UserRoleAssignmentTotal.WithLabelValues(tenantID, roleID, result).Inc()
 }
 
-// RecordPermissionCheck 记录权限检查
-func RecordPermissionCheck(tenantID, permissionType, result string, duration float64) {
-	PermissionCheckTotal.WithLabelValues(tenantID, permissionType, result).Inc()
-	PermissionCheckDuration.WithLabelValues(tenantID, permissionType, result).Observe(duration)
-}
-
 // RecordPermissionDenied 记录权限拒绝
 func RecordPermissionDenied(tenantID, permissionType, reason string) {
 	PermissionDeniedTotal.WithLabelValues(tenantID, permissionType, reason).Inc()
-}
-
-// UpdateDepartmentMetrics 更新部门指标
-func UpdateDepartmentMetrics(tenantID string, totalDepartments int, maxDepth int) {
-	DepartmentTotal.WithLabelValues(tenantID).Set(float64(totalDepartments))
-	DepartmentDepthMax.WithLabelValues(tenantID).Set(float64(maxDepth))
-}
-
-// UpdateDepartmentMemberCount 更新部门成员数
-func UpdateDepartmentMemberCount(tenantID, departmentID string, count int) {
-	DepartmentMemberTotal.WithLabelValues(tenantID, departmentID).Set(float64(count))
 }
 
 // RecordInvoiceCreation 记录账单创建

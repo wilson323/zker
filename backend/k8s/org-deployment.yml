@@ -1,0 +1,625 @@
+# ========================================
+# 组织中心 (Organization Center) Kubernetes 部署配置
+# 包含: Deployment, Service, Ingress, ConfigMap, Secret, HPA, PDB
+# ========================================
+
+---
+# ==================== ConfigMap ====================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: org-center-config
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+    version: v1
+data:
+  # 应用配置
+  APP_ENV: "production"
+  APP_LOG_LEVEL: "info"
+  APP_PORT: "8080"
+
+  # MySQL 配置
+  DB_HOST: "mysql.prod.svc.cluster.local"
+  DB_PORT: "3306"
+  DB_NAME: "org_center"
+  DB_MAX_IDLE_CONNS: "10"
+  DB_MAX_OPEN_CONNS: "100"
+  DB_CONN_MAX_LIFETIME: "1h"
+
+  # Redis 配置
+  REDIS_HOST: "redis.prod.svc.cluster.local"
+  REDIS_PORT: "6379"
+  REDIS_DB: "0"
+  REDIS_POOL_SIZE: "100"
+
+  # Elasticsearch 配置
+  ES_HOSTS: "http://elasticsearch.prod.svc.cluster.local:9200"
+
+  # 监控配置
+  ENABLE_METRICS: "true"
+  METRICS_PORT: "9090"
+  ENABLE_TRACING: "true"
+  JAEGER_ENDPOINT: "http://jaeger-collector.prod.svc.cluster.local:14268/api/traces"
+
+  # 限流配置
+  RATE_LIMIT_REQUESTS_PER_SECOND: "1000"
+  RATE_LIMIT_BURST: "2000"
+
+---
+# ==================== Secret ====================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: org-center-secret
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+type: Opaque
+data:
+  # MySQL 密码 (base64 encoded)
+  DB_PASSWORD: "cHJvZF9kYl9wYXNzd29yZF8yMDI1"
+
+  # Redis 密码
+  REDIS_PASSWORD: "cHJvZF9yZWRpc19wYXNzd29yZF8yMDI1"
+
+  # JWT 密钥
+  JWT_SECRET: "cHJvZF9qdXRfc2VjcmV0XzIwMjU="
+
+  # API 加密密钥
+  API_ENCRYPTION_KEY: "cHJvZF9hcGlfa2V5XzIwMjU="
+
+  # 外部服务 API 密钥
+  # TODO: 添加实际的外部服务密钥
+
+---
+# ==================== Deployment ====================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+    version: v1
+  annotations:
+    # 用于 GitOps 工具追踪变更
+    argocd.argoproj.io/sync-wave: "1"
+    # 滚动更新配置
+    kubernetes.io/change-cause: "Update to latest version"
+spec:
+  # 副本数
+  replicas: 3
+
+  # 部署策略: 滚动更新
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # 最多可以多出 1 个 Pod
+      maxUnavailable: 0  # 最多不可用 0 个 Pod（零停机）
+
+  # 选择器
+  selector:
+    matchLabels:
+      app: org-center-api
+
+  # Pod 模板
+  template:
+    metadata:
+      labels:
+        app: org-center-api
+        version: v1
+      annotations:
+        # Prometheus 监控注解
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+
+    spec:
+      # 服务账户
+      serviceAccountName: org-center-api
+
+      # 安全上下文
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+
+      # 初始化容器（可选）
+      initContainers:
+      - name: wait-for-mysql
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z -v -w30 mysql.prod.svc.cluster.local 3306
+          do
+            echo "等待 MySQL 就绪..."
+            sleep 5
+          done
+          echo "✅ MySQL 已就绪"
+
+      - name: wait-for-redis
+        image: busybox:1.36
+        command:
+        - sh
+        - -c
+        - |
+          until nc -z -v -w30 redis.prod.svc.cluster.local 6379
+          do
+            echo "等待 Redis 就绪..."
+            sleep 5
+          done
+          echo "✅ Redis 已就绪"
+
+      # 主容器
+      containers:
+      - name: org-center-api
+        image: ghcr.io/coze-dev/coze-studio/org-api:latest
+        imagePullPolicy: Always
+
+        # 端口配置
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+
+        # 环境变量
+        env:
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: APP_ENV
+        - name: APP_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: APP_LOG_LEVEL
+        - name: APP_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: APP_PORT
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: DB_NAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: org-center-secret
+              key: DB_PASSWORD
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: org-center-config
+              key: REDIS_PORT
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: org-center-secret
+              key: REDIS_PASSWORD
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: org-center-secret
+              key: JWT_SECRET
+
+        # 资源限制
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+        # 存活探针（Liveness Probe）
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+
+        # 就绪探针（Readiness Probe）
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+
+        # 启动探针（Startup Probe）
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: http
+            scheme: HTTP
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30  # 最多等待 150 秒（5*30）
+
+        # 生命周期钩子
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - sh
+              - -c
+              - |
+                echo "开始优雅关闭..."
+                sleep 15
+                echo "关闭完成"
+
+      # DNS 配置
+      dnsPolicy: ClusterFirst
+
+      # 优雅终止
+      terminationGracePeriodSeconds: 30
+
+---
+# ==================== Service ====================
+apiVersion: v1
+kind: Service
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+  annotations:
+    # 用于负载均衡器
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 小时
+  selector:
+    app: org-center-api
+  ports:
+  - name: http
+    protocol: TCP
+    port: 80
+    targetPort: http
+  - name: metrics
+    protocol: TCP
+    port: 9090
+    targetPort: metrics
+
+---
+# ==================== Ingress ====================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+  annotations:
+    # Nginx Ingress 注解
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    # 限流注解
+    nginx.ingress.kubernetes.io/limit-rps: "1000"
+    nginx.ingress.kubernetes.io/limit-burst-multiplier: "2"
+    # CORS 注解
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://*.example.com"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization"
+    # 白名单注解（可选）
+    # nginx.ingress.kubernetes.io/whitelist-source-range: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16"
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - org.example.com
+    secretName: org-center-tls
+  rules:
+  - host: org.example.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: org-center-api
+            port:
+              number: 80
+
+---
+# ==================== HorizontalPodAutoscaler (HPA) ====================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: org-center-api
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  # CPU 指标
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # 内存指标
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # 自定义指标（QPS）
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Min
+
+---
+# ==================== PodDisruptionBudget (PDB) ====================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+spec:
+  minAvailable: 2  # 至少保证 2 个 Pod 可用
+  selector:
+    matchLabels:
+      app: org-center-api
+
+---
+# ==================== ServiceAccount ====================
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+
+---
+# ==================== PodSecurityPolicy (如果启用 PSP) ====================
+# apiVersion: policy/v1beta1
+# kind: PodSecurityPolicy
+# metadata:
+#   name: org-center-api
+# spec:
+#   privileged: false
+#   allowPrivilegeEscalation: false
+#   requiredDropCapabilities:
+#   - ALL
+#   volumes:
+#   - 'configMap'
+#   - 'emptyDir'
+#   - 'projected'
+#   - 'secret'
+#   - 'downwardAPI'
+#   hostNetwork: false
+#   hostIPC: false
+#   hostPID: false
+#   runAsUser:
+#     rule: 'MustRunAsNonRoot'
+#   seLinux:
+#     rule: 'RunAsAny'
+#   fsGroup:
+#     rule: 'RunAsAny'
+#   supplementalGroups:
+#     rule: 'RunAsAny'
+#   readOnlyRootFilesystem: false
+
+---
+# ==================== NetworkPolicy ====================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+spec:
+  podSelector:
+    matchLabels:
+      app: org-center-api
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # 允许 Ingress 流量
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8080
+  # 允许监控抓取
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # 允许 DNS 查询
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: UDP
+      port: 53
+  # 允许访问 MySQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
+  # 允许访问 Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # 允许访问 Elasticsearch
+  - to:
+    - podSelector:
+        matchLabels:
+          app: elasticsearch
+    ports:
+    - protocol: TCP
+      port: 9200
+  # 允许访问 Jaeger
+  - to:
+    - podSelector:
+        matchLabels:
+          app: jaeger-collector
+    ports:
+    - protocol: TCP
+      port: 14268
+
+---
+# ==================== ServiceMonitor (Prometheus Operator) ====================
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: org-center-api
+  namespace: org-center-prod
+  labels:
+    app: org-center-api
+spec:
+  selector:
+    matchLabels:
+      app: org-center-api
+  endpoints:
+  - port: metrics
+    interval: 30s
+    path: /metrics
+    scheme: http
+
+---
+# ==================== 配置说明 ====================
+#
+# 1. Deployment 配置:
+#    - 副本数: 3 (可自动扩缩容到 10)
+#    - 资源请求: 500m CPU, 512Mi 内存
+#    - 资源限制: 2000m CPU, 2Gi 内存
+#    - 零停机滚动更新
+#
+# 2. 健康检查:
+#    - Liveness: /health/live (30s 后开始)
+#    - Readiness: /health/ready (10s 后开始)
+#    - Startup: /health/startup (立即开始)
+#
+# 3. Service:
+#    - ClusterIP 类型
+#    - 会话保持: ClientIP (3小时)
+#    - 暴露 HTTP 和 Metrics 端口
+#
+# 4. Ingress:
+#    - TLS/HTTPS 支持
+#    - 限流: 1000 RPS
+#    - CORS 配置
+#    - 代理超时: 600s
+#
+# 5. HPA (自动扩缩容):
+#    - 最小副本: 3
+#    - 最大副本: 10
+#    - 扩容指标: CPU > 70%, 内存 > 80%, QPS > 1000
+#    - 快速扩容,缓慢缩容
+#
+# 6. PDB (Pod中断预算):
+#    - 保证至少 2 个 Pod 可用
+#    - 防止节点维护时服务中断
+#
+# 7. 网络策略:
+#    - 严格的入站/出站控制
+#    - 仅允许必要的通信
+#
+# 使用方法:
+#   kubectl apply -f org-deployment.yml
+#
+# 监控部署:
+#   kubectl get pods -n org-center-prod -l app=org-center-api -w
+#   kubectl get hpa -n org-center-prod -w
+#
+# 查看日志:
+#   kubectl logs -f -n org-center-prod -l app=org-center-api --all-containers=true
+# ========================================

@@ -23,7 +23,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
 )
 
 // tenantRepository 租户仓储实现
@@ -75,6 +75,35 @@ func (r *tenantRepository) GetByName(ctx context.Context, name string) (*entity.
 	if err != nil {
 		return nil, err
 	}
+	return &tenant, nil
+}
+
+// GetBySubdomain 根据子域名获取租户
+func (r *tenantRepository) GetBySubdomain(ctx context.Context, subdomain string) (*entity.Tenant, error) {
+	var tenant entity.Tenant
+	err := r.db.WithContext(ctx).
+		Where("subdomain = ?", subdomain).
+		Where("deleted_at IS NULL").
+		First(&tenant).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// 预加载关联数据
+	err = r.db.WithContext(ctx).
+		Preload("Subscription").
+		Preload("Quotas").
+		Where("tenant_id = ?", tenant.TenantID).
+		First(&tenant).Error
+
+	if err != nil {
+		return nil, err
+	}
+
 	return &tenant, nil
 }
 
@@ -289,109 +318,4 @@ func (r *subscriptionRepository) UpdateStatus(ctx context.Context, subscriptionI
 			"status":     status,
 			"updated_at": time.Now().UnixMilli(),
 		}).Error
-}
-
-// quotaRepository 配额仓储实现
-type quotaRepository struct {
-	db *gorm.DB
-}
-
-// NewQuotaRepository 创建配额仓储实例
-func NewQuotaRepository(db *gorm.DB) QuotaRepository {
-	return &quotaRepository{db: db}
-}
-
-// Create 创建配额
-func (r *quotaRepository) Create(ctx context.Context, quota *entity.Quota) error {
-	quota.CreatedAt = time.Now().UnixMilli()
-	quota.UpdatedAt = time.Now().UnixMilli()
-	quota.LastResetAt = time.Now().UnixMilli()
-	return r.db.WithContext(ctx).Create(quota).Error
-}
-
-// GetByID 根据ID获取配额
-func (r *quotaRepository) GetByID(ctx context.Context, quotaID string) (*entity.Quota, error) {
-	var quota entity.Quota
-	err := r.db.WithContext(ctx).
-		Where("quota_id = ?", quotaID).
-		First(&quota).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &quota, nil
-}
-
-// GetByTenantAndResource 根据租户ID和资源类型获取配额
-func (r *quotaRepository) GetByTenantAndResource(ctx context.Context, tenantID string, resourceType entity.ResourceType) (*entity.Quota, error) {
-	var quota entity.Quota
-	err := r.db.WithContext(ctx).
-		Where("tenant_id = ?", tenantID).
-		Where("resource_type = ?", resourceType).
-		First(&quota).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
-		return nil, err
-	}
-	return &quota, nil
-}
-
-// Update 更新配额
-func (r *quotaRepository) Update(ctx context.Context, quota *entity.Quota) error {
-	quota.UpdatedAt = time.Now().UnixMilli()
-	return r.db.WithContext(ctx).
-		Model(&entity.Quota{}).
-		Where("quota_id = ?", quota.QuotaID).
-		Updates(quota).Error
-}
-
-// UpdateUsedCount 更新使用计数
-func (r *quotaRepository) UpdateUsedCount(ctx context.Context, quotaID string, delta int) error {
-	return r.db.WithContext(ctx).
-		Model(&entity.Quota{}).
-		Where("quota_id = ?", quotaID).
-		Updates(map[string]interface{}{
-			"used_count":  gorm.Expr("used_count + ?", delta),
-			"updated_at":  time.Now().UnixMilli(),
-		}).Error
-}
-
-// ResetUsage 重置使用量
-func (r *quotaRepository) ResetUsage(ctx context.Context, quotaID string) error {
-	return r.db.WithContext(ctx).
-		Model(&entity.Quota{}).
-		Where("quota_id = ?", quotaID).
-		Updates(map[string]interface{}{
-			"used_count":   0,
-			"last_reset_at": time.Now().UnixMilli(),
-			"updated_at":    time.Now().UnixMilli(),
-		}).Error
-}
-
-// List 获取租户的所有配额
-func (r *quotaRepository) List(ctx context.Context, tenantID string) ([]*entity.Quota, error) {
-	var quotas []*entity.Quota
-	err := r.db.WithContext(ctx).
-		Where("tenant_id = ?", tenantID).
-		Find(&quotas).Error
-	return quotas, err
-}
-
-// GetByTenant 获取租户的所有配额（别名方法）
-func (r *quotaRepository) GetByTenant(ctx context.Context, tenantID string) ([]*entity.Quota, error) {
-	return r.List(ctx, tenantID)
-}
-
-// GetAll 获取所有配额（用于监控）
-func (r *quotaRepository) GetAll(ctx context.Context) ([]*entity.Quota, error) {
-	var quotas []*entity.Quota
-	err := r.db.WithContext(ctx).
-		Find(&quotas).Error
-	return quotas, err
 }

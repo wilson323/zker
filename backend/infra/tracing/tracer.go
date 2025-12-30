@@ -21,6 +21,7 @@ import (
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
@@ -142,10 +143,10 @@ func RecordError(ctx context.Context, err error) {
 }
 
 // SetSpanStatus 设置span状态
-func SetSpanStatus(ctx context.Context, code trace.StatusCode, desc string) {
+func SetSpanStatus(ctx context.Context, desc string) {
 	span := trace.SpanFromContext(ctx)
 	if span != nil {
-		span.SetStatus(code, desc)
+		span.SetStatus(codes.Error, desc)
 	}
 }
 
@@ -188,6 +189,8 @@ var (
 	AttrDBOperation  = attribute.Key("db.operation")
 	AttrCacheType    = attribute.Key("cache.type")
 	AttrCacheKey     = attribute.Key("cache.key")
+	AttrTTL          = attribute.Key("ttl")
+	AttrKeyCount     = attribute.Key("key_count")
 )
 
 // ========== 辅助函数 ==========

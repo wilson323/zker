@@ -24,8 +24,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coze-studio/backend/domain/routing/entity"
-	"github.com/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
 )
 
 // IntentMatcher 意图匹配器接口

@@ -21,13 +21,13 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/coze-studio/backend/api/model/permission"
-	permissionentity "github.com/coze-studio/backend/domain/permission/entity"
-	permissionrepo "github.com/coze-studio/backend/domain/permission/repository"
-	permissionservice "github.com/coze-studio/backend/domain/permission/service"
-	"github.com/coze-studio/backend/infra/monitoring/metrics"
-	"github.com/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/api/model/permission"
+	permissionentity "github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	permissionrepo "github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
+	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // PermissionApplicationService 权限应用服务

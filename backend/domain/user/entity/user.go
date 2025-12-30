@@ -17,7 +17,8 @@
 package entity
 
 type User struct {
-	UserID int64
+	UserID   int64
+	TenantID string // 租户ID（多租户隔离）
 
 	Name         string // nickname
 	UniqueName   string // unique name
@@ -31,6 +32,16 @@ type User struct {
 
 	CreatedAt int64 // creation time
 	UpdatedAt int64 // update time
+}
+
+// GetTenantID 获取租户ID
+func (u *User) GetTenantID() string {
+	return u.TenantID
+}
+
+// HasTenantID 检查是否有租户ID
+func (u *User) HasTenantID() bool {
+	return u.TenantID != ""
 }
 
 type UserBenefit struct {

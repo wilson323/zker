@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coze-studio/backend/api/model/routing"
-	routingentity "github.com/coze-studio/backend/domain/routing/entity"
-	routingrepo "github.com/coze-studio/backend/domain/routing/repository"
-	routingservice "github.com/coze-studio/backend/domain/routing/service"
-	"github.com/coze-studio/backend/infra/monitoring/metrics"
-	"github.com/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/api/model/routing"
+	routingentity "github.com/coze-dev/coze-studio/backend/domain/routing/entity"
+	routingrepo "github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	routingservice "github.com/coze-dev/coze-studio/backend/domain/routing/service"
+	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // RoutingApplicationService 路由应用服务

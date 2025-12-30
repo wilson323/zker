@@ -24,6 +24,7 @@ import (
 
 	config "github.com/coze-dev/coze-studio/backend/api/model/admin/config"
 	"github.com/coze-dev/coze-studio/backend/api/model/app/developer_api"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
 	"github.com/coze-dev/coze-studio/backend/bizpkg/config/modelmgr/internal/model"
 	"github.com/coze-dev/coze-studio/backend/bizpkg/config/modelmgr/internal/query"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ternary"
@@ -34,7 +35,9 @@ func (c *ModelConfig) GetProviderModelList(ctx context.Context) ([]*config.Provi
 	modelProviderList := getModelProviderList()
 	res := make([]*config.ProviderModelList, 0, len(modelProviderList))
 
+	tenantID := middleware.GetTenantIDFromContext(ctx)
 	allModels, err := query.ModelInstance.WithContext(ctx).
+		Where(query.ModelInstance.TenantID.Eq(tenantID)).
 		Where(query.ModelInstance.DeletedAt.IsNull()).Find()
 	if err != nil {
 		return nil, err
@@ -98,11 +101,15 @@ func (c *ModelConfig) getModelList(ctx context.Context, includeDeleteModel bool)
 		return oldModels, nil
 	}
 
+	tenantID := middleware.GetTenantIDFromContext(ctx)
 	var allModels []*model.ModelInstance
 	if includeDeleteModel {
-		allModels, err = query.ModelInstance.WithContext(ctx).Unscoped().Find()
+		allModels, err = query.ModelInstance.WithContext(ctx).
+			Where(query.ModelInstance.TenantID.Eq(tenantID)).
+			Unscoped().Find()
 	} else {
 		allModels, err = query.ModelInstance.WithContext(ctx).
+			Where(query.ModelInstance.TenantID.Eq(tenantID)).
 			Where(query.ModelInstance.DeletedAt.IsNull()).Find()
 	}
 
@@ -132,7 +139,10 @@ func (c *ModelConfig) GetOnlineModelListWithLimit(ctx context.Context, limit int
 		return oldModels[:limit], nil
 	}
 
-	allModels, err := query.ModelInstance.WithContext(ctx).Limit(limit).Find()
+	tenantID := middleware.GetTenantIDFromContext(ctx)
+	allModels, err := query.ModelInstance.WithContext(ctx).
+		Where(query.ModelInstance.TenantID.Eq(tenantID)).
+		Limit(limit).Find()
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +177,10 @@ func (c *ModelConfig) MGetModelByID(ctx context.Context, ids []int64) ([]*Model,
 
 	modelList := make([]*Model, 0, len(ids))
 
-	models, err := query.ModelInstance.WithContext(ctx).Unscoped().
+	tenantID := middleware.GetTenantIDFromContext(ctx)
+	models, err := query.ModelInstance.WithContext(ctx).
+		Where(query.ModelInstance.TenantID.Eq(tenantID)).
+		Unscoped().
 		Where(query.ModelInstance.ID.In(ids...)).Find()
 	if err != nil {
 		return nil, err
@@ -200,7 +213,9 @@ func (c *ModelConfig) GetModelByID(ctx context.Context, modelID int64) (*Model, 
 }
 
 func (c *ModelConfig) getModelByID(ctx context.Context, modelID int64) (*Model, error) {
+	tenantID := middleware.GetTenantIDFromContext(ctx)
 	m, err := query.ModelInstance.WithContext(ctx).
+		Where(query.ModelInstance.TenantID.Eq(tenantID)).
 		Unscoped(). // allow get deleted data
 		Where(query.ModelInstance.ID.Eq(modelID)).First()
 	if err != nil {

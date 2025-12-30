@@ -23,8 +23,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coze-studio/backend/domain/tenant/entity"
-	"github.com/coze-studio/backend/domain/tenant/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
 )
 
 // SubscriptionService 订阅管理服务

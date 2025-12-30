@@ -12,18 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// StepStatus 事务步骤状态
-type StepStatus string
-
-const (
-	StepStatusPending    StepStatus = "pending"     // 待执行
-	StepStatusRunning    StepStatus = "running"     // 执行中
-	StepStatusCompleted  StepStatus = "completed"   // 已完成
-	StepStatusFailed     StepStatus = "failed"      // 已失败
-	StepStatusCompensating StepStatus = "compensating" // 补偿中
-	StepStatusCompensated StepStatus = "compensated"  // 已补偿
-)
-
 // SagaTransaction Saga事务
 type SagaTransaction struct {
 	TransactionID   string                 `json:"transaction_id"`   // 事务ID
@@ -239,7 +227,6 @@ func (c *Coordinator) compensateStep(ctx context.Context, step *TransactionStep)
 	}
 
 	step.Status = StepStatusCompensating
-	c.storage.Save(ctx, step)
 
 	if err := executor.Compensate(ctx, step); err != nil {
 		return err

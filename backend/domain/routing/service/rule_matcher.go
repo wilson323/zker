@@ -23,8 +23,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/coze-studio/backend/domain/routing/entity"
-	"github.com/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
 )
 
 // RuleBasedMatcher 规则匹配器

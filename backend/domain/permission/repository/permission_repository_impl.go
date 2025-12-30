@@ -23,7 +23,7 @@ import (
 
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 )
 
 // roleRepository 角色仓储实现

@@ -17,6 +17,7 @@
 package errno
 
 import (
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx/code"
 )
 

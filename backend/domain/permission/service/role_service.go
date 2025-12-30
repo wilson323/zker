@@ -22,8 +22,8 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/coze-studio/backend/domain/permission/entity"
-	"github.com/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
 )
 
 // RoleService 角色管理服务
@@ -364,18 +364,204 @@ func (s *RoleService) CheckPermission(
 	ctx context.Context,
 	userID, tenantID string,
 	resourceType entity.ResourceType,
+	action string,
 	resourceID string,
 ) error {
-	return s.permChecker.CheckDataPermission(ctx, userID, tenantID, resourceType, resourceID)
+	allowed, err := s.permChecker.CheckDataPermission(ctx, tenantID, userID, resourceType, action, resourceID)
+	if err != nil {
+		return err
+	}
+	if !allowed {
+		return &PermissionDeniedError{
+			UserID:       userID,
+			ResourceType: string(resourceType),
+			ResourceID:   resourceID,
+			Reason:       "permission denied",
+		}
+	}
+	return nil
 }
 
 // GetFieldPermissions 获取字段权限（对外统一接口）
 func (s *RoleService) GetFieldPermissions(
 	ctx context.Context,
-	userID, tenantID string,
+	tenantID, userID string,
 	resourceType string,
 ) (map[string]string, error) {
-	return s.permChecker.GetFieldPermissions(ctx, userID, tenantID, resourceType)
+	return s.permChecker.GetFieldPermissions(ctx, tenantID, userID, resourceType)
+}
+
+// InitializeSystemRoles 初始化系统预置角色
+// 调用时机: 新租户创建时
+// 幂等性: 如果角色已存在则跳过
+func (s *RoleService) InitializeSystemRoles(ctx context.Context, tenantID string) error {
+	// 1. 检查是否已初始化
+	filter := &repository.RoleFilter{
+		TenantID: tenantID,
+		PageSize:  100, // 足够大的数字以获取所有角色
+	}
+	existingRoles, _, err := s.roleRepo.List(ctx, filter)
+	if err == nil && len(existingRoles) > 0 {
+		// 已有角色,检查是否包含系统角色
+		for _, role := range existingRoles {
+			if role.IsSystemRole() {
+				// 已有系统角色,无需重复初始化
+				return nil
+			}
+		}
+	}
+
+	// 2. 创建4个系统预置角色
+	roles := []*entity.Role{
+		{
+			RoleID:     generateRoleID("tenant_owner", tenantID),
+			TenantID:   tenantID,
+			RoleName:   "租户所有者",
+			RoleCode:   "tenant_owner",
+			RoleType:   entity.RoleTypeSystem,
+			Description: "拥有租户内所有资源的完整权限",
+		},
+		{
+			RoleID:     generateRoleID("tenant_admin", tenantID),
+			TenantID:   tenantID,
+			RoleName:   "租户管理员",
+			RoleCode:   "tenant_admin",
+			RoleType:   entity.RoleTypeSystem,
+			Description: "拥有租户内部门及以下资源的完整权限",
+		},
+		{
+			RoleID:     generateRoleID("tenant_member", tenantID),
+			TenantID:   tenantID,
+			RoleName:   "普通成员",
+			RoleCode:   "tenant_member",
+			RoleType:   entity.RoleTypeSystem,
+			Description: "仅能访问自己创建的资源",
+		},
+		{
+			RoleID:     generateRoleID("tenant_viewer", tenantID),
+			TenantID:   tenantID,
+			RoleName:   "只读成员",
+			RoleCode:   "tenant_viewer",
+			RoleType:   entity.RoleTypeSystem,
+			Description: "仅能查看自己创建的资源",
+		},
+	}
+
+	// 3. 批量创建角色
+	for _, role := range roles {
+		if err := s.roleRepo.Create(ctx, role); err != nil {
+			return fmt.Errorf("创建系统角色失败 %s: %w", role.RoleCode, err)
+		}
+
+		// 4. 为每个角色初始化数据权限
+		if err := s.initializeDataPermissions(ctx, role); err != nil {
+			return fmt.Errorf("初始化角色数据权限失败 %s: %w", role.RoleCode, err)
+		}
+
+		// 5. 为每个角色初始化字段权限
+		if err := s.initializeFieldPermissions(ctx, role); err != nil {
+			return fmt.Errorf("初始化角色字段权限失败 %s: %w", role.RoleCode, err)
+		}
+	}
+
+	return nil
+}
+
+// initializeDataPermissions 初始化角色的数据权限
+func (s *RoleService) initializeDataPermissions(ctx context.Context, role *entity.Role) error {
+	// 根据角色类型配置数据权限
+	var scope entity.DataPermissionScope
+	switch role.RoleCode {
+	case "tenant_owner":
+		scope = entity.DataPermissionScopeAll
+	case "tenant_admin":
+		scope = entity.DataPermissionScopeDepartment
+	case "tenant_member", "tenant_viewer":
+		scope = entity.DataPermissionScopeOwn
+	default:
+		scope = entity.DataPermissionScopeNone
+	}
+
+	// 为每种资源类型创建数据权限
+	resourceTypes := []entity.ResourceType{
+		entity.ResourceTypeBots,
+		entity.ResourceTypeConversations,
+		entity.ResourceTypeKnowledge,
+		entity.ResourceTypeWorkflows,
+		entity.ResourceTypePlugins,
+	}
+
+	for _, rt := range resourceTypes {
+		perm := &entity.DataPermission{
+			PermissionID: generatePermissionID(role.RoleID, string(rt)),
+			RoleID:       role.RoleID,
+			ResourceType: rt,
+			Scope:        scope,
+		}
+		if err := s.dataPermRepo.Create(ctx, perm); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// initializeFieldPermissions 初始化角色的字段权限
+func (s *RoleService) initializeFieldPermissions(ctx context.Context, role *entity.Role) error {
+	// 定义敏感字段
+	sensitiveFields := []struct {
+		resourceType string
+		fieldName     string
+	}{
+		{"bots", "api_key"},
+		{"bots", "secret_key"},
+		{"bots", "webhook_url"},
+		{"workflows", "api_key"},
+		{"workflows", "auth_token"},
+		{"plugins", "api_key"},
+		{"plugins", "secret_key"},
+	}
+
+	// 根据角色类型配置字段权限
+	for _, sf := range sensitiveFields {
+		var permLevel entity.FieldPermissionLevel
+		switch role.RoleCode {
+		case "tenant_owner":
+			// 所有者可编辑所有字段,无需创建记录
+			continue
+		case "tenant_admin", "tenant_member":
+			// 管理员和成员: 敏感字段只读
+			permLevel = entity.FieldPermissionLevelReadonly
+		case "tenant_viewer":
+			// 查看者: 敏感字段隐藏
+			permLevel = entity.FieldPermissionLevelHidden
+		default:
+			continue
+		}
+
+		fieldPerm := &entity.FieldPermission{
+			PermissionID:    generateUUID(),
+			RoleID:          role.RoleID,
+			ResourceType:    sf.resourceType,
+			FieldName:       sf.fieldName,
+			PermissionLevel: permLevel,
+		}
+		if err := s.fieldPermRepo.Create(ctx, fieldPerm); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// generateRoleID 生成角色ID
+func generateRoleID(roleCode, tenantID string) string {
+	return fmt.Sprintf("role_%s_%s", roleCode, tenantID[:8])
+}
+
+// generatePermissionID 生成权限ID
+func generatePermissionID(roleID, resourceType string) string {
+	return fmt.Sprintf("perm_%s_%s", roleID, resourceType)
 }
 
 // generateUUID 生成UUID

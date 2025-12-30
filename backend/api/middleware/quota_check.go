@@ -19,19 +19,20 @@ package middleware
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"go.uber.org/zap"
 
-	"github.com/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/backend/pkg/loggerx"
-	tenantservice "github.com/coze-studio/backend/domain/tenant/service"
-	berrno "github.com/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	tenantentity "github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 var (
-	// 配额服务（在应用启动时注入）
+	// quotaService 配额服务（在应用启动时注入）
 	quotaService *tenantservice.QuotaService
 )
 
@@ -40,22 +41,28 @@ func InitQuotaMiddleware(qs *tenantservice.QuotaService) {
 	quotaService = qs
 }
 
-// ResourceType 资源类型
+// ResourceType 资源类型（中间件层定义，对应 domain 层的 ResourceType）
 type ResourceType string
 
 const (
-	ResourceTypeBots        ResourceType = "bots"
-	ResourceTypeWorkflows   ResourceType = "workflows"
-	ResourceTypeMessages    ResourceType = "messages"
-	ResourceTypeStorage     ResourceType = "storage"
-	ResourceTypeTeamMembers ResourceType = "team_members"
+	ResourceTypeBots        ResourceType = "bots"         // Bot数量
+	ResourceTypeMessages    ResourceType = "messages"     // 消息数量
+	ResourceTypeStorage     ResourceType = "storage"      // 存储空间
+	ResourceTypeTeamMembers ResourceType = "team_members" // 团队成员数量
+	ResourceTypeWorkflows   ResourceType = "workflows"    // 工作流数量
 )
+
+// ToDomainResourceType 转换为 domain 层的 ResourceType
+func (rt ResourceType) ToDomainResourceType() tenantentity.ResourceType {
+	return tenantentity.ResourceType(rt)
+}
 
 // QuotaCheckConfig 配额检查配置
 type QuotaCheckConfig struct {
 	ResourceType  ResourceType // 资源类型
-	RequiredCount int          // 需要的数量
+	RequiredCount int          // 需要的数量（默认1）
 	CheckOnly     bool         // 仅检查不扣减（默认false，会扣减配额）
+	SkipRollback  bool         // 跳过自动回滚（默认false，失败时自动回滚）
 }
 
 // QuotaCheck 配额检查中间件
@@ -63,53 +70,61 @@ type QuotaCheckConfig struct {
 //
 // 使用示例：
 //
-//	r.POST("/api/bots", middleware.QuotaCheck(middleware.QuotaCheckConfig{
-//	    ResourceType:  middleware.ResourceTypeBots,
-//	    RequiredCount: 1,
-//	    CheckOnly:     false, // 会扣减配额
-//	}), handler.CreateBot)
+//	r.POST("/api/v1/bots",
+//	    middleware.QuotaCheck(middleware.QuotaCheckConfig{
+//	        ResourceType:  middleware.ResourceTypeBots,
+//	        RequiredCount: 1,
+//	        CheckOnly:     false, // 会扣减配额
+//	    }),
+//	    handler.CreateBot)
 func QuotaCheck(config QuotaCheckConfig) app.HandlerFunc {
+	// 设置默认值
+	if config.RequiredCount <= 0 {
+		config.RequiredCount = 1
+	}
+
 	return func(ctx context.Context, c *app.RequestContext) {
-		// 1. 获取tenant_id
-		tenantID := c.GetHeader("X-Tenant-ID")
-		if tenantID == string("") {
-			// 尝试从上下文获取
-			if tid, exists := c.Get("tenant_id"); exists {
-				tenantID = string(tid)
-			} else {
-				c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode, "tenant_id is required"))
-				c.Abort()
-				return
-			}
+		// 1. 获取 tenant_id
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode,
+				errorx.KV("msg", "failed to extract tenant_id")))
+			c.Abort()
+			return
 		}
 
 		// 2. 检查是否已初始化配额服务
 		if quotaService == nil {
-			loggerx.CtxWarnf(ctx, "[QuotaCheck] quotaService not initialized, skipping quota check")
+			logs.CtxWarnf(ctx, "[QuotaCheck] quotaService not initialized, skipping quota check")
 			c.Next(ctx)
 			return
 		}
 
 		// 3. 检查配额
-		err := quotaService.CheckQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+		domainResourceType := config.ResourceType.ToDomainResourceType()
+		err = quotaService.CheckQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 		if err != nil {
 			// 检查是否是配额超限错误
 			var quotaExceededErr *tenantservice.QuotaExceededError
 			if errors.As(err, &quotaExceededErr) {
-				loggerx.CtxWarnf(ctx, "[QuotaCheck] quota exceeded: tenant_id=%s, resource_type=%s, required=%d, current=%d, limit=%d",
+				logs.CtxWarnf(ctx, "[QuotaCheck] quota exceeded: tenant_id=%s, resource_type=%s, required=%d, used=%d, limit=%d, usage=%.2f%%",
 					tenantID,
 					config.ResourceType,
 					config.RequiredCount,
-					quotaExceededErr.CurrentUsage,
+					quotaExceededErr.Used,
 					quotaExceededErr.MaxLimit,
+					quotaExceededErr.UsagePercent,
 				)
 
-				c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrQuotaExceededCode,
+				c.JSON(consts.StatusPaymentRequired, responseWithError(berrno.ErrQuotaExceededCode,
 					errorx.KV(
+						"msg", fmt.Sprintf("quota exceeded for %s", config.ResourceType),
 						"resource_type", config.ResourceType,
-						"current_usage", quotaExceededErr.CurrentUsage,
-						"max_limit", quotaExceededErr.MaxLimit,
-						"remaining", quotaExceededErr.MaxLimit-quotaExceededErr.CurrentUsage,
+						"used", quotaExceededErr.Used,
+						"limit", quotaExceededErr.MaxLimit,
+						"required", config.RequiredCount,
+						"remaining", quotaExceededErr.MaxLimit - quotaExceededErr.Used,
+						"usage_percent", fmt.Sprintf("%.2f%%", quotaExceededErr.UsagePercent),
 					),
 				))
 				c.Abort()
@@ -117,7 +132,7 @@ func QuotaCheck(config QuotaCheckConfig) app.HandlerFunc {
 			}
 
 			// 其他错误
-			loggerx.CtxErrorf(ctx, "[QuotaCheck] quota check failed: %v", err)
+			logs.CtxErrorf(ctx, "[QuotaCheck] quota check failed: %v", err)
 			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrQuotaCheckFailedCode))
 			c.Abort()
 			return
@@ -125,9 +140,9 @@ func QuotaCheck(config QuotaCheckConfig) app.HandlerFunc {
 
 		// 4. 如果不是仅检查模式，则扣减配额
 		if !config.CheckOnly {
-			_, err = quotaService.ConsumeQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+			err = quotaService.ConsumeQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 			if err != nil {
-				loggerx.CtxErrorf(ctx, "[QuotaCheck] consume quota failed: %v", err)
+				logs.CtxErrorf(ctx, "[QuotaCheck] consume quota failed: %v", err)
 
 				// 配额检查通过但消费失败，返回错误
 				c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrQuotaConsumeFailedCode))
@@ -135,10 +150,10 @@ func QuotaCheck(config QuotaCheckConfig) app.HandlerFunc {
 				return
 			}
 
-			loggerx.CtxInfof(ctx, "[QuotaCheck] quota consumed: tenant_id=%s, resource_type=%s, count=%d",
+			logs.CtxInfof(ctx, "[QuotaCheck] quota consumed: tenant_id=%s, resource_type=%s, count=%d",
 				tenantID, config.ResourceType, config.RequiredCount)
 		} else {
-			loggerx.CtxInfof(ctx, "[QuotaCheck] quota check only (no consume): tenant_id=%s, resource_type=%s, count=%d",
+			logs.CtxInfof(ctx, "[QuotaCheck] quota check only (no consume): tenant_id=%s, resource_type=%s, count=%d",
 				tenantID, config.ResourceType, config.RequiredCount)
 		}
 
@@ -154,85 +169,94 @@ func QuotaCheck(config QuotaCheckConfig) app.HandlerFunc {
 //
 // 使用示例：
 //
-//	r.POST("/api/bots",
+//	r.POST("/api/v1/bots",
 //	    middleware.QuotaCheckWithRollback(middleware.QuotaCheckConfig{
 //	        ResourceType:  middleware.ResourceTypeBots,
 //	        RequiredCount: 1,
 //	    }),
 //	    handler.CreateBot)
 func QuotaCheckWithRollback(config QuotaCheckConfig) app.HandlerFunc {
+	// 设置默认值
+	if config.RequiredCount <= 0 {
+		config.RequiredCount = 1
+	}
+
 	return func(ctx context.Context, c *app.RequestContext) {
-		tenantID := c.GetHeader("X-Tenant-ID")
-		if tenantID == string("") {
-			if tid, exists := c.Get("tenant_id"); exists {
-				tenantID = string(tid)
-			} else {
-				c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode, "tenant_id is required"))
-				c.Abort()
-				return
-			}
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode,
+				errorx.KV("msg", "failed to extract tenant_id")))
+			c.Abort()
+			return
 		}
 
 		if quotaService == nil {
-			loggerx.CtxWarnf(ctx, "[QuotaCheck] quotaService not initialized, skipping quota check")
+			logs.CtxWarnf(ctx, "[QuotaCheckWithRollback] quotaService not initialized, skipping quota check")
 			c.Next(ctx)
 			return
 		}
 
+		domainResourceType := config.ResourceType.ToDomainResourceType()
+
 		// 1. 检查配额
-		err := quotaService.CheckQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+		err = quotaService.CheckQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 		if err != nil {
 			var quotaExceededErr *tenantservice.QuotaExceededError
 			if errors.As(err, &quotaExceededErr) {
-				c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrQuotaExceededCode,
+				c.JSON(consts.StatusPaymentRequired, responseWithError(berrno.ErrQuotaExceededCode,
 					errorx.KV(
+						"msg", fmt.Sprintf("quota exceeded for %s", config.ResourceType),
 						"resource_type", config.ResourceType,
-						"current_usage", quotaExceededErr.CurrentUsage,
-						"max_limit", quotaExceededErr.MaxLimit,
+						"used", quotaExceededErr.Used,
+						"limit", quotaExceededErr.MaxLimit,
+						"remaining", quotaExceededErr.MaxLimit - quotaExceededErr.Used,
 					),
 				))
 				c.Abort()
 				return
 			}
 
-			loggerx.CtxErrorf(ctx, "[QuotaCheck] quota check failed: %v", err)
+			logs.CtxErrorf(ctx, "[QuotaCheckWithRollback] quota check failed: %v", err)
 			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrQuotaCheckFailedCode))
 			c.Abort()
 			return
 		}
 
 		// 2. 扣减配额
-		previousCount, err := quotaService.ConsumeQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+		err = quotaService.ConsumeQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 		if err != nil {
-			loggerx.CtxErrorf(ctx, "[QuotaCheck] consume quota failed: %v", err)
+			logs.CtxErrorf(ctx, "[QuotaCheckWithRollback] consume quota failed: %v", err)
 			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrQuotaConsumeFailedCode))
 			c.Abort()
 			return
 		}
 
-		loggerx.CtxInfof(ctx, "[QuotaCheckWithRollback] quota consumed: tenant_id=%s, resource_type=%s, count=%d, previous=%d",
-			tenantID, config.ResourceType, config.RequiredCount, previousCount)
+		logs.CtxInfof(ctx, "[QuotaCheckWithRollback] quota consumed: tenant_id=%s, resource_type=%s, count=%d",
+			tenantID, config.ResourceType, config.RequiredCount)
 
 		// 3. 将配额信息保存到上下文，以便在失败时回滚
 		c.Set("quota_rollback_info", map[string]interface{}{
 			"tenant_id":     tenantID,
 			"resource_type": config.ResourceType,
 			"count":         config.RequiredCount,
+			"skip_rollback": config.SkipRollback,
 		})
 
-		// 4. 设置响应回滚拦截器
+		// 4. 处理请求
 		c.Next(ctx)
 
 		// 5. 检查响应状态码，如果失败则回滚配额
-		statusCode := c.Response.StatusCode()
-		if statusCode >= 400 {
-			// 请求失败，回滚配额
-			rollbackErr := quotaService.RollbackQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
-			if rollbackErr != nil {
-				loggerx.CtxErrorf(ctx, "[QuotaCheckWithRollback] rollback quota failed: %v", rollbackErr)
-			} else {
-				loggerx.CtxInfof(ctx, "[QuotaCheckWithRollback] quota rolled back: tenant_id=%s, resource_type=%s, count=%d",
-					tenantID, config.ResourceType, config.RequiredCount)
+		if !config.SkipRollback {
+			statusCode := c.Response.StatusCode()
+			if statusCode >= 400 {
+				// 请求失败，回滚配额
+				rollbackErr := quotaService.RollbackQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
+				if rollbackErr != nil {
+					logs.CtxErrorf(ctx, "[QuotaCheckWithRollback] rollback quota failed: %v", rollbackErr)
+				} else {
+					logs.CtxInfof(ctx, "[QuotaCheckWithRollback] quota rolled back: tenant_id=%s, resource_type=%s, count=%d, status_code=%d",
+						tenantID, config.ResourceType, config.RequiredCount, statusCode)
+				}
 			}
 		}
 	}
@@ -255,29 +279,31 @@ func QuotaCheckWithRollback(config QuotaCheckConfig) app.HandlerFunc {
 //	    // 继续处理...
 //	}
 func ManualQuotaCheck(ctx context.Context, c *app.RequestContext, config QuotaCheckConfig) error {
-	tenantID := c.GetHeader("X-Tenant-ID")
-	if tenantID == string("") {
-		if tid, exists := c.Get("tenant_id"); exists {
-			tenantID = string(tid)
-		} else {
-			return errorx.New(berrno.ErrTenantNotFoundCode, errorx.KV("msg", "tenant_id is required"))
-		}
+	if config.RequiredCount <= 0 {
+		config.RequiredCount = 1
+	}
+
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return err
 	}
 
 	if quotaService == nil {
-		loggerx.CtxWarnf(ctx, "[ManualQuotaCheck] quotaService not initialized")
+		logs.CtxWarnf(ctx, "[ManualQuotaCheck] quotaService not initialized")
 		return nil
 	}
 
+	domainResourceType := config.ResourceType.ToDomainResourceType()
+
 	// 检查配额
-	err := quotaService.CheckQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+	err = quotaService.CheckQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 	if err != nil {
 		return err
 	}
 
 	// 如果不是仅检查模式，则扣减配额
 	if !config.CheckOnly {
-		_, err = quotaService.ConsumeQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+		err = quotaService.ConsumeQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
 		if err != nil {
 			return err
 		}
@@ -292,40 +318,106 @@ func ManualQuotaCheck(ctx context.Context, c *app.RequestContext, config QuotaCh
 // 使用示例：
 //
 //	func CreateBot(ctx context.Context, c *app.RequestContext) {
-//	    // ... 处理逻辑 ...
+//	    err := middleware.ManualQuotaCheck(ctx, c, middleware.QuotaCheckConfig{
+//	        ResourceType:  middleware.ResourceTypeBots,
+//	        RequiredCount: 1,
+//	    })
 //	    if err != nil {
+//	        return
+//	    }
+//
+//	    // ... 业务逻辑 ...
+//	    if businessErr != nil {
+//	        // 业务失败，回滚配额
 //	        middleware.ManualQuotaRollback(ctx, c, middleware.QuotaCheckConfig{
 //	            ResourceType:  middleware.ResourceTypeBots,
 //	            RequiredCount: 1,
 //	        })
-//	        return
+//	        return businessErr
 //	    }
 //	}
 func ManualQuotaRollback(ctx context.Context, c *app.RequestContext, config QuotaCheckConfig) error {
-	tenantID := c.GetHeader("X-Tenant-ID")
-	if tenantID == string("") {
-		if tid, exists := c.Get("tenant_id"); exists {
-			tenantID = string(tid)
-		} else {
-			return errorx.New(berrno.ErrTenantNotFoundCode, errorx.KV("msg", "tenant_id is required"))
-		}
+	if config.RequiredCount <= 0 {
+		config.RequiredCount = 1
+	}
+
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return err
 	}
 
 	if quotaService == nil {
-		loggerx.CtxWarnf(ctx, "[ManualQuotaRollback] quotaService not initialized")
+		logs.CtxWarnf(ctx, "[ManualQuotaRollback] quotaService not initialized")
 		return nil
 	}
 
-	return quotaService.RollbackQuota(ctx, tenantID, tenantservice.ResourceType(config.ResourceType), config.RequiredCount)
+	domainResourceType := config.ResourceType.ToDomainResourceType()
+	return quotaService.RollbackQuota(ctx, tenantID, domainResourceType, config.RequiredCount)
+}
+
+// GetQuotaInfo 获取配额信息辅助函数
+// 用于查询租户的配额使用情况
+//
+// 使用示例：
+//
+//	func GetQuotaStatus(ctx context.Context, c *app.RequestContext) {
+//	    quota, err := middleware.GetQuotaInfo(ctx, c, middleware.ResourceTypeBots)
+//	    if err != nil {
+//	        // 处理错误
+//	        return
+//	    }
+//	    // 使用 quota 信息...
+//	}
+func GetQuotaInfo(ctx context.Context, c *app.RequestContext, resourceType ResourceType) (*tenantentity.Quota, error) {
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	if quotaService == nil {
+		return nil, fmt.Errorf("quotaService not initialized")
+	}
+
+	domainResourceType := resourceType.ToDomainResourceType()
+	return quotaService.GetQuota(ctx, tenantID, domainResourceType)
+}
+
+// extractTenantID 从请求上下文中提取 tenant_id
+func extractTenantID(c *app.RequestContext) (string, error) {
+	// 1. 尝试从 Header 获取
+	tenantID := c.GetHeader("X-Tenant-ID")
+	if tenantID != "" {
+		return tenantID, nil
+	}
+
+	// 2. 尝试从 Query 参数获取
+	tenantID = c.Query("tenant_id")
+	if tenantID != "" {
+		return tenantID, nil
+	}
+
+	// 3. 尝试从上下文获取（如果之前有中间件设置）
+	if tid, exists := c.Get("tenant_id"); exists {
+		if tenantIDStr, ok := tid.(string); ok {
+			return tenantIDStr, nil
+		}
+	}
+
+	return "", errorx.New(berrno.ErrTenantNotFoundCode, errorx.KV("msg", "tenant_id not found in request"))
 }
 
 // responseWithError 构造错误响应
-func responseWithError(code int, kv ...zap.Field) map[string]interface{} {
-	kv = append(kv, zap.Int("code", code))
-	errMsg := berrno.ErrMsgByCode(code)
-	return map[string]interface{}{
+func responseWithError(code int, kv ...errorx.KV) map[string]interface{} {
+	result := map[string]interface{}{
 		"code":    code,
-		"message": errMsg,
+		"message": berrno.ErrMsgByCode(code),
 		"data":    nil,
 	}
+
+	// 添加额外的字段
+	for _, item := range kv {
+		result[item.Key] = item.Value
+	}
+
+	return result
 }

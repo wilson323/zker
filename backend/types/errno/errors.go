@@ -23,17 +23,19 @@ import (
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	codepkg "github.com/coze-dev/coze-studio/backend/pkg/errorx/code"
 )
 
 // HTTPStatusMapping 错误码到HTTP状态码的映射
 var HTTPStatusMapping = map[int32]int{
 	// 租户错误 (2xx)
-	ErrTenantNotFoundCode:        http.StatusNotFound,
-	ErrTenantAlreadyExistsCode:   http.StatusConflict,
-	ErrTenantSuspendedCode:       http.StatusForbidden,
-	ErrTenantDeletedCode:         http.StatusGone,
-	ErrTenantInvalidParamCode:    http.StatusBadRequest,
-	ErrInvalidTenantIDCode:       http.StatusBadRequest,
+	ErrTenantNotFoundCode:     http.StatusNotFound,
+	ErrTenantAlreadyExistsCode: http.StatusConflict,
+	ErrTenantSuspendedCode:    http.StatusForbidden,
+	ErrTenantDeletedCode:      http.StatusGone,
+	ErrTenantInvalidParamCode: http.StatusBadRequest,
+	ErrInvalidTenantIDCode:    http.StatusBadRequest,
+	ErrMissingTenantIDCode:    http.StatusUnauthorized, // 租户ID缺失（严格租户隔离模式）
 
 	// 配额错误 (3xx)
 	ErrQuotaExceededCode:          http.StatusForbidden, // 403 Forbidden (quota exceeded)
@@ -60,33 +62,6 @@ var HTTPStatusMapping = map[int32]int{
 	ErrUserResourceNotFound:        http.StatusNotFound,
 	ErrUserInvalidParamCode:        http.StatusBadRequest,
 	ErrUserPermissionCode:          http.StatusForbidden,
-
-	// 权限错误 (108)
-	ErrPermissionInvalidParamCode:   http.StatusBadRequest,
-}
-
-// GetHTTPStatusForError 根据错误码获取HTTP状态码
-// 使用范围映射避免为每个错误码单独映射，遵循DRY原则
-func GetHTTPStatusForError(code int32) int {
-	// 如果有精确映射，使用精确映射
-	if status, ok := HTTPStatusMapping[code]; ok {
-		return status
-	}
-
-	// 按错误码段进行范围映射（遵循KISS原则）
-	million := int32(1000000)
-	codeSegment := code / million
-
-	switch codeSegment {
-	case 201: // Bot模块错误 (201 xxx xxx)
-		return mapHTTPStatusByErrorCode(code)
-	case 202: // Conversation模块错误 (202 xxx xxx)
-		return mapHTTPStatusByErrorCode(code)
-	case 203: // Workflow模块错误 (203 xxx xxx)
-		return mapHTTPStatusByErrorCode(code)
-	default:
-		return DefaultHTTPStatus
-	}
 }
 
 // mapHTTPStatusByErrorCode 根据错误码的最后3位映射HTTP状态码
@@ -318,7 +293,7 @@ func ConvertFromStatusErr(err error) *EnhancedError {
 // 优先从CodeDefinition读取，如果没有则使用范围映射生成（遵循DRY原则）
 func getChineseMessage(code int32) string {
 	// 1. 优先从已注册的CodeDefinition读取
-	if def := code.GetCodeDefinition(code); def != nil && def.MessageZH != "" {
+	if def := codepkg.GetCodeDefinition(code); def != nil && def.MessageZH != "" {
 		return def.MessageZH
 	}
 

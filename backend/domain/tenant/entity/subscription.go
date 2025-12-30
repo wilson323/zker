@@ -35,6 +35,7 @@ const (
 	SubscriptionStatusActive    SubscriptionStatus = "active"    // 激活
 	SubscriptionStatusExpired   SubscriptionStatus = "expired"   // 过期
 	SubscriptionStatusCancelled SubscriptionStatus = "cancelled" // 取消
+	SubscriptionStatusSuspended SubscriptionStatus = "suspended" // 暂停
 )
 
 // Subscription 订阅实体

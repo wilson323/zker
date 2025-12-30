@@ -21,14 +21,16 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/coze-studio/backend/api/model/tenant"
-	tenantentity "github.com/coze-studio/backend/domain/tenant/entity"
-	tenantrepo "github.com/coze-studio/backend/domain/tenant/repository"
-	tenantservice "github.com/coze-studio/backend/domain/tenant/service"
-	"github.com/coze-studio/backend/infra/monitoring/metrics"
-	"github.com/coze-studio/backend/pkg/errorx"
-	"github.com/coze-studio/backend/pkg/lang/ptr"
-	"github.com/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/api/model/tenant"
+	tenantentity "github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	tenantrepo "github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
+	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
+	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/lang/ptr"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // TenantApplicationService 租户应用服务
@@ -38,6 +40,7 @@ type TenantApplicationService struct {
 	quotaSvc      *tenantservice.QuotaService
 	billingSvc    *tenantservice.BillingService
 	quotaMonitor  *tenantservice.QuotaMonitorOptimized
+	roleSvc       *permissionservice.RoleService // 新增：角色服务
 }
 
 // NewTenantApplicationService 创建租户应用服务
@@ -47,6 +50,7 @@ func NewTenantApplicationService(
 	quotaSvc *tenantservice.QuotaService,
 	billingSvc *tenantservice.BillingService,
 	quotaMonitor *tenantservice.QuotaMonitorOptimized,
+	roleSvc *permissionservice.RoleService, // 新增：角色服务参数
 ) *TenantApplicationService {
 	return &TenantApplicationService{
 		tenantSvc:     tenantSvc,
@@ -54,6 +58,7 @@ func NewTenantApplicationService(
 		quotaSvc:      quotaSvc,
 		billingSvc:    billingSvc,
 		quotaMonitor:  quotaMonitor,
+		roleSvc:       roleSvc,
 	}
 }
 
@@ -72,7 +77,7 @@ func (s *TenantApplicationService) CreateTenant(ctx context.Context, req *tenant
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "contact_email is required"))
 	}
 
-	// 2. 调用领域服务
+	// 2. 调用领域服务创建租户
 	createReq := &tenantservice.CreateTenantRequest{
 		TenantName:   req.TenantName,
 		TenantType:   tenantentity.TenantType(req.TenantType),
@@ -87,10 +92,28 @@ func (s *TenantApplicationService) CreateTenant(ctx context.Context, req *tenant
 		return nil, err
 	}
 
-	// 3. 记录创建成功指标
+	// 3. 初始化系统预置角色
+	if s.roleSvc != nil {
+		logs.CtxInfof(ctx, "[TenantSvc] initializing system roles for tenant %s", tenantEntity.TenantID)
+		if err := s.roleSvc.InitializeSystemRoles(ctx, tenantEntity.TenantID); err != nil {
+			logs.CtxErrorf(ctx, "[TenantSvc] failed to initialize system roles for tenant %s: %v", tenantEntity.TenantID, err)
+
+			// 回滚：删除已创建的租户
+			if deleteErr := s.tenantSvc.Delete(ctx, tenantEntity.TenantID); deleteErr != nil {
+				logs.CtxErrorf(ctx, "[TenantSvc] failed to rollback tenant creation: %v", deleteErr)
+			}
+
+			// 记录创建失败指标
+			metrics.RecordTenantCreation(req.TenantType, "failure")
+			return nil, fmt.Errorf("初始化系统角色失败: %w", err)
+		}
+		logs.CtxInfof(ctx, "[TenantSvc] system roles initialized successfully for tenant %s", tenantEntity.TenantID)
+	}
+
+	// 4. 记录创建成功指标
 	metrics.RecordTenantCreation(req.TenantType, "success")
 
-	// 4. 返回DTO
+	// 5. 返回DTO
 	return s.entityToTenantInfo(tenantEntity), nil
 }
 

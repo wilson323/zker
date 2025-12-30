@@ -1,0 +1,346 @@
+# Prometheus告警规则 - 计费系统
+# ZKER Token计量和预算管理系统
+
+groups:
+  # ========== 计费系统 - Token计量告警 ==========
+  - name: billing_token_metering_alerts
+    interval: 30s
+    rules:
+      # Token记录失败率过高
+      - alert: BillingHighRecordFailureRate
+        expr: |
+          rate(billing_token_log_db_operations_total{result="failure"}[5m]) /
+          rate(billing_token_log_db_operations_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: billing
+          team: backend
+        annotations:
+          summary: "Token记录失败率过高"
+          description: "失败率 > 5%, 当前: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.zker.com/runbooks/billing-record-failure"
+
+      # Token记录延迟过高
+      - alert: BillingTokenRecordSlow
+        expr: |
+          histogram_quantile(0.99,
+            rate(billing_token_record_duration_seconds_bucket[5m])
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "Token记录延迟过高"
+          description: "P99延迟 > 2秒, 当前: {{ $value }}秒"
+          runbook_url: "https://docs.zker.com/runbooks/billing-record-slow"
+
+      # 定价计算错误率过高
+      - alert: BillingPricingHighErrorRate
+        expr: |
+          rate(billing_pricing_errors_total[5m]) /
+          rate(billing_pricing_calculations_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "定价计算错误率过高"
+          description: "错误率 > 10%, 当前: {{ $value | humanizePercentage }}"
+
+      # 日志累积未处理
+      - alert: BillingTokenLogBacklog
+        expr: |
+          billing_cached_requests_total < 1000
+        for: 15m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "Token日志缓存过少"
+          description: "缓存记录数 < 1000, 可能存在日志积压"
+
+  # ========== 计费系统 - 预算告警 ==========
+  - name: billing_budget_alerts
+    interval: 1m
+    rules:
+      # 预算使用率超过80%
+      - alert: BillingBudgetWarning
+        expr: |
+          billing_budget_usage_percent >= 80
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: sales
+        annotations:
+          summary: "租户预算使用率警告"
+          description: |
+            租户 {{ $labels.tenant_id }} {{ $labels.budget_type }} 预算
+            使用率: {{ $value }}%
+
+      # 预算使用率超过95%
+      - alert: BillingBudgetCritical
+        expr: |
+          billing_budget_usage_percent >= 95
+        for: 1m
+        labels:
+          severity: critical
+          component: billing
+          team: sales
+        annotations:
+          summary: "租户预算即将耗尽"
+          description: |
+            租户 {{ $labels.tenant_id }} {{ $labels.budget_type }} 预算
+            使用率: {{ $value }}%
+
+      # 预算已超限
+      - alert: BillingBudgetExceeded
+        expr: |
+          billing_budget_usage_percent > 100
+        for: 1m
+        labels:
+          severity: critical
+          component: billing
+          team: sales
+        annotations:
+          summary: "租户预算已超限"
+          description: |
+            租户 {{ $labels.tenant_id }} {{ $labels.budget_type }} 预算
+            超限: {{ $value }}%
+
+      # 预算检查失败
+      - alert: BillingBudgetCheckFailed
+        expr: |
+          rate(billing_budget_checks_total{triggered="error"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: critical
+          component: billing
+          team: backend
+        annotations:
+          summary: "预算检查失败"
+          description: "预算检查存在错误, 需要立即处理"
+
+      # 预算告警过于频繁
+      - alert: BillingBudgetAlertFrequent
+        expr: |
+          rate(billing_budget_alerts_total[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "预算告警发送过于频繁"
+          description: "告警发送速率: {{ $value }}/秒"
+
+  # ========== 计费系统 - 成本告警 ==========
+  - name: billing_cost_alerts
+    interval: 1m
+    rules:
+      # 日成本异常增长
+      - alert: BillingDailyCostSpike
+        expr: |
+          rate(billing_cost_total[1h]) * 24 >
+          (rate(billing_cost_total[24h]) * 24) * 2
+        for: 15m
+        labels:
+          severity: warning
+          component: billing
+          team: sales
+        annotations:
+          summary: "日成本异常增长"
+          description: |
+            租户 {{ $labels.tenant_id }} 当前日成本是过去24小时的2倍以上
+
+      # 高成本租户
+      - alert:BillingHighCostTenant
+        expr: |
+          rate(billing_cost_total[1h]) * 24 > 10000
+        for: 30m
+        labels:
+          severity: warning
+          component: billing
+          team: sales
+        annotations:
+          summary: "高成本租户"
+          description: |
+            租户 {{ $labels.tenant_id }} 预估日成本 > ¥10,000
+
+      # 模型成本异常
+      - alert: BillingModelCostAnomaly
+        expr: |
+          rate(billing_cost_total[1h]) > 1000
+        for: 30m
+        labels:
+          severity: info
+          component: billing
+          team: sales
+        annotations:
+          summary: "模型成本异常高"
+          description: |
+            租户 {{ $labels.tenant_id }} 模型 {{ $labels.model_provider }}
+            小时成本 > ¥1000
+
+  # ========== 计费系统 - 汇统计告警 ==========
+  - name: billing_summary_alerts
+    interval: 1m
+    rules:
+      # 汇总更新失败
+      - alert: BillingSummaryUpdateFailed
+        expr: |
+          rate(billing_summary_update_total{result="failure"}[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "汇总更新失败"
+          description: "汇总更新存在失败, 需要检查"
+
+      # 汇总更新延迟
+      - alert: BillingSummaryUpdateSlow
+        expr: |
+          histogram_quantile(0.99,
+            rate(billing_summary_update_duration_seconds_bucket[5m])
+          ) > 30
+        for: 10m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "汇总更新延迟"
+          description: "P99更新延迟 > 30秒, 当前: {{ $value }}秒"
+
+  # ========== 计费系统 - 通知告警 ==========
+  - name: billing_notification_alerts
+    interval: 1m
+    rules:
+      # 通知发送失败率过高
+      - alert: BillingNotificationHighFailureRate
+        expr: |
+          rate(billing_alert_notification_total{result="failure"}[5m]) /
+          rate(billing_alert_notification_total[5m]) > 0.2
+        for: 5m
+        labels:
+          severity: critical
+          component: billing
+          team: backend
+        annotations:
+          summary: "告警通知发送失败率过高"
+          description: "失败率 > 20%, 当前: {{ $value | humanizePercentage }}"
+
+      # 通知发送延迟
+      - alert: BillingNotificationSlow
+        expr: |
+          histogram_quantile(0.99,
+            rate(billing_alert_notification_duration_seconds_bucket[5m])
+          ) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "告警通知发送延迟"
+          description: "P99延迟 > 10秒, 当前: {{ $value }}秒"
+
+  # ========== 计费系统 - 数据库告警 ==========
+  - name: billing_database_alerts
+    interval: 30s
+    rules:
+      # Token日志数据库操作延迟
+      - alert: BillingTokenLogDBSlow
+        expr: |
+          histogram_quantile(0.95,
+            rate(billing_token_log_db_operation_duration_seconds_bucket{operation="batch_create"}[5m])
+          ) > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "Token日志数据库操作延迟"
+          description: "P95延迟 > 1秒, 当前: {{ $value }}秒"
+
+      # Token日志数据库连接失败
+      - alert: BillingTokenLogDBDown
+        expr: up{job="billing-token-log-db"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: billing
+          team: dba
+        annotations:
+          summary: "Token日志数据库宕机"
+          description: "数据库实例 {{ $labels.instance }} 不可访问"
+
+  # ========== 计费系统 - 业务健康度 ==========
+  - name: billing_health_alerts
+    interval: 1m
+    rules:
+      # 活跃租户数为0
+      - alert: BillingNoActiveTenants
+        expr: billing_active_tenants == 0
+        for: 10m
+        labels:
+          severity: critical
+          component: billing
+          team: backend
+        annotations:
+          summary: "无活跃租户"
+          description: "过去10分钟内没有活跃的计费租户"
+
+      # 收入异常下降
+      - alert: BillingRevenueDrop
+        expr: |
+          billing_total_revenue{period="daily"} <
+          (billing_total_revenue{period="daily"} offset 1d) * 0.5
+        for: 1h
+        labels:
+          severity: warning
+          component: billing
+          team: sales
+        annotations:
+          summary: "日收入异常下降"
+          description: "今日收入 < 昨日收入的50%"
+
+  # ========== 计费系统 - 缓存告警 ==========
+  - name: billing_cache_alerts
+    interval: 1m
+    rules:
+      # 定价缓存命中率过低
+      - alert: BillingPricingCacheLowHitRate
+        expr: |
+          rate(cache_hit_total{cache_type="pricing"}[5m]) /
+          (rate(cache_hit_total{cache_type="pricing"}[5m]) +
+           rate(cache_miss_total{cache_type="pricing"}[5m])) < 0.8
+        for: 15m
+        labels:
+          severity: info
+          component: billing
+          team: backend
+        annotations:
+          summary: "定价缓存命中率低"
+          description: "命中率 < 80%, 当前: {{ $value | humanizePercentage }}"
+
+      # 预算缓存失效频繁
+      - alert: BillingBudgetCacheHighMissRate
+        expr: |
+          rate(cache_miss_total{cache_type="budget"}[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+          component: billing
+          team: backend
+        annotations:
+          summary: "预算缓存未命中频繁"
+          description: "未命中速率: {{ $value }}/秒"

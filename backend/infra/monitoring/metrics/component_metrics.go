@@ -298,15 +298,6 @@ var (
 		[]string{"operation"},
 	)
 
-	// MessageTotal 消息总数
-	MessageTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "message_total",
-			Help: "Total number of messages",
-		},
-		[]string{"direction", "result"}, // direction: user_to_bot, bot_to_user
-	)
-
 	// MessageDuration 消息处理延迟
 	MessageDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
@@ -368,34 +359,6 @@ var (
 			Buckets: []float64{0.01, 0.05, 0.1, 0.5, 1, 2, 5},
 		},
 		[]string{"operation"},
-	)
-
-	// WorkflowExecutionTotal Workflow执行总数
-	WorkflowExecutionTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "workflow_execution_total",
-			Help: "Total number of Workflow executions",
-		},
-		[]string{"result"}, // result: success, failed, timeout, cancelled
-	)
-
-	// WorkflowExecutionDuration Workflow执行延迟
-	WorkflowExecutionDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
-			Name:    "workflow_execution_duration_seconds",
-			Help:    "Workflow execution latency in seconds",
-			Buckets: []float64{0.1, 0.5, 1, 5, 10, 30, 60, 300},
-		},
-		[]string{"result"},
-	)
-
-	// WorkflowNodeExecutionTotal Workflow节点执行总数
-	WorkflowNodeExecutionTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
-			Name: "workflow_node_execution_total",
-			Help: "Total number of Workflow node executions",
-		},
-		[]string{"node_type", "result"}, // node_type: llm, code, http, plugin, etc.
 	)
 
 	// WorkflowNodeExecutionDuration Workflow节点执行延迟
@@ -524,12 +487,6 @@ func RecordBotExecution(result string, duration float64) {
 	BotExecutionDuration.WithLabelValues(result).Observe(duration)
 }
 
-// RecordMessage 记录消息
-func RecordMessage(direction, result string, duration float64) {
-	MessageTotal.WithLabelValues(direction, result).Inc()
-	MessageDuration.WithLabelValues(direction).Observe(duration)
-}
-
 // RecordAgentRun 记录Agent运行
 func RecordAgentRun(result string, duration float64) {
 	AgentRunTotal.WithLabelValues(result).Inc()
@@ -540,12 +497,6 @@ func RecordAgentRun(result string, duration float64) {
 func RecordWorkflowOperation(operation, result string, duration float64) {
 	WorkflowOperationTotal.WithLabelValues(operation, result).Inc()
 	WorkflowOperationDuration.WithLabelValues(operation).Observe(duration)
-}
-
-// RecordWorkflowExecution 记录Workflow执行
-func RecordWorkflowExecution(result string, duration float64) {
-	WorkflowExecutionTotal.WithLabelValues(result).Inc()
-	WorkflowExecutionDuration.WithLabelValues(result).Observe(duration)
 }
 
 // RecordWorkflowNodeExecution 记录Workflow节点执行

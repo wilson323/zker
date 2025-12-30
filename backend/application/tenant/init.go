@@ -19,9 +19,10 @@ package tenant
 import (
 	"gorm.io/gorm"
 
-	"github.com/coze-studio/backend/domain/tenant/repository"
-	tenantservice "github.com/coze-studio/backend/domain/tenant/service"
-	"github.com/coze-studio/backend/infra/cache"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
+	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	"github.com/coze-dev/coze-studio/backend/infra/cache"
 )
 
 var TenantAppSVC *TenantApplicationService
@@ -59,6 +60,11 @@ func InitService(c *ServiceComponents) (*TenantApplicationService, error) {
 
 	// 4. 设置全局变量
 	TenantAppSVC = tenantAppSvc
+
+	// 🔧 P0修复：初始化配额中间件
+	if quotaSvc != nil {
+		middleware.InitQuotaMiddleware(quotaSvc)
+	}
 
 	return tenantAppSvc, nil
 }

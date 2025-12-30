@@ -36,6 +36,42 @@ func GeneratedRegister(r *server.Hertz) {
 	// INSERT_POINT: DO NOT DELETE THIS LINE!
 	coze.Register(r)
 	staticFileRegister(r)
+	healthCheckRegister(r)
+	configCenterRegister(r)
+	tenantRegistrationRegister(r)
+	tenantManagementRegister(r)
+	tokenMeteringRegister(r)
+}
+
+// healthCheckRegister 健康检查路由注册
+func healthCheckRegister(r *server.Hertz) {
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+
+	// 健康检查端点（无需认证）
+	_health := r.Group("/api/health")
+	{
+		_health.GET("", coze.Health)           // 基本健康检查
+		_health.GET("/live", coze.Live)         // 存活检查
+		_health.GET("/ready", coze.Ready)       // 就绪检查
+		_health.GET("/detailed", coze.Detailed) // 详细健康检查
+	}
+}
+
+// configCenterRegister 配置中心路由注册
+func configCenterRegister(r *server.Hertz) {
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+
+	// 配置管理端点
+	_config := r.Group("/api/config")
+	{
+		_config.POST("/create", coze.CreateConfig)
+		_config.GET("/get", coze.GetConfig)
+		_config.POST("/update", coze.UpdateConfig)
+		_config.POST("/delete", coze.DeleteConfig)
+		_config.GET("/list", coze.ListConfigs)
+		_config.GET("/history", coze.GetConfigHistory)
+		_config.POST("/rollback", coze.RollbackConfig)
+	}
 }
 
 // staticFileRegister registers web page router.
@@ -86,4 +122,66 @@ func staticFileRegister(r *server.Hertz) {
 		ctx.File(staticFile)
 	})
 
+}
+
+// tenantRegistrationRegister 租户注册路由注册
+func tenantRegistrationRegister(r *server.Hertz) {
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+
+	// 租户注册相关端点（无需认证，公开访问）
+	_tenants := r.Group("/api/v1/tenants")
+	{
+		// 验证码相关
+		_tenants.POST("/send-verification-code", coze.SendVerificationCode)
+
+		// 可用性检查
+		_tenants.GET("/check-company-name", coze.CheckCompanyNameAvailability)
+		_tenants.GET("/check-subdomain", coze.CheckSubdomainAvailability)
+
+		// 租户注册
+		_tenants.POST("/register", coze.RegisterTenant)
+	}
+}
+
+// tenantManagementRegister 租户管理路由注册
+func tenantManagementRegister(r *server.Hertz) {
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+
+	// 租户管理端点（需要认证和租户上下文）
+	_tenants := r.Group("/api/v1/tenants")
+	{
+		// 租户信息管理
+		_tenants.GET("/:tenant_id", coze.GetTenantInfo)                    // 获取租户详情
+		_tenants.PUT("/:tenant_id", coze.UpdateTenantInfo)                 // 更新租户信息
+
+		// 配额管理
+		_tenants.GET("/:tenant_id/quotas", coze.GetQuotaUsage)            // 获取配额使用情况
+		_tenants.POST("/:tenant_id/quotas/check", coze.CheckQuotaAvailable) // 检查配额是否可用
+
+		// 订阅管理
+		_tenants.GET("/:tenant_id/subscription", coze.GetSubscription)           // 获取订阅信息
+		_tenants.POST("/:tenant_id/subscription/upgrade", coze.UpgradeSubscription) // 升级订阅套餐
+
+		// 隔离策略管理
+		_tenants.GET("/:tenant_id/isolation", coze.GetIsolationStatus)           // 获取隔离状态
+		_tenants.POST("/:tenant_id/isolation/upgrade", coze.UpgradeIsolationStrategy) // 升级隔离策略
+	}
+}
+
+// tokenMeteringRegister Token计量路由注册
+func tokenMeteringRegister(r *server.Hertz) {
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+
+	// Token计量端点（需要认证和租户上下文）
+	_tokens := r.Group("/api/v1/tenants/:tenant_id/tokens")
+	{
+		// Token使用记录
+		_tokens.POST("/usage", coze.RecordTokenUsage)           // 记录单次Token使用
+		_tokens.POST("/usage/batch", coze.BatchRecordTokenUsage) // 批量记录Token使用
+
+		// Token使用统计
+		_tokens.GET("/stats", coze.GetUsageStats)      // 获取使用统计
+		_tokens.GET("/daily", coze.GetDailyUsageStats) // 获取每日使用趋势
+		_tokens.GET("/models", coze.GetModelUsageStats) // 获取模型使用统计
+	}
 }

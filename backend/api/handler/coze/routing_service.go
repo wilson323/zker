@@ -23,7 +23,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/routing"
-	routingapp "github.com/coze-studio/backend/application/routing"
+	routingapp "github.com/coze-dev/coze-studio/backend/application/routing"
 )
 
 // ==================== 路由规则管理接口 ====================

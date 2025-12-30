@@ -20,23 +20,32 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/coze-studio/backend/domain/tenant/entity"
-	"github.com/coze-studio/backend/domain/tenant/repository"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
 )
 
 // QuotaExceededError 配额超额错误
 type QuotaExceededError struct {
 	TenantID      string
 	ResourceType  entity.ResourceType
-	Used          int
-	MaxLimit      int
-	Required      int
-	UsagePercent  float64
+	CurrentUsage  int // 当前使用量
+	MaxLimit      int // 最大限制
+	Required      int // 需要的额外量
+	UsagePercent  float64 // 使用率百分比
 }
 
 func (e *QuotaExceededError) Error() string {
 	return fmt.Sprintf("quota exceeded for tenant %s, resource %s: used %d/%d, required %d",
-		e.TenantID, e.ResourceType, e.Used, e.MaxLimit, e.Required)
+		e.TenantID, e.ResourceType, e.CurrentUsage, e.MaxLimit, e.Required)
+}
+
+// GetRemaining 获取剩余配额
+func (e *QuotaExceededError) GetRemaining() int {
+	remaining := e.MaxLimit - e.CurrentUsage
+	if remaining < 0 {
+		return 0
+	}
+	return remaining
 }
 
 // QuotaService 配额服务
@@ -72,7 +81,7 @@ func (s *QuotaService) CheckQuota(ctx context.Context, tenantID string, resource
 		return &QuotaExceededError{
 			TenantID:     tenantID,
 			ResourceType: resourceType,
-			Used:         quota.UsedCount,
+			CurrentUsage: quota.UsedCount,
 			MaxLimit:     quota.MaxLimit,
 			Required:     requiredCount,
 			UsagePercent: quota.GetUsagePercentage(),
@@ -83,21 +92,27 @@ func (s *QuotaService) CheckQuota(ctx context.Context, tenantID string, resource
 }
 
 // ConsumeQuota 消费配额
-func (s *QuotaService) ConsumeQuota(ctx context.Context, tenantID string, resourceType entity.ResourceType, count int) error {
+// 返回值: (previousUsage, error)
+func (s *QuotaService) ConsumeQuota(ctx context.Context, tenantID string, resourceType entity.ResourceType, count int) (int, error) {
 	if err := s.CheckQuota(ctx, tenantID, resourceType, count); err != nil {
-		return err
+		return 0, err
 	}
 
 	quota, err := s.quotaRepo.GetByTenantAndResource(ctx, tenantID, resourceType)
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	if quota == nil {
-		return fmt.Errorf("quota not found for tenant %s, resource %s", tenantID, resourceType)
+		return 0, fmt.Errorf("quota not found for tenant %s, resource %s", tenantID, resourceType)
 	}
 
-	return s.quotaRepo.UpdateUsedCount(ctx, quota.QuotaID, count)
+	previousUsage := quota.UsedCount
+	if err := s.quotaRepo.UpdateUsedCount(ctx, quota.QuotaID, count); err != nil {
+		return previousUsage, err
+	}
+
+	return previousUsage, nil
 }
 
 // RollbackQuota 回滚配额

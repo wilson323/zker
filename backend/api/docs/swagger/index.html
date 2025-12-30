@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>组织中心管理API - Swagger UI</title>
+
+    <!-- 引入Swagger UI资源 -->
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.0/swagger-ui.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.0/swagger-ui.css">
+
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        /* 自定义顶部导航栏 */
+        .topbar {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .topbar-wrapper {
+            max-width: 1460px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .topbar-wrapper .link {
+            display: inline-flex;
+            align-items: center;
+            max-width: 60%;
+            margin-bottom: 0;
+        }
+
+        .topbar-wrapper .link img {
+            width: 40px;
+            height: 40px;
+            margin-right: 12px;
+            border-radius: 8px;
+        }
+
+        .topbar-wrapper .link span {
+            font-size: 24px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .download-buttons {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .download-btn {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 10px 20px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+        }
+
+        .download-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .download-btn svg {
+            margin-right: 6px;
+            width: 16px;
+            height: 16px;
+        }
+
+        /* 自定义信息区域 */
+        .info {
+            margin: 40px 0;
+        }
+
+        .info .title {
+            font-size: 36px;
+            font-weight: 600;
+            color: #3b4151;
+            margin-bottom: 12px;
+        }
+
+        .info .description {
+            font-size: 16px;
+            color: #3b4151;
+            line-height: 1.6;
+            max-width: 800px;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .topbar-wrapper {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .topbar-wrapper .link {
+                max-width: 100%;
+                margin-bottom: 16px;
+            }
+
+            .download-buttons {
+                width: 100%;
+            }
+
+            .download-btn {
+                flex: 1;
+                justify-content: center;
+            }
+
+            .info .title {
+                font-size: 28px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 自定义顶部导航栏 -->
+    <div class="topbar">
+        <div class="topbar-wrapper">
+            <a class="link" href="#">
+                <img src="https://via.placeholder.com/40x40/667eea/ffffff?text=API" alt="logo">
+                <span>组织中心管理API</span>
+            </a>
+            <div class="download-buttons">
+                <a href="./swagger.yaml" class="download-btn" download="swagger.yaml">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    下载OpenAPI规范
+                </a>
+                <a href="../postman/OrgCenter_Collection.json" class="download-btn" download="OrgCenter_Collection.json">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+                    </svg>
+                    下载Postman Collection
+                </a>
+                <a href="../API_GUIDE.md" class="download-btn" target="_blank">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    查看API使用指南
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Swagger UI容器 -->
+    <div id="swagger-ui"></div>
+
+    <!-- 引入Swagger UI脚本 -->
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.0/swagger-ui-bundle.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.10.0/swagger-ui-standalone-preset.js"></script>
+
+    <script>
+        // 初始化Swagger UI
+        window.onload = function() {
+            const ui = SwaggerUIBundle({
+                url: "./swagger.yaml",  // OpenAPI规范文件路径
+                dom_id: '#swagger-ui',
+                deepLinking: true,
+                presets: [
+                    SwaggerUIBundle.presets.apis,
+                    SwaggerUIStandalonePreset
+                ],
+                plugins: [
+                    SwaggerUIBundle.plugins.DownloadUrl
+                ],
+                layout: "StandaloneLayout",
+
+                // 配置选项
+                defaultModelsExpandDepth: 1,        // 默认展开模型层级
+                defaultModelExpandDepth: 1,
+                docExpansion: "list",               // 默认展开API列表
+                filter: true,                       // 启用搜索过滤
+                showRequestHeaders: true,           // 显示请求头
+                tryItOutEnabled: true,              // 启用"Try it out"功能
+
+                // 请求拦截器（添加认证token）
+                requestInterceptor: (request) => {
+                    // 从localStorage获取token
+                    const token = localStorage.getItem('api_token');
+                    if (token) {
+                        request.headers['Authorization'] = 'Bearer ' + token;
+                    }
+                    return request;
+                },
+
+                // 响应拦截器
+                responseInterceptor: (response) => {
+                    return response;
+                },
+
+                // 自定义配置
+                validatorUrl: null,                 // 禁用验证器
+                syntaxHighlight: {
+                    activate: true,
+                    theme: "monokai"                // 代码高亮主题
+                },
+
+                // 本地化
+                persistAuthorization: true,         // 持久化授权信息
+                displayRequestDuration: true,       // 显示请求耗时
+
+                // 自定义网站标题
+                spec: {
+                    info: {
+                        title: "组织中心管理API",
+                        description: "企业级组织管理系统的RESTful API文档"
+                    }
+                }
+            });
+
+            window.ui = ui;
+        };
+
+        // 添加环境变量管理功能
+        document.addEventListener('DOMContentLoaded', function() {
+            // 创建环境切换器
+            const environmentSwitcher = `
+                <div style="position: fixed; top: 100px; right: 20px; z-index: 9999; background: white; padding: 16px; border-radius: 8px; box-shadow: 0 2px 12px rgba(0,0,0,0.15); font-family: Arial, sans-serif;">
+                    <h4 style="margin: 0 0 12px 0; font-size: 14px; font-weight: 600;">环境切换</h4>
+                    <select id="env-selector" style="width: 200px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;">
+                        <option value="http://localhost:8080">开发环境 (localhost)</option>
+                        <option value="https://api-test.coze.com">测试环境</option>
+                        <option value="https://api.coze.com">生产环境</option>
+                    </select>
+                    <div style="margin-top: 12px;">
+                        <label style="font-size: 12px; display: block; margin-bottom: 4px;">Token:</label>
+                        <input type="text" id="api-token" placeholder="输入JWT Token" style="width: 200px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 12px;">
+                    </div>
+                    <button id="save-token" style="margin-top: 8px; width: 100%; padding: 6px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;">保存Token</button>
+                </div>
+            `;
+
+            // 添加环境切换器到页面
+            document.body.insertAdjacentHTML('beforeend', environmentSwitcher);
+
+            // 环境切换事件
+            document.getElementById('env-selector').addEventListener('change', function(e) {
+                const serverUrl = e.target.value;
+                // 刷新页面并切换服务器
+                setTimeout(() => {
+                    window.location.reload();
+                }, 100);
+            });
+
+            // 保存Token事件
+            document.getElementById('save-token').addEventListener('click', function() {
+                const token = document.getElementById('api-token').value;
+                if (token) {
+                    localStorage.setItem('api_token', token);
+                    alert('Token已保存！');
+                }
+            });
+
+            // 加载已保存的Token
+            const savedToken = localStorage.getItem('api_token');
+            if (savedToken) {
+                document.getElementById('api-token').value = savedToken;
+            }
+        });
+    </script>
+
+    <!-- 添加使用说明 -->
+    <script>
+        // 在页面加载完成后显示使用提示
+        window.addEventListener('load', function() {
+            console.log('%c组织中心管理API文档', 'font-size: 20px; font-weight: bold; color: #667eea;');
+            console.log('%c快速开始：', 'font-size: 14px; font-weight: bold;');
+            console.log('1. 选择环境（开发/测试/生产）');
+            console.log('2. 输入JWT Token（可选）');
+            console.log('3. 点击 "Authorize" 按钮配置认证');
+            console.log('4. 使用 "Try it out" 测试API');
+            console.log('\n%c获取Token：', 'font-size: 14px; font-weight: bold;');
+            console.log('- 开发环境联系管理员获取测试Token');
+            console.log('- 或者使用 /api/auth/login 接口登录获取Token');
+        });
+    </script>
+</body>
+</html>

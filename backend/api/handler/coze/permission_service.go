@@ -23,7 +23,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/permission"
-	permissionapp "github.com/coze-studio/backend/application/permission"
+	permissionapp "github.com/coze-dev/coze-studio/backend/application/permission"
 )
 
 // ==================== 角色管理接口 ====================
@@ -603,6 +603,155 @@ func GetDepartmentMembers(ctx context.Context, c *app.RequestContext) {
 	}
 
 	c.JSON(http.StatusOK, &permission.GetDepartmentMembersResponse{
+		Code:    0,
+		Message: "success",
+		Data:    *resp,
+	})
+}
+
+// ==================== 临时授权接口 ====================
+
+// CreateTemporaryGrant 创建临时授权
+// @router /api/permissions/temporary-grants [POST]
+func CreateTemporaryGrant(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req permission.CreateTemporaryGrantRequest
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		invalidParamRequestResponse(c, err.Error())
+		return
+	}
+
+	resp, err := permissionapp.PermissionAppSVC.CreateTemporaryGrant(ctx, &req)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusCreated, &permission.CreateTemporaryGrantResponse{
+		Code:       0,
+		Message:    "success",
+		Data:       *resp,
+	})
+}
+
+// UseTemporaryGrant 使用临时授权码
+// @router /api/permissions/temporary-grants/use [POST]
+func UseTemporaryGrant(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req permission.UseTemporaryGrantRequest
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		invalidParamRequestResponse(c, err.Error())
+		return
+	}
+
+	resp, err := permissionapp.PermissionAppSVC.UseTemporaryGrant(ctx, &req)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &permission.UseTemporaryGrantResponse{
+		Code:    0,
+		Message: "success",
+		Data:    *resp,
+	})
+}
+
+// RevokeTemporaryGrant 撤销临时授权
+// @router /api/permissions/temporary-grants/revoke [POST]
+func RevokeTemporaryGrant(ctx context.Context, c *app.RequestContext) {
+	var err error
+	var req permission.RevokeTemporaryGrantRequest
+	err = c.BindAndValidate(&req)
+	if err != nil {
+		invalidParamRequestResponse(c, err.Error())
+		return
+	}
+
+	err = permissionapp.PermissionAppSVC.RevokeTemporaryGrant(ctx, &req)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"code":    0,
+		"message": "success",
+	})
+}
+
+// GetTemporaryGrant 获取临时授权信息
+// @router /api/permissions/temporary-grants/:grant_code [GET]
+func GetTemporaryGrant(ctx context.Context, c *app.RequestContext) {
+	grantCode := c.Param("grant_code")
+	if grantCode == "" {
+		invalidParamRequestResponse(c, "grant_code is required")
+		return
+	}
+
+	resp, err := permissionapp.PermissionAppSVC.GetTemporaryGrant(ctx, grantCode)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &permission.GetTemporaryGrantResponse{
+		Code:    0,
+		Message: "success",
+		Data:    *resp,
+	})
+}
+
+// ListTemporaryGrants 查询临时授权列表
+// @router /api/permissions/temporary-grants [GET]
+func ListTemporaryGrants(ctx context.Context, c *app.RequestContext) {
+	tenantID := c.Query("tenant_id")
+	if tenantID == "" {
+		invalidParamRequestResponse(c, "tenant_id is required")
+		return
+	}
+
+	var req permission.ListTemporaryGrantsRequest
+	req.TenantID = tenantID
+	req.GranteeID = c.Query("grantee_id")
+	req.GrantorID = c.Query("grantor_id")
+	req.PermissionType = c.Query("permission_type")
+	req.IsUsed = c.Query("is_used")
+	req.IsRevoked = c.Query("is_revoked")
+	req.PageToken = c.Query("page_token")
+	req.PageSize = 20 // 默认分页大小
+
+	resp, err := permissionapp.PermissionAppSVC.ListTemporaryGrants(ctx, &req)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &permission.ListTemporaryGrantsResponse{
+		Code:    0,
+		Message: "success",
+		Data:    *resp,
+	})
+}
+
+// GetGrantHistory 获取授权历史
+// @router /api/permissions/temporary-grants/:grant_code/history [GET]
+func GetGrantHistory(ctx context.Context, c *app.RequestContext) {
+	grantCode := c.Param("grant_code")
+	if grantCode == "" {
+		invalidParamRequestResponse(c, "grant_code is required")
+		return
+	}
+
+	resp, err := permissionapp.PermissionAppSVC.GetGrantHistory(ctx, grantCode)
+	if err != nil {
+		internalServerErrorResponse(ctx, c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, &permission.GetGrantHistoryResponse{
 		Code:    0,
 		Message: "success",
 		Data:    *resp,

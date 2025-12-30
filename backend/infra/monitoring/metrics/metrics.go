@@ -373,3 +373,191 @@ func formatErrorCode(code int32) string {
 	}
 	return "other"
 }
+
+// ========== 初始化函数 ==========
+
+// init 强制初始化所有指标变量
+//
+// 注意：在 Go 中，同一个包的多个文件的包级变量初始化顺序是不确定的。
+// 这个函数通过引用其他文件中的指标变量，确保它们在 Prometheus 注册表中完成注册。
+func init() {
+	// 引用基础指标文件中的变量（metrics.go本身）
+	_ = HTTPRequestsTotal
+	_ = HTTPRequestDuration
+	_ = HTTPRequestSize
+	_ = HTTPResponseSize
+	_ = QuotaCheckDuration
+	_ = QuotaUsage
+	_ = QuotaLimit
+	_ = QuotaCheckTotal
+	_ = TenantActive
+	_ = TenantSuspended
+	_ = SubscriptionExpiring
+	_ = SubscriptionRevenue
+	_ = DBConnectionsActive
+	_ = DBConnectionsIdle
+	_ = DBQueryDuration
+	_ = DBQueryTotal
+	_ = DBTransactionDuration
+	_ = DBTransactionTotal
+	_ = CacheHitTotal
+	_ = CacheMissTotal
+	_ = CacheDuration
+	_ = CacheSize
+	_ = CacheItemCount
+	_ = ErrorTotal
+	_ = PanicTotal
+	_ = GoRoutines
+	_ = MemoryHeap
+	_ = MemoryGC
+
+	// 引用业务指标文件中的变量（business_metrics.go）
+	_ = BotTotal
+	_ = BotInvocationTotal
+	_ = BotInvocationDuration
+	_ = BotErrorRate
+	_ = BotTokenUsage
+	_ = BotCost
+	_ = WorkflowTotal
+	_ = WorkflowExecutionTotal
+	_ = WorkflowExecutionDuration
+	_ = WorkflowNodeExecutionTotal
+	_ = WorkflowStepDuration
+	_ = ConversationTotal
+	_ = MessageTotal
+	_ = MessageLatency
+	_ = ConversationLength
+	_ = KnowledgeBaseTotal
+	_ = KnowledgeBaseDocumentTotal
+	_ = KnowledgeBaseSearchTotal
+	_ = KnowledgeBaseSearchDuration
+	_ = KnowledgeBaseIndexSize
+	_ = PermissionCheckTotal
+	_ = PermissionCheckDuration
+	_ = RoleAssignmentTotal
+	_ = UserRoleTotal
+	_ = StorageUsageTotal
+	_ = StorageQuota
+	_ = StorageUsageRate
+	_ = ObjectUploadTotal
+	_ = ObjectDownloadTotal
+	_ = ObjectTransferDuration
+	_ = ActiveUserTotal
+	_ = UserSessionTotal
+	_ = UserLoginTotal
+	_ = UserOperationTotal
+	_ = ModelInvocationTotal
+	_ = ModelTokenUsageTotal
+	_ = ModelInvocationDuration
+	_ = ModelCostTotal
+	_ = ModelErrorRate
+	_ = RateLimitExceededTotal
+	_ = RateLimitRemaining
+	_ = ThrottleRequestTotal
+	_ = BusinessHealthScore
+	_ = SLAComplianceRate
+	_ = IncidentTotal
+
+	// 引用数据库读写指标文件中的变量（db_readwrite_metrics.go）
+	_ = DBWriteQPS
+	_ = DBReadQPS
+	_ = DBReplicationLag
+	_ = DBWriteLatency
+	_ = DBReadLatency
+	_ = DBConnectionPoolUsage
+	_ = DBReplicationStatus
+
+	// 引用企业级指标文件中的变量（enterprise_metrics.go）
+	_ = TenantCreationTotal
+	_ = TenantDeletionTotal
+	_ = TenantUpgradeTotal
+	_ = SubscriptionStatusCurrent
+	_ = QuotaUsagePercent
+	_ = QuotaExceededTotal
+	_ = InvoiceCreationTotal
+	_ = InvoicePaymentTotal
+	_ = InvoiceOverdueTotal
+	_ = RoutingRuleTotal
+	_ = RoutingExecutionTotal
+	_ = RoutingDuration
+	_ = RoutingConfidence
+	_ = RoutingScore
+	_ = RoutingNoMatchTotal
+	_ = BotHealthStatus
+	_ = BotSuccessRate
+	_ = BotCurrentLoad
+	_ = BotMaxCapacity
+	_ = CircuitBreakerStatus
+	_ = CircuitBreakerTripTotal
+	_ = RoleTotal
+	_ = UserRoleAssignmentTotal
+	_ = PermissionDeniedTotal
+	_ = DataPermissionScopeTotal
+
+	// 引用组织架构指标文件中的变量（org_metrics.go）
+	_ = OrganizationTotal
+	_ = OrganizationCreationTotal
+	_ = OrganizationDeletionTotal
+	_ = OrganizationUpdateTotal
+	_ = OrganizationMoveTotal
+	_ = DepartmentTotal
+	_ = DepartmentCreationTotal
+	_ = DepartmentDeletionTotal
+	_ = DepartmentMemberTotal
+	_ = EmployeeTotal
+	_ = EmployeeCreationTotal
+	_ = EmployeeDeletionTotal
+	_ = EmployeeUpdateTotal
+	_ = EmployeeTransferTotal
+	_ = EmployeePromotionTotal
+	_ = EmployeeResignationTotal
+	_ = EmployeeOnboardingTotal
+	_ = EmployeeLoginTotal
+	_ = PositionTotal
+	_ = PositionCreationTotal
+	_ = PositionDeletionTotal
+	_ = PositionOccupiedTotal
+	_ = PositionVacantTotal
+	_ = OrgOrphanTotal
+	_ = HRProcessTotal
+
+	// 引用组件指标文件中的变量（component_metrics.go）
+	_ = TenantIsolationTotal
+	_ = TenantIsolationDuration
+	_ = TenantValidationTotal
+	_ = TenantValidationDuration
+	_ = TenantCacheHitRate
+	_ = TenantIDExtractionTotal
+	_ = ErrorCodeTotal
+	_ = ErrorCodeByModule
+	_ = DeprecatedErrorCodeUsage
+	_ = ErrorCreationDuration
+	_ = ErrorDistribution
+	_ = SessionCreationTotal
+	_ = SessionCreationDuration
+	_ = SessionValidationTotal
+	_ = SessionValidationDuration
+	_ = SessionActiveCount
+	_ = SessionExpiredCount
+	_ = SessionWithTenantIDCount
+	_ = SessionAccessTotal
+	_ = BotOperationTotal
+	_ = BotOperationDuration
+	_ = BotExecutionTotal
+	_ = BotExecutionDuration
+	_ = BotActiveCount
+	_ = BotQuotaUsage
+	_ = ConversationOperationTotal
+	_ = ConversationOperationDuration
+	_ = MessageDuration
+	_ = AgentRunTotal
+	_ = AgentRunDuration
+	_ = ConversationActiveCount
+	_ = WorkflowOperationTotal
+	_ = WorkflowOperationDuration
+	_ = WorkflowNodeExecutionDuration
+	_ = WorkflowActiveCount
+	_ = WorkflowVariableTotal
+	_ = WorkflowVersionTotal
+	_ = ContextCacheOperationTotal
+}

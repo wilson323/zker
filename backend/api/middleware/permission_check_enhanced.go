@@ -1,0 +1,610 @@
+/*
+ * Copyright 2025 coze-dev Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package middleware
+
+import (
+	"context"
+	"encoding/json"
+	"reflect"
+	"strings"
+
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
+	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
+)
+
+var (
+	// enhancedPermissionChecker 增强权限检查器（在应用启动时注入）
+	enhancedPermissionChecker *EnhancedPermissionChecker
+)
+
+// InitEnhancedPermissionMiddleware 初始化增强权限中间件依赖
+func InitEnhancedPermissionMiddleware(epc *EnhancedPermissionChecker) {
+	enhancedPermissionChecker = epc
+}
+
+// EnhancedPermissionChecker 增强权限检查器
+// 封装了底层 PermissionChecker 并添加额外功能
+type EnhancedPermissionChecker struct {
+	checker        PermissionCheckerInterface
+	userRoleRepo   repository.UserRoleRepository
+}
+
+// PermissionCheckerInterface 权限检查器接口（解耦）
+type PermissionCheckerInterface interface {
+	CheckDataPermission(ctx context.Context, userID, tenantID string, resourceType entity.ResourceType, resourceID string) error
+	GetFieldPermissions(ctx context.Context, userID, tenantID string, resourceType string) (map[string]string, error)
+}
+
+// NewEnhancedPermissionChecker 创建增强权限检查器
+func NewEnhancedPermissionChecker(
+	checker PermissionCheckerInterface,
+	userRoleRepo repository.UserRoleRepository,
+) *EnhancedPermissionChecker {
+	return &EnhancedPermissionChecker{
+		checker:       checker,
+		userRoleRepo: userRoleRepo,
+	}
+}
+
+// UserHasRole 检查用户是否拥有指定角色
+func (e *EnhancedPermissionChecker) UserHasRole(ctx context.Context, tenantID, userID, roleCode string) (bool, error) {
+	roles, err := e.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
+	if err != nil {
+		return false, err
+	}
+
+	for _, role := range roles {
+		if role.RoleCode == roleCode {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// UserHasAnyRole 检查用户是否拥有任一指定角色
+func (e *EnhancedPermissionChecker) UserHasAnyRole(ctx context.Context, tenantID, userID string, roleCodes ...string) (bool, error) {
+	if len(roleCodes) == 0 {
+		return false, nil
+	}
+
+	roles, err := e.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
+	if err != nil {
+		return false, err
+	}
+
+	userRoleCodes := make(map[string]bool)
+	for _, role := range roles {
+		userRoleCodes[role.RoleCode] = true
+	}
+
+	for _, requiredCode := range roleCodes {
+		if userRoleCodes[requiredCode] {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetUserPermissions 获取用户的所有权限编码列表
+func (e *EnhancedPermissionChecker) GetUserPermissions(ctx context.Context, tenantID, userID string) ([]string, error) {
+	roles, err := e.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	permissions := make(map[string]bool)
+	for _, role := range roles {
+		// 简化实现：实际应该从 role_permissions 表获取
+		// 这里使用 role_code 作为权限标识
+		permissions[role.RoleCode] = true
+	}
+
+	result := make([]string, 0, len(permissions))
+	for perm := range permissions {
+		result = append(result, perm)
+	}
+
+	return result, nil
+}
+
+// ================================================================================
+// 权限检查中间件
+// ================================================================================
+
+// PermissionCheckConfig 权限检查配置
+type PermissionCheckConfig struct {
+	ResourceType entity.ResourceType                    // 资源类型
+	Action       string                                 // 操作类型: read, write, delete
+	GetResourceID func(*app.RequestContext) string      // 从请求中获取资源ID的函数
+}
+
+// RequirePermission 数据权限检查中间件
+// 检查用户是否有权限访问指定资源
+//
+// 使用示例：
+//
+//	r.GET("/api/v1/bots/:bot_id",
+//	    middleware.RequirePermission(middleware.PermissionCheckConfig{
+//	        ResourceType: entity.ResourceTypeBots,
+//	        Action:       "read",
+//	        GetResourceID: func(c *app.RequestContext) string {
+//	            return c.Param("bot_id")
+//	        },
+//	    }),
+//	    handler.GetBot)
+func RequirePermission(config PermissionCheckConfig) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		// 1. 获取 user_id
+		userID, err := extractUserID(c)
+		if err != nil {
+			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
+			c.Abort()
+			return
+		}
+
+		// 2. 获取 tenant_id
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode))
+			c.Abort()
+			return
+		}
+
+		// 3. 检查是否已初始化权限检查器
+		if enhancedPermissionChecker == nil {
+			logs.CtxWarnf(ctx, "[RequirePermission] enhancedPermissionChecker not initialized, skipping permission check")
+			c.Next(ctx)
+			return
+		}
+
+		// 4. 获取资源ID
+		resourceID := ""
+		if config.GetResourceID != nil {
+			resourceID = config.GetResourceID(c)
+		}
+
+		// 5. 检查数据权限（修复：正确的参数顺序）
+		err = enhancedPermissionChecker.checker.CheckDataPermission(ctx, userID, tenantID, config.ResourceType, resourceID)
+		if err != nil {
+			logs.CtxWarnf(ctx, "[RequirePermission] permission denied: user_id=%s, tenant_id=%s, resource_type=%s, resource_id=%s, reason=%s",
+				userID, tenantID, config.ResourceType, resourceID, err.Error())
+
+			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrDataPermissionDeniedCode,
+				errorx.KV(
+					"msg", "data permission denied",
+					"resource_type", string(config.ResourceType),
+					"resource_id", resourceID,
+				),
+			))
+			c.Abort()
+			return
+		}
+
+		logs.CtxInfof(ctx, "[RequirePermission] permission granted: user_id=%s, tenant_id=%s, resource_type=%s, resource_id=%s",
+			userID, tenantID, config.ResourceType, resourceID)
+
+		// 6. 权限检查通过，继续处理请求
+		c.Next(ctx)
+	}
+}
+
+// RequireRole 角色检查中间件
+// 检查用户是否拥有指定角色
+//
+// 使用示例：
+//
+//	r.POST("/api/v1/admin/users",
+//	    middleware.RequireRole("admin"),
+//	    handler.CreateUser)
+func RequireRole(requiredRole string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		userID, err := extractUserID(c)
+		if err != nil {
+			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
+			c.Abort()
+			return
+		}
+
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode))
+			c.Abort()
+			return
+		}
+
+		if enhancedPermissionChecker == nil {
+			logs.CtxWarnf(ctx, "[RequireRole] enhancedPermissionChecker not initialized, skipping role check")
+			c.Next(ctx)
+			return
+		}
+
+		// 检查用户角色
+		hasRole, err := enhancedPermissionChecker.UserHasRole(ctx, tenantID, userID, requiredRole)
+		if err != nil {
+			logs.CtxErrorf(ctx, "[RequireRole] check user role failed: %v", err)
+			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
+			c.Abort()
+			return
+		}
+
+		if !hasRole {
+			logs.CtxWarnf(ctx, "[RequireRole] role required: user_id=%s, tenant_id=%s, required_role=%s",
+				userID, tenantID, requiredRole)
+
+			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrPermissionDeniedCode,
+				errorx.KV(
+					"msg", "role required",
+					"required_role", requiredRole,
+				),
+			))
+			c.Abort()
+			return
+		}
+
+		logs.CtxInfof(ctx, "[RequireRole] role check passed: user_id=%s, tenant_id=%s, role=%s",
+			userID, tenantID, requiredRole)
+
+		c.Next(ctx)
+	}
+}
+
+// RequireAnyRole 角色检查中间件（满足任一角色即可）
+//
+// 使用示例：
+//
+//	r.POST("/api/v1/admin/users",
+//	    middleware.RequireAnyRole("admin", "super_admin"),
+//	    handler.CreateUser)
+func RequireAnyRole(requiredRoles ...string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		if len(requiredRoles) == 0 {
+			c.Next(ctx)
+			return
+		}
+
+		userID, err := extractUserID(c)
+		if err != nil {
+			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
+			c.Abort()
+			return
+		}
+
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode))
+			c.Abort()
+			return
+		}
+
+		if enhancedPermissionChecker == nil {
+			logs.CtxWarnf(ctx, "[RequireAnyRole] enhancedPermissionChecker not initialized, skipping role check")
+			c.Next(ctx)
+			return
+		}
+
+		// 检查用户是否拥有任一角色
+		hasAnyRole, err := enhancedPermissionChecker.UserHasAnyRole(ctx, tenantID, userID, requiredRoles...)
+		if err != nil {
+			logs.CtxErrorf(ctx, "[RequireAnyRole] check user roles failed: %v", err)
+			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
+			c.Abort()
+			return
+		}
+
+		if !hasAnyRole {
+			logs.CtxWarnf(ctx, "[RequireAnyRole] role required: user_id=%s, tenant_id=%s, required_roles=%v",
+				userID, tenantID, requiredRoles)
+
+			c.JSON(consts.StatusForbidden, responseWithError(berrno.ErrPermissionDeniedCode,
+				errorx.KV(
+					"msg", "at least one role required",
+					"required_roles", requiredRoles,
+				),
+			))
+			c.Abort()
+			return
+		}
+
+		logs.CtxInfof(ctx, "[RequireAnyRole] role check passed: user_id=%s, tenant_id=%s, roles=%v",
+			userID, tenantID, requiredRoles)
+
+		c.Next(ctx)
+	}
+}
+
+// RequireFieldPermission 字段权限检查中间件
+// 检查用户是否有权限访问指定字段（返回前过滤hidden字段）
+//
+// 使用示例：
+//
+//	r.GET("/api/v1/bots/:bot_id",
+//	    middleware.RequireFieldPermission("bots", []string{"id", "name"}),
+//	    handler.GetBot)
+func RequireFieldPermission(resourceType string, allowedFields []string) app.HandlerFunc {
+	return func(ctx context.Context, c *app.RequestContext) {
+		userID, err := extractUserID(c)
+		if err != nil {
+			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
+			c.Abort()
+			return
+		}
+
+		tenantID, err := extractTenantID(c)
+		if err != nil {
+			c.JSON(consts.StatusBadRequest, responseWithError(berrno.ErrTenantNotFoundCode))
+			c.Abort()
+			return
+		}
+
+		if enhancedPermissionChecker == nil {
+			logs.CtxWarnf(ctx, "[RequireFieldPermission] enhancedPermissionChecker not initialized, skipping field permission check")
+			c.Next(ctx)
+			return
+		}
+
+		// 获取字段权限
+		fieldPerms, err := enhancedPermissionChecker.checker.GetFieldPermissions(ctx, userID, tenantID, resourceType)
+		if err != nil {
+			logs.CtxErrorf(ctx, "[RequireFieldPermission] get field permissions failed: %v", err)
+			c.JSON(consts.StatusInternalServerError, responseWithError(berrno.ErrPermissionCheckFailedCode))
+			c.Abort()
+			return
+		}
+
+		// 保存字段权限到上下文，供后续过滤使用
+		c.Set("field_permissions", fieldPerms)
+		c.Set("allowed_fields", allowedFields)
+
+		logs.CtxInfof(ctx, "[RequireFieldPermission] field permissions loaded: user_id=%s, tenant_id=%s, resource_type=%s, fields=%d",
+			userID, tenantID, resourceType, len(fieldPerms))
+
+		c.Next(ctx)
+	}
+}
+
+// ================================================================================
+// 辅助函数
+// ================================================================================
+
+// FilterFieldsByPermission 根据字段权限过滤响应字段
+// 使用反射过滤掉hidden字段
+//
+// 使用示例：
+//
+//	func GetBot(ctx context.Context, c *app.RequestContext) {
+//	    bot := getBotFromDB(botID)
+//	    filteredBot, err := middleware.FilterFieldsByPermission(ctx, c, &bot)
+//	    if err != nil {
+//	        // 处理错误
+//	    }
+//	    c.JSON(200, filteredBot)
+//	}
+func FilterFieldsByPermission(ctx context.Context, c *app.RequestContext, response interface{}) (interface{}, error) {
+	// 获取字段权限（从上下文中，由 RequireFieldPermission 中间件设置）
+	fieldPermsObj, exists := c.Get("field_permissions")
+	if !exists {
+		// 没有字段权限限制，直接返回
+		return response, nil
+	}
+
+	fieldPerms := fieldPermsObj.(map[string]string)
+
+	// 使用反射过滤字段
+	val := reflect.ValueOf(response)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem()
+	}
+
+	if val.Kind() != reflect.Struct {
+		// 不是结构体，无法过滤
+		return response, nil
+	}
+
+	// 创建新的map用于过滤后的结果
+	result := make(map[string]interface{})
+	typ := val.Type()
+
+	for i := 0; i < val.NumField(); i++ {
+		field := typ.Field(i)
+		fieldValue := val.Field(i)
+
+		// 获取JSON标签作为字段名
+		jsonTag := field.Tag.Get("json")
+		if jsonTag == "" || jsonTag == "-" {
+			continue
+		}
+
+		// 解析JSON标签（可能包含 omitempty 等选项）
+		fieldName := strings.Split(jsonTag, ",")[0]
+
+		// 检查字段权限
+		permLevel, ok := fieldPerms[fieldName]
+		if !ok {
+			// 没有权限配置，默认可见
+			result[fieldName] = fieldValue.Interface()
+			continue
+		}
+
+		// hidden 字段不返回
+		if permLevel == "hidden" {
+			continue
+		}
+
+		// readonly 和 editable 字段都返回
+		result[fieldName] = fieldValue.Interface()
+	}
+
+	// 转换为JSON并返回，确保格式正确
+	jsonData, err := json.Marshal(result)
+	if err != nil {
+		return nil, err
+	}
+
+	var resultInterface interface{}
+	err = json.Unmarshal(jsonData, &resultInterface)
+	if err != nil {
+		return nil, err
+	}
+
+	return resultInterface, nil
+}
+
+// ManualPermissionCheck 手动权限检查
+// 用于在Handler内部进行权限检查
+//
+// 使用示例：
+//
+//	func CreateBot(ctx context.Context, c *app.RequestContext) {
+//	    err := middleware.ManualPermissionCheck(ctx, c, middleware.PermissionCheckConfig{
+//	        ResourceType: entity.ResourceTypeBots,
+//	        Action:       "create",
+//	    })
+//	    if err != nil {
+//	        c.JSON(403, ErrorResponse(err))
+//	        return
+//	    }
+//	    // 继续处理...
+//	}
+func ManualPermissionCheck(ctx context.Context, c *app.RequestContext, config PermissionCheckConfig) error {
+	userID, err := extractUserID(c)
+	if err != nil {
+		return err
+	}
+
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return err
+	}
+
+	if enhancedPermissionChecker == nil {
+		logs.CtxWarnf(ctx, "[ManualPermissionCheck] enhancedPermissionChecker not initialized")
+		return nil // 降级：未初始化则通过
+	}
+
+	resourceID := ""
+	if config.GetResourceID != nil {
+		resourceID = config.GetResourceID(c)
+	}
+
+	// 检查权限
+	err = enhancedPermissionChecker.checker.CheckDataPermission(ctx, userID, tenantID, config.ResourceType, resourceID)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ManualRoleCheck 手动角色检查
+func ManualRoleCheck(ctx context.Context, c *app.RequestContext, requiredRole string) error {
+	userID, err := extractUserID(c)
+	if err != nil {
+		return err
+	}
+
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return err
+	}
+
+	if enhancedPermissionChecker == nil {
+		logs.CtxWarnf(ctx, "[ManualRoleCheck] enhancedPermissionChecker not initialized")
+		return nil
+	}
+
+	hasRole, err := enhancedPermissionChecker.UserHasRole(ctx, tenantID, userID, requiredRole)
+	if err != nil {
+		return err
+	}
+
+	if !hasRole {
+		return errorx.New(berrno.ErrPermissionDeniedCode, errorx.KV("required_role", requiredRole))
+	}
+
+	return nil
+}
+
+// GetCurrentUserPermissions 获取当前用户的所有权限
+func GetCurrentUserPermissions(ctx context.Context, c *app.RequestContext) ([]string, error) {
+	userID, err := extractUserID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := extractTenantID(c)
+	if err != nil {
+		return nil, err
+	}
+
+	if enhancedPermissionChecker == nil {
+		logs.CtxWarnf(ctx, "[GetCurrentUserPermissions] enhancedPermissionChecker not initialized")
+		return []string{}, nil
+	}
+
+	perms, err := enhancedPermissionChecker.GetUserPermissions(ctx, tenantID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return perms, nil
+}
+
+// ParseResourceIDFromPath 从路径参数中解析资源ID
+func ParseResourceIDFromPath(paramName string) func(*app.RequestContext) string {
+	return func(c *app.RequestContext) string {
+		return strings.TrimSpace(c.Param(paramName))
+	}
+}
+
+// ParseResourceIDFromQuery 从查询参数中解析资源ID
+func ParseResourceIDFromQuery(queryName string) func(*app.RequestContext) string {
+	return func(c *app.RequestContext) string {
+		return strings.TrimSpace(c.Query(queryName))
+	}
+}
+
+// extractUserID 从请求上下文中提取 user_id
+func extractUserID(c *app.RequestContext) (string, error) {
+	// 1. 尝试从 Header 获取
+	userID := c.GetHeader("X-User-ID")
+	if userID != "" {
+		return userID, nil
+	}
+
+	// 2. 尝试从 Query 参数获取
+	userID = c.Query("user_id")
+	if userID != "" {
+		return userID, nil
+	}
+
+	// 3. 尝试从上下文获取
+	if uid, exists := c.Get("user_id"); exists {
+		if userIDStr, ok := uid.(string); ok {
+			return userIDStr, nil
+		}
+	}
+
+	return "", errorx.New(berrno.ErrUnauthorizedCode, errorx.KV("msg", "user_id not found in request"))
+}

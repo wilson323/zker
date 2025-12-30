@@ -20,12 +20,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 
-	"github.com/coze-studio/coze-studio/backend/pkg/config"
+	bizConf "github.com/coze-dev/coze-studio/backend/bizpkg/config"
 )
 
 var (
@@ -36,6 +38,22 @@ var (
 // Init 初始化日志系统
 func Init(env string) error {
 	var zapConfig zap.Config
+
+	// 🔧 P0修复：从环境变量获取日志路径，支持跨平台
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		// 根据操作系统设置默认路径
+		if runtime.GOOS == "windows" {
+			logPath = "C:\\Logs\\zker"
+		} else {
+			logPath = "/var/log/zker" // Linux/macOS默认
+		}
+	}
+
+	// 确保日志目录存在
+	if err := os.MkdirAll(logPath, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
 
 	if env == "production" {
 		// 生产环境配置: JSON格式,文件输出,日志轮转
@@ -61,15 +79,15 @@ func Init(env string) error {
 				EncodeCaller:   zapcore.ShortCallerEncoder,
 			},
 			OutputPaths: []string{
-				"/var/log/zker/app.log",
+				filepath.Join(logPath, "app.log"),
 				"stdout",
 			},
 			ErrorOutputPaths: []string{
-				"/var/log/zker/error.log",
+				filepath.Join(logPath, "error.log"),
 				"stderr",
 			},
 			InitialFields: map[string]interface{}{
-				"service": "zker-api",
+				"service": "coze-api",
 				"env":     env,
 			},
 		}
@@ -117,9 +135,24 @@ func Init(env string) error {
 func InitWithFileRotation(env string, configFile string) error {
 	var zapConfig zap.Config
 
+	// 🔧 P0修复：从环境变量获取日志路径，支持跨平台
+	logPath := os.Getenv("LOG_PATH")
+	if logPath == "" {
+		if runtime.GOOS == "windows" {
+			logPath = "C:\\Logs\\zker"
+		} else {
+			logPath = "/var/log/zker"
+		}
+	}
+
+	// 确保日志目录存在
+	if err := os.MkdirAll(logPath, 0755); err != nil {
+		return fmt.Errorf("failed to create log directory: %w", err)
+	}
+
 	// 日志轮转配置
 	rotateConfig := &lumberjack.Logger{
-		Filename:   "/var/log/zker/app.log",
+		Filename:   filepath.Join(logPath, "app.log"),
 		MaxSize:    100, // MB
 		MaxBackups: 10,  // 保留10个备份
 		MaxAge:     30,  // 保留30天

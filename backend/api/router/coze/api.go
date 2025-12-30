@@ -239,6 +239,18 @@ func Register(r *server.Hertz) {
 			_oauth.GET("/authorization_code", append(_oauthauthorizationcodeMw(), coze.OauthAuthorizationCode)...)
 		}
 		{
+			_permissions := _api.Group("/permissions", _permissionsMw()...)
+			{
+				_temporary_grants := _permissions.Group("/temporary-grants", _temporary_grantsMw()...)
+				_temporary_grants.POST("", append(_createtemporarygrantMw(), coze.CreateTemporaryGrant)...)
+				_temporary_grants.POST("/use", append(_usetemporarygrantMw(), coze.UseTemporaryGrant)...)
+				_temporary_grants.POST("/revoke", append(_revoketemporarygrantMw(), coze.RevokeTemporaryGrant)...)
+				_temporary_grants.GET("/:grant_code", append(_gettemporarygrantMw(), coze.GetTemporaryGrant)...)
+				_temporary_grants.GET("", append(_listtemporarygrantsMw(), coze.ListTemporaryGrants)...)
+				_temporary_grants.GET("/:grant_code/history", append(_getgranthistoryMw(), coze.GetGrantHistory)...)
+			}
+		}
+		{
 			_passport := _api.Group("/passport", _passportMw()...)
 			{
 				_account := _passport.Group("/account", _accountMw()...)
