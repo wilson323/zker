@@ -56,9 +56,10 @@ Coze Studio Skills 是一套专门为项目定制的 AI 辅助开发技能集合
     ├── multitenant-dev.md         (5.8 KB) - 多租户开发助手 ⭐
     ├── rbac-dev.md               (4.9 KB) - RBAC权限系统开发 ⭐
     ├── routing-dev.md            (5.1 KB) - 智能路由引擎开发 ⭐
+    ├── error-code-dev.md          (6.0 KB) - 统一错误码开发助手 ⭐ NEW
     └── doc-query.md               (6.3 KB) - 企业级文档查询 ⭐
 
-总计: 18 个 skills, 275 KB
+总计: 19 个 skills, 281 KB
 ```
 
 ---
