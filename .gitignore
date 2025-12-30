@@ -60,3 +60,20 @@ values-dev.yaml
 
 *.tsbuildinfo
 
+
+# Claude Code Settings (Local)
+.claude/settings.local.json
+.claude/settings.local.*.json
+.claude/cache/
+
+# Backup files
+*.backup
+*.bak
+
+# Documentation drafts
+docs/**/*.draft.md
+docs/**/TODO.md
+
+# Enterprise feature implementation backups
+CLAUDE.md.backup
+

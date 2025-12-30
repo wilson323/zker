@@ -1,43 +1,109 @@
-# RBAC权限系统开发助手
+# RBAC 权限系统开发助手
 
-协助 RBAC（基于角色的访问控制）权限系统开发，确保5级数据权限和3级字段权限。
+**版本**: v3.0.0 | **更新**: 2025-01-03
 
-## 使用场景
+协助 RBAC 权限系统开发，实现 5 级数据权限和 3 级字段权限。
 
-当你需要开发权限相关功能时，使用此技能：
+---
+
+## 🎯 使用场景
+
 - 创建角色和权限实体
-- 实现数据权限检查
-- 实现字段权限过滤
+- 实现数据权限检查（ALL/DEPARTMENT/OWN/CUSTOM/NONE）
+- 实现字段权限过滤（hidden/readonly/editable）
 - 设计权限中间件
 
-## 功能
+---
 
-- 生成符合规范的角色实体代码
-- 生成权限检查服务代码
-- 提供数据权限最佳实践
-- 生成权限中间件代码
-- 生成权限配置示例
+## 🔧 权限级别
 
-## 输入
+### 数据权限（5 级）
 
-- **功能类型**：entity、service、middleware、config
-- **资源类型**：bots、conversations、knowledge、workflows、plugins
-- **权限级别**：ALL、DEPARTMENT、OWN、CUSTOM、NONE
+| 级别 | 说明 | 权限范围 |
+|------|------|---------|
+| **ALL** | 全部数据 | 可访问所有租户数据（仅管理员） |
+| **DEPARTMENT** | 部门数据 | 可访问本部门及下级部门数据 |
+| **OWN** | 个人数据 | 仅可访问自己创建的数据 |
+| **CUSTOM** | 自定义 | 根据自定义规则过滤 |
+| **NONE** | 无权限 | 不可访问任何数据 |
 
-## 输出
+### 字段权限（3 级）
 
-- 生成的代码框架
-- 权限检查逻辑
-- 数据过滤建议
-- 相关规范文档链接
+| 级别 | 说明 |
+|------|------|
+| **hidden** | 隐藏，不可见 |
+| **readonly** | 只读，可见但不可修改 |
+| **editable** | 可编辑，完全可访问 |
 
-## 示例
+---
 
-```
-为 bots 表实现5级数据权限检查服务
-```
+## 🔧 代码模板
 
-## 相关文档
+### 1. 权限检查服务
 
-- [研发A-后端架构师开发计划_v1.0.md](../../docs/企业级功能完善与统一性设计方案/研发A-后端架构师开发计划_v1.0.md)
-- [ZKER-企业级开发规范手册_v1.0.md](../../docs/企业级功能完善与统一性设计方案/ZKER-企业级开发规范手册_v1.0.md)
+\`\`\`go
+func (s *PermissionService) CheckDataPermission(
+    ctx context.Context,
+    userID string,
+    resourceType string,
+    resourceID string,
+) error {
+    permission, err := s.GetDataPermission(ctx, userID, resourceType)
+    if err != nil {
+        return err
+    }
+
+    switch permission.Level {
+    case DataPermissionAll:
+        return nil // 管理员，允许访问
+    case DataPermissionOwn:
+        return s.checkOwnership(ctx, userID, resourceID)
+    case DataPermissionNone:
+        return errorx.New(errno.PermissionDenied)
+    }
+    return nil
+}
+\`\`\`
+
+### 2. 字段过滤
+
+\`\`\`go
+func (s *PermissionService) FilterFields(
+    ctx context.Context,
+    userID string,
+    resource interface{},
+) error {
+    permissions, err := s.GetFieldPermissions(ctx, userID)
+    if err != nil {
+        return err
+    }
+
+    for _, p := range permissions {
+        if p.Level == "hidden" {
+            // 隐藏字段
+        } else if p.Level == "readonly" {
+            // 设置为只读
+        }
+    }
+    return nil
+}
+\`\`\`
+
+---
+
+## 📋 检查清单
+
+- [ ] 角色和权限实体已创建
+- [ ] 数据权限检查已实现
+- [ ] 字段权限过滤已实现
+- [ ] 权限中间件已添加
+- [ ] 所有敏感 API 都有权限检查
+
+---
+
+## 📖 相关文档
+
+- [03-DESIGN/rbac/](../../docs/03-DESIGN/rbac/)
+- [ZKER-企业级开发规范手册](../../docs/企业级功能完善与统一性设计方案/ZKER-企业级开发规范手册_v1.0.md)
+
+**🎯 目标**: 确保权限系统完整、安全、灵活！

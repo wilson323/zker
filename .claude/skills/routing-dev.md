@@ -1,45 +1,77 @@
 # 智能路由引擎开发助手
 
-协助智能路由引擎开发，实现混合意图匹配和基于评分的路由决策。
+**版本**: v3.0.0 | **更新**: 2025-01-03
 
-## 使用场景
+协助智能路由引擎开发，实现混合意图匹配和评分路由。
 
-当你需要开发智能路由功能时，使用此技能：
-- 创建规则匹配器
-- 创建相似度匹配器
-- 实现混合意图匹配
+---
+
+## 🎯 使用场景
+
+- 创建规则匹配器（关键词、正则、意图）
+- 创建相似度匹配器（向量相似度）
+- 实现混合匹配器（多匹配器聚合）
 - 实现路由决策引擎
-- 创建路由规则配置
 
-## 功能
+---
 
-- 生成规则匹配器代码
-- 生成相似度匹配器代码
-- 提供路由算法最佳实践
-- 生成路由决策引擎代码
-- 生成路由规则配置示例
+## 🔧 匹配器类型
 
-## 输入
+| 匹配器 | 说明 | 优先级 |
+|--------|------|--------|
+| **规则匹配器** | 关键词、正则、意图、分类 | 1 |
+| **相似度匹配器** | 向量相似度计算 | 2 |
+| **混合匹配器** | 多匹配器聚合 | 3 |
+| **路由决策器** | 基于评分的智能路由 | 4 |
 
-- **匹配器类型**：rule、similarity、hybrid、router
-- **资源类型**：bots、workflows
-- **配置格式**：JSON 或 YAML
+---
 
-## 输出
+## 🔧 代码模板
 
-- 生成的代码框架
-- 匹配算法实现
-- 路由决策逻辑
-- 性能优化建议
-- 相关规范文档链接
+### 1. 路由引擎
 
-## 示例
+\`\`\`go
+type RoutingEngine struct {
+    ruleMatcher      *RuleMatcher
+    similarityMatcher *SimilarityMatcher
+    hybridMatcher    *HybridMatcher
+    decisionMaker    *DecisionMaker
+}
 
-```
-实现混合意图匹配器，结合规则匹配和相似度匹配
-```
+func (e *RoutingEngine) Route(
+    ctx context.Context,
+    query string,
+    candidates []Agent,
+) (*Agent, error) {
+    // 1. 规则匹配
+    ruleScores := e.ruleMatcher.Match(ctx, query, candidates)
+    
+    // 2. 相似度匹配
+    simScores := e.similarityMatcher.Match(ctx, query, candidates)
+    
+    // 3. 混合评分
+    finalScores := e.hybridMatcher.Combine(ruleScores, simScores)
+    
+    // 4. 决策路由
+    return e.decisionMaker.Decide(ctx, candidates, finalScores)
+}
+\`\`\`
 
-## 相关文档
+---
 
-- [研发A-后端架构师开发计划_v1.0.md](../../docs/企业级功能完善与统一性设计方案/研发A-后端架构师开发计划_v1.0.md)
-- [API接口文档_智能路由引擎.md](../../docs/企业级功能完善与统一性设计方案/API接口文档_智能路由引擎.md)
+## 📋 检查清单
+
+- [ ] 规则匹配器已实现
+- [ ] 相似度匹配器已实现
+- [ ] 混合评分逻辑已实现
+- [ ] 路由决策引擎已实现
+- [ ] 性能测试通过
+
+---
+
+## 📖 相关文档
+
+- [03-DESIGN/routing/](../../docs/03-DESIGN/routing/)
+- [API接口文档_智能路由引擎](../../docs/企业级功能完善与统一性设计方案/API接口文档_智能路由引擎.md)
+
+**🎯 目标**: 确保路由系统智能、高效、准确！
