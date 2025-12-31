@@ -292,3 +292,382 @@ func TestCommonErrorCodes(t *testing.T) {
 		})
 	}
 }
+
+// TestQuotaErrorCodes 测试配额错误码便捷变量
+func TestQuotaErrorCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		errCode        *BaseErrorCode
+		expectedCode   string
+		expectedStatus int
+	}{
+		{
+			name:           "ErrQuotaNotFound",
+			errCode:        ErrQuotaNotFound,
+			expectedCode:   "QUOTA_NOT_FOUND",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "ErrQuotaInvalid",
+			errCode:        ErrQuotaInvalid,
+			expectedCode:   "QUOTA_INVALID",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrQuotaExceeded",
+			errCode:        ErrQuotaExceeded,
+			expectedCode:   "QUOTA_EXCEEDED",
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "ErrQuotaAPICallExceeded",
+			errCode:        ErrQuotaAPICallExceeded,
+			expectedCode:   "QUOTA_API_CALL_EXCEEDED",
+			expectedStatus: http.StatusTooManyRequests,
+		},
+		{
+			name:           "ErrQuotaBotExceeded",
+			errCode:        ErrQuotaBotExceeded,
+			expectedCode:   "QUOTA_BOT_EXCEEDED",
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "ErrQuotaStorageExceeded",
+			errCode:        ErrQuotaStorageExceeded,
+			expectedCode:   "QUOTA_STORAGE_EXCEEDED",
+			expectedStatus: 507, // HTTP StatusInsufficientStorage
+		},
+		{
+			name:           "ErrQuotaInvalidResource",
+			errCode:        ErrQuotaInvalidResource,
+			expectedCode:   "QUOTA_INVALID_RESOURCE",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrQuotaInvalidLimit",
+			errCode:        ErrQuotaInvalidLimit,
+			expectedCode:   "QUOTA_INVALID_LIMIT",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrQuotaCheckFailed",
+			errCode:        ErrQuotaCheckFailed,
+			expectedCode:   "QUOTA_CHECK_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrQuotaConsumeFailed",
+			errCode:        ErrQuotaConsumeFailed,
+			expectedCode:   "QUOTA_CONSUME_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrQuotaResetFailed",
+			errCode:        ErrQuotaResetFailed,
+			expectedCode:   "QUOTA_RESET_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrQuotaKnowledgeExceeded",
+			errCode:        ErrQuotaKnowledgeExceeded,
+			expectedCode:   "QUOTA_KNOWLEDGE_EXCEEDED",
+			expectedStatus: http.StatusForbidden,
+		},
+		{
+			name:           "ErrQuotaWorkflowExceeded",
+			errCode:        ErrQuotaWorkflowExceeded,
+			expectedCode:   "QUOTA_WORKFLOW_EXCEEDED",
+			expectedStatus: http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedCode, tt.errCode.Code())
+			assert.NotEmpty(t, tt.errCode.MessageZH())
+			assert.Equal(t, tt.expectedStatus, tt.errCode.HTTPStatus())
+		})
+	}
+}
+
+// TestPermissionErrorCodes 测试权限错误码便捷变量
+func TestPermissionErrorCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		errCode        *BaseErrorCode
+		expectedCode   string
+		expectedStatus int
+	}{
+		{
+			name:           "ErrRoleNotFound",
+			errCode:        ErrRoleNotFound,
+			expectedCode:   "ROLE_NOT_FOUND",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "ErrRoleAlreadyExists",
+			errCode:        ErrRoleAlreadyExists,
+			expectedCode:   "ROLE_ALREADY_EXISTS",
+			expectedStatus: http.StatusConflict,
+		},
+		{
+			name:           "ErrInvalidRole",
+			errCode:        ErrInvalidRole,
+			expectedCode:   "INVALID_ROLE",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrRoleNameInvalid",
+			errCode:        ErrRoleNameInvalid,
+			expectedCode:   "ROLE_NAME_INVALID",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrPermissionInvalidParam",
+			errCode:        ErrPermissionInvalidParam,
+			expectedCode:   "PERMISSION_INVALID_PARAM",
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "ErrPermissionCheckFailed",
+			errCode:        ErrPermissionCheckFailed,
+			expectedCode:   "PERMISSION_CHECK_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrResourceTypeNotSupported",
+			errCode:        ErrResourceTypeNotSupported,
+			expectedCode:   "RESOURCE_TYPE_NOT_SUPPORTED",
+			expectedStatus: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedCode, tt.errCode.Code())
+			assert.NotEmpty(t, tt.errCode.MessageZH())
+			assert.Equal(t, tt.expectedStatus, tt.errCode.HTTPStatus())
+		})
+	}
+}
+
+// TestBillingErrorCodes 测试计费错误码便捷变量
+func TestBillingErrorCodes(t *testing.T) {
+	tests := []struct {
+		name           string
+		errCode        *BaseErrorCode
+		expectedCode   string
+		expectedStatus int
+	}{
+		{
+			name:           "ErrBillingChargeFailed",
+			errCode:        ErrBillingChargeFailed,
+			expectedCode:   "BILLING_CHARGE_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrBillingBalanceNotFound",
+			errCode:        ErrBillingBalanceNotFound,
+			expectedCode:   "BILLING_BALANCE_NOT_FOUND",
+			expectedStatus: http.StatusNotFound,
+		},
+		{
+			name:           "ErrBillingInsufficientBalance",
+			errCode:        ErrBillingInsufficientBalance,
+			expectedCode:   "BILLING_INSUFFICIENT_BALANCE",
+			expectedStatus: 402, // HTTP StatusPaymentRequired
+		},
+		{
+			name:           "ErrBillingRecordFailed",
+			errCode:        ErrBillingRecordFailed,
+			expectedCode:   "BILLING_RECORD_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "ErrBillingCalculateFailed",
+			errCode:        ErrBillingCalculateFailed,
+			expectedCode:   "BILLING_CALCULATE_FAILED",
+			expectedStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expectedCode, tt.errCode.Code())
+			assert.NotEmpty(t, tt.errCode.MessageZH())
+			assert.Equal(t, tt.expectedStatus, tt.errCode.HTTPStatus())
+		})
+	}
+}
+
+// TestBotStoreErrorCodes 测试Bot商店错误码便捷变量
+func TestBotStoreErrorCodes(t *testing.T) {
+	// BotStore errno变量是error类型，只测试它们不为nil
+	t.Run("验证BotStore errno变量存在", func(t *testing.T) {
+		assert.NotNil(t, ErrBotStoreInvalidParam)
+		assert.NotNil(t, ErrBotStoreNotFound)
+		assert.NotNil(t, ErrCreateBotStoreItemFailed)
+		assert.NotNil(t, ErrUpdateBotStoreItemFailed)
+		assert.NotNil(t, ErrDeleteBotStoreItemFailed)
+		assert.NotNil(t, ErrBotStoreItemNotFound)
+	})
+}
+
+// TestErrnoHelperFunctions 测试errno辅助函数
+func TestErrnoHelperFunctions(t *testing.T) {
+	t.Run("IsNotFoundError - 测试NotFound类型错误", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			errCode  int32
+			expected bool
+		}{
+			{"ErrTenantNotFound (001结尾)", 2001001, true},
+			{"ErrBotStoreNotFound (001结尾)", 206000001, true},
+			{"ErrTenantAlreadyExists (010结尾)", 2001010, false},
+			{"ErrTenantInvalidParam (020结尾)", 2001020, false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsNotFoundError(tt.errCode)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("IsAlreadyExistsError - 测试AlreadyExists类型错误", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			errCode  int32
+			expected bool
+		}{
+			{"ErrTenantAlreadyExists (010结尾)", 2001010, true},
+			{"ErrTenantNotFound (001结尾)", 2001001, false},
+			{"ErrTenantInvalidParam (020结尾)", 2001020, false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsAlreadyExistsError(tt.errCode)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("IsInvalidParamError - 测试InvalidParam类型错误", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			errCode  int32
+			expected bool
+		}{
+			{"ErrTenantInvalidName (020结尾)", 2001020, true},
+			{"ErrTenantInvalidConfig (021结尾)", 2001021, true},
+			{"ErrTenantNotFound (001结尾)", 2001001, false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsInvalidParamError(tt.errCode)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("IsPermissionDeniedError - 测试PermissionDenied类型错误", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			errCode  int32
+			expected bool
+		}{
+			{"ErrTenantInactive (040结尾)", 2001040, true},
+			{"ErrQuotaExceeded (041结尾)", 300000041, true},
+			{"ErrTenantNotFound (001结尾)", 2001001, false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsPermissionDeniedError(tt.errCode)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("IsOperationFailedError - 测试OperationFailed类型错误", func(t *testing.T) {
+		tests := []struct {
+			name     string
+			errCode  int32
+			expected bool
+		}{
+			{"ErrTenantCreateFailed (050结尾)", 2001050, true},
+			{"ErrTenantUpdateFailed (051结尾)", 2001051, true},
+			{"ErrTenantNotFound (001结尾)", 2001001, false},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				result := IsOperationFailedError(tt.errCode)
+				assert.Equal(t, tt.expected, result)
+			})
+		}
+	})
+
+	t.Run("GetErrorCategory - 测试错误分类", func(t *testing.T) {
+		tests := []struct {
+			name           string
+			errCode        int32
+			expectedCategory ErrorCategory
+		}{
+			{"NotFound", 2001001, ErrorCategoryNotFound},
+			{"AlreadyExists", 2001010, ErrorCategoryAlreadyExists},
+			{"InvalidParam", 2001020, ErrorCategoryInvalidParam},
+			{"PermissionDenied", 2001040, ErrorCategoryPermission},
+			{"OperationFailed", 2001050, ErrorCategoryOperationFailed},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				category := GetErrorCategory(tt.errCode)
+				assert.Equal(t, tt.expectedCategory, category)
+			})
+		}
+	})
+}
+
+// TestErrnoCoverage 测试errno便捷变量覆盖率
+func TestErrnoCoverage(t *testing.T) {
+	t.Run("验证所有便捷变量都正确定义", func(t *testing.T) {
+		// 测试quota模块便捷变量不为nil
+		assert.NotNil(t, ErrQuotaNotFound)
+		assert.NotNil(t, ErrQuotaInvalid)
+		assert.NotNil(t, ErrQuotaExceeded)
+		assert.NotNil(t, ErrQuotaAPICallExceeded)
+		assert.NotNil(t, ErrQuotaBotExceeded)
+		assert.NotNil(t, ErrQuotaStorageExceeded)
+		assert.NotNil(t, ErrQuotaKnowledgeExceeded)
+		assert.NotNil(t, ErrQuotaWorkflowExceeded)
+
+		// 测试permission模块便捷变量不为nil
+		assert.NotNil(t, ErrRoleNotFound)
+		assert.NotNil(t, ErrRoleAlreadyExists)
+		assert.NotNil(t, ErrInvalidRole)
+		assert.NotNil(t, ErrRoleNameInvalid)
+		assert.NotNil(t, ErrPermissionInvalidParam)
+		assert.NotNil(t, ErrPermissionCheckFailed)
+		assert.NotNil(t, ErrResourceTypeNotSupported)
+
+		// 测试billing模块便捷变量不为nil
+		assert.NotNil(t, ErrBillingChargeFailed)
+		assert.NotNil(t, ErrBillingBalanceNotFound)
+		assert.NotNil(t, ErrBillingInsufficientBalance)
+		assert.NotNil(t, ErrBillingRecordFailed)
+		assert.NotNil(t, ErrBillingCalculateFailed)
+
+		// 测试botstore模块便捷变量不为nil
+		assert.NotNil(t, ErrBotStoreInvalidParam)
+		assert.NotNil(t, ErrBotStoreNotFound)
+		assert.NotNil(t, ErrCreateBotStoreItemFailed)
+		assert.NotNil(t, ErrUpdateBotStoreItemFailed)
+		assert.NotNil(t, ErrDeleteBotStoreItemFailed)
+		assert.NotNil(t, ErrBotStoreItemNotFound)
+	})
+}
