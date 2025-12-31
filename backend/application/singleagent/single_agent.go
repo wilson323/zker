@@ -133,7 +133,7 @@ func (s *SingleAgentApplicationService) UpdateSingleAgentDraft(ctx context.Conte
 		Project: &searchEntity.ProjectDocument{
 			ID:   agentID,
 			Name: &updateAgentInfo.Name,
-			Type: intelligence.IntelligenceType_Bot,
+			Type: ConvertIntelligenceTypeFromAPI(intelligence.IntelligenceType_Bot),
 		},
 	})
 	if err != nil {
@@ -395,7 +395,7 @@ func (s *SingleAgentApplicationService) DeleteAgentDraft(ctx context.Context, re
 		OpType: searchEntity.Deleted,
 		Project: &searchEntity.ProjectDocument{
 			ID:   req.GetBotID(),
-			Type: intelligence.IntelligenceType_Bot,
+			Type: ConvertIntelligenceTypeFromAPI(intelligence.IntelligenceType_Bot),
 		},
 	})
 	if err != nil {
@@ -490,7 +490,7 @@ func (s *SingleAgentApplicationService) UpdateAgentDraftDisplayInfo(ctx context.
 
 	draftInfoDo := &entity.AgentDraftDisplayInfo{
 		AgentID:     req.BotID,
-		DisplayInfo: req.DisplayInfo,
+		DisplayInfo: ConvertDraftBotDisplayInfoFromAPI(req.DisplayInfo),
 		SpaceID:     req.SpaceID,
 	}
 
@@ -524,7 +524,7 @@ func (s *SingleAgentApplicationService) GetAgentDraftDisplayInfo(ctx context.Con
 	return &developer_api.GetDraftBotDisplayInfoResponse{
 		Code: 0,
 		Msg:  "success",
-		Data: draftInfoDo.DisplayInfo,
+		Data: ConvertDraftBotDisplayInfoToAPI(draftInfoDo.DisplayInfo),
 	}, nil
 }
 
@@ -660,7 +660,7 @@ func (s *SingleAgentApplicationService) ReportUserBehavior(ctx context.Context, 
 		Project: &searchEntity.ProjectDocument{
 			ID:             req.ResourceID,
 			SpaceID:        req.SpaceID,
-			Type:           intelligence.IntelligenceType_Bot,
+			Type:           ConvertIntelligenceTypeFromAPI(intelligence.IntelligenceType_Bot),
 			IsRecentlyOpen: ptr.Of(1),
 			RecentlyOpenMS: ptr.Of(time.Now().UnixMilli()),
 		},

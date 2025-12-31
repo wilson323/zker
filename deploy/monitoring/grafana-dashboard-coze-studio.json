@@ -1,0 +1,554 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "-- Grafana --",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 1,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "系统概览",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 6
+      },
+      "type": "stat",
+      "title": "总租户数",
+      "targets": [
+        {
+          "expr": "tenant_total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 6
+      },
+      "type": "stat",
+      "title": "活跃租户数",
+      "targets": [
+        {
+          "expr": "tenant_active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 6
+      },
+      "type": "stat",
+      "title": "Bot总数",
+      "targets": [
+        {
+          "expr": "bot_total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 6
+      },
+      "type": "stat",
+      "title": "消息总数",
+      "targets": [
+        {
+          "expr": "message_total"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "purple",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 6,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "HTTP请求监控",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "HTTP请求QPS",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "{{method}} {{path}}"
+        }
+      ],
+      "yaxes": [
+        {
+          "label": "Requests/sec",
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 8,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "HTTP请求延迟 (P95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{method}} {{path}}"
+        }
+      ],
+      "yaxes": [
+        {
+          "label": "Seconds",
+          "show": true
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 9,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "租户分布",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 10,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "piechart",
+      "title": "租户状态分布",
+      "targets": [
+        {
+          "expr": "tenant_by_status"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 11,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "piechart",
+      "title": "订阅等级分布",
+      "targets": [
+        {
+          "expr": "tenant_by_subscription"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 12,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "piechart",
+      "title": "隔离策略分布",
+      "targets": [
+        {
+          "expr": "isolation_strategy_total"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 13,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "配额监控",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 14,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "配额使用率 (Top 10租户)",
+      "targets": [
+        {
+          "expr": "topk(10, quota_usage_percentage)",
+          "legendFormat": "{{tenant_id}} - {{resource_type}}"
+        }
+      ],
+      "yaxes": [
+        {
+          "label": "Percentage",
+          "max": 100,
+          "show": true,
+          "min": 0
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 15,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "配额超限事件",
+      "targets": [
+        {
+          "expr": "rate(quota_exceeded_total[5m])",
+          "legendFormat": "{{tenant_id}} - {{resource_type}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 16,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "数据库性能",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 17,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "gauge",
+      "title": "活跃连接数",
+      "targets": [
+        {
+          "expr": "db_connections_active"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0
+        }
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 18,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "gauge",
+      "title": "空闲连接数",
+      "targets": [
+        {
+          "expr": "db_connections_idle"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "max": 100,
+          "min": 0
+        }
+      }
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 19,
+      "gridPos": {
+        "h": 8,
+        "w": 8
+      },
+      "type": "graph",
+      "title": "查询QPS",
+      "targets": [
+        {
+          "expr": "rate(db_query_total[1m])",
+          "legendFormat": "{{operation}} - {{table}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 20,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "查询延迟 (P95)",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{operation}} - {{table}}"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 21,
+      "gridPos": {
+        "h": 8,
+      "w": 12
+      },
+      "type": "graph",
+      "title": "查询错误率",
+      "targets": [
+        {
+          "expr": "rate(db_query_errors_total[5m]) / rate(db_query_total[5m]) * 100",
+          "legendFormat": "{{operation}} - {{table}}"
+        }
+      ],
+      "yaxes": [
+        {
+          "label": "Error Rate (%)",
+          "max": 100,
+          "min": 0,
+          "show": true
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 22,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "缓存性能",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 23,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "缓存命中率",
+      "targets": [
+        {
+          "expr": "cache_hit_percentage",
+          "legendFormat": "{{cache_type}}"
+        }
+      ],
+      "yaxes": [
+        {
+          "label": "Hit Percentage",
+          "max": 100,
+          "min": 0,
+          "show": true
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 24,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "缓存QPS",
+      "targets": [
+        {
+          "expr": "rate(cache_hits_total[1m])",
+          "legendFormat": "Hits - {{cache_type}}"
+        },
+        {
+          "expr": "rate(cache_misses_total[1m])",
+          "legendFormat": "Misses - {{cache_type}}"
+        }
+      ]
+    },
+    {
+      "collapsed": false,
+      "datasource": null,
+      "id": 25,
+      "gridPos": {
+        "h": 1,
+        "w": 24
+      },
+      "panels": [],
+      "title": "业务指标",
+      "type": "row"
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 26,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "租户注册趋势",
+      "targets": [
+        {
+          "expr": "rate(registration_total[1m])",
+          "legendFormat": "Registrations/sec"
+        }
+      ]
+    },
+    {
+      "datasource": "Prometheus",
+      "id": 27,
+      "gridPos": {
+        "h": 8,
+        "w": 12
+      },
+      "type": "graph",
+      "title": "隔离策略升级趋势",
+      "targets": [
+        {
+          "expr": "rate(isolation_upgrade_total[1m])",
+          "legendFormat": "{{from_strategy}} → {{to_strategy}}"
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 27,
+  "style": "dark",
+  "tags": ["coze-studio", "multi-tenant", "saas"],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "Coze Studio 多租户SaaS监控大盘",
+  "uid": "coze-studio-main",
+  "version": 1
+}

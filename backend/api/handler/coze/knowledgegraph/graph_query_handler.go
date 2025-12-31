@@ -24,6 +24,7 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/api/handler/coze"
 	baseModel "github.com/coze-dev/coze-studio/backend/api/model/base"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/application/base/ctxutil"
 	"github.com/coze-dev/coze-studio/backend/domain/knowledgegraph/entity"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
@@ -60,7 +61,7 @@ func QueryEntity(ctx context.Context, c *app.RequestContext) {
 		},
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // QueryNeighbors 查询实体邻居
@@ -116,7 +117,7 @@ func QueryNeighbors(ctx context.Context, c *app.RequestContext) {
 		Depth:         subgraph.Depth,
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // QueryPath 查询两个实体之间的路径
@@ -154,7 +155,7 @@ func QueryPath(ctx context.Context, c *app.RequestContext) {
 		Count:        len(pathList),
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SearchEntities 搜索实体
@@ -200,7 +201,7 @@ func SearchEntities(ctx context.Context, c *app.RequestContext) {
 		Count:        len(entityList),
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetGraphStatistics 获取图谱统计信息
@@ -240,7 +241,7 @@ func GetGraphStatistics(ctx context.Context, c *app.RequestContext) {
 		},
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // FindShortestPath 查找最短路径
@@ -271,7 +272,7 @@ func FindShortestPath(ctx context.Context, c *app.RequestContext) {
 		},
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ========================================

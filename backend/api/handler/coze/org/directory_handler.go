@@ -24,7 +24,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/coze-dev/coze-studio/backend/api/handler/coze"
-	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/pkg/contextutil"
 	"github.com/coze-dev/coze-studio/backend/domain/org/service"
 )
 
@@ -58,7 +58,7 @@ func GetOrganizationDirectory(ctx context.Context, c *app.RequestContext) {
 	// 获取tenant_id（优先从query参数，否则从context）
 	tenantID := c.Query("tenant_id")
 	if tenantID == "" {
-		tenantID = middleware.GetTenantIDFromContext(ctx)
+		tenantID = contextutil.GetTenantIDFromContext(ctx)
 	}
 
 	if tenantID == "" {
@@ -93,7 +93,7 @@ func GetDepartmentDirectory(ctx context.Context, c *app.RequestContext) {
 	// 获取tenant_id（优先从query参数，否则从context）
 	tenantID := c.Query("tenant_id")
 	if tenantID == "" {
-		tenantID = middleware.GetTenantIDFromContext(ctx)
+		tenantID = contextutil.GetTenantIDFromContext(ctx)
 	}
 
 	if tenantID == "" {
@@ -214,7 +214,7 @@ func SearchEmployees(ctx context.Context, c *app.RequestContext) {
 	// 获取tenant_id（优先从请求参数，否则从context）
 	tenantID := req.TenantID
 	if tenantID == "" {
-		tenantID = middleware.GetTenantIDFromContext(ctx)
+		tenantID = contextutil.GetTenantIDFromContext(ctx)
 	}
 
 	if tenantID == "" {
@@ -267,7 +267,7 @@ func GetEmployeeByCode(ctx context.Context, c *app.RequestContext) {
 	// 获取tenant_id（优先从query参数，否则从context）
 	tenantID := c.Query("tenant_id")
 	if tenantID == "" {
-		tenantID = middleware.GetTenantIDFromContext(ctx)
+		tenantID = contextutil.GetTenantIDFromContext(ctx)
 	}
 
 	if tenantID == "" {

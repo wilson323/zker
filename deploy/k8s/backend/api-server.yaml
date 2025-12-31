@@ -1,0 +1,339 @@
+# ================================================================================
+# Coze Studio - API Server Deployment & Service
+# ================================================================================
+# 用途：后端 API 服务器，处理所有 HTTP/REST 请求
+# 架构：无状态服务，支持水平扩展
+# 资源配置：根据负载自动扩展（HPA）
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# API Server Deployment
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coze-studio-api
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: api-server
+    version: v1
+  annotations:
+    description: "Coze Studio 后端 API 服务器"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8888"
+    prometheus.io/path: "/metrics"
+spec:
+  # 副本数：由 HPA 自动管理
+  replicas: 3
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1          # 最多多 1 个 Pod
+      maxUnavailable: 0    # 滚动更新时保证 0 个不可用
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: api-server
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: api-server
+        version: v1
+      annotations:
+        # Istio sidecar 注入配置
+        sidecar.istio.io/inject: "true"
+        # Prometheus 监控注解
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8888"
+        prometheus.io/path: "/metrics"
+    spec:
+      # 容器配置
+      containers:
+      - name: api-server
+        image: coze-studio/backend-api:latest  # 替换为实际镜像地址
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 8888
+          protocol: TCP
+        - name: grpc
+          containerPort: 9000
+          protocol: TCP
+        - name: metrics
+          containerPort: 8888
+          protocol: TCP
+
+        # 环境变量
+        env:
+        # 从 ConfigMap 读取
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: LOG_LEVEL
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: DB_PORT
+        - name: DB_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: DB_NAME
+        - name: Redis_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: Redis_HOST
+        - name: ES_ENDPOINTS
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: ES_ENDPOINTS
+        # 从 Secret 读取敏感信息
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: db-password
+        - name: Redis_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: redis-password
+        # Pod 信息
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+
+        # 资源配置
+        resources:
+          requests:
+            cpu: 500m
+            memory: 512Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
+
+        # 健康检查
+        livenessProbe:
+          httpGet:
+            path: /api/health/live
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /api/health/ready
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /api/health/live
+            port: http
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          successThreshold: 1
+          failureThreshold: 30  # 最多等待 150 秒启动
+
+        # 生命周期钩子
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - sleep 15  # 优雅停机等待时间
+
+      # 镜像拉取凭证（如果使用私有仓库）
+      # imagePullSecrets:
+      #   - name: docker-registry-secret
+
+      # DNS 策略
+      dnsPolicy: ClusterFirst
+
+      # 重启策略
+      restartPolicy: Always
+
+      # 终止宽限期
+      terminationGracePeriodSeconds: 30
+
+---
+# ================================================================================
+# API Server Service (ClusterIP)
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: coze-studio-api
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: api-server
+  annotations:
+    description: "Coze Studio API 服务器内部服务"
+spec:
+  type: ClusterIP
+  sessionAffinity: ClientIP  # 同一客户端 IP 连接同一 Pod
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 小时
+  selector:
+    app: coze-studio
+    component: api-server
+  ports:
+  - name: http
+    port: 8888
+    targetPort: http
+    protocol: TCP
+  - name: grpc
+    port: 9000
+    targetPort: grpc
+    protocol: TCP
+
+---
+# ================================================================================
+# API Server Service (Headless for StatefulSet)
+# ================================================================================
+# 说明：如果需要直接访问每个 Pod（如 gRPC 负载均衡），使用 Headless Service
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: coze-studio-api-headless
+#   namespace: coze-studio
+#   labels:
+#     app: coze-studio
+#     component: api-server
+# spec:
+#   type: ClusterIP
+#   clusterIP: None
+#   selector:
+#     app: coze-studio
+#     component: api-server
+#   ports:
+#   - name: http
+#     port: 8888
+#     targetPort: http
+#     protocol: TCP
+#   - name: grpc
+#     port: 9000
+#     targetPort: grpc
+#     protocol: TCP
+
+---
+# ================================================================================
+# PodDisruptionBudget (保障高可用)
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coze-studio-api-pdb
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: api-server
+spec:
+  # 最少保持 2 个可用 Pod
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: api-server
+
+---
+# ================================================================================
+# HorizontalPodAutoscaler (自动扩展)
+# ================================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coze-studio-api-hpa
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: api-server
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coze-studio-api
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  # CPU 使用率
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  # 内存使用率
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  # 自定义指标：QPS
+  - type: Pods
+    pods:
+      metric:
+        name: http_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300  # 5 分钟稳定窗口
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+      selectPolicy: Min
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 4
+        periodSeconds: 30
+      selectPolicy: Max

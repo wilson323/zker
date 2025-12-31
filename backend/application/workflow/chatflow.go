@@ -253,7 +253,7 @@ func (w *ApplicationService) CreateApplicationConversationDef(ctx context.Contex
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrConversationOfAppOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(int(errno.DeprecatedErrConversationOfAppOperationFail), err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 
@@ -290,7 +290,7 @@ func (w *ApplicationService) UpdateApplicationConversationDef(ctx context.Contex
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrConversationOfAppOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(int(errno.DeprecatedErrConversationOfAppOperationFail), err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 	var (
@@ -318,7 +318,7 @@ func (w *ApplicationService) DeleteApplicationConversationDef(ctx context.Contex
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrConversationOfAppOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(int(errno.DeprecatedErrConversationOfAppOperationFail), err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 	var (
@@ -380,7 +380,7 @@ func (w *ApplicationService) ListApplicationConversationDef(ctx context.Context,
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrConversationOfAppOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(int(errno.DeprecatedErrConversationOfAppOperationFail), err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 	var connectorID int64
@@ -515,7 +515,7 @@ func (w *ApplicationService) OpenAPIChatFlowRun(ctx context.Context, req *workfl
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrWorkflowOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(errno.ErrNodeExecuteFailedCode, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 
@@ -593,7 +593,7 @@ func (w *ApplicationService) OpenAPIChatFlowRun(ctx context.Context, req *workfl
 		}
 
 		if meta.LatestPublishedVersion == nil {
-			return nil, vo.NewError(errno.ErrWorkflowNotPublished)
+			return nil, vo.NewError(int(errno.DeprecatedErrWorkflowNotPublished))
 		}
 		if req.IsSetVersion() {
 			version = req.GetVersion()
@@ -1266,7 +1266,7 @@ func (w *ApplicationService) OpenAPICreateConversation(ctx context.Context, req 
 			err = safego.NewPanicErr(panicErr, debug.Stack())
 		}
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrWorkflowOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			err = vo.WrapIfNeeded(errno.ErrNodeExecuteFailedCode, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}()
 
@@ -1326,7 +1326,7 @@ func (w *ApplicationService) OpenAPICreateConversation(ctx context.Context, req 
 
 		if !tplExisted && !dcExisted {
 			return &workflow.CreateConversationResponse{
-				Code: errno.ErrConversationNotFoundForOperation,
+				Code: int64(errno.ErrConversationNotFoundCode),
 				Msg:  "Conversation not found. Please create a conversation before attempting to perform any related operations.",
 			}, nil
 		}

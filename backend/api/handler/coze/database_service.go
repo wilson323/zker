@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/data/database/table"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/data/knowledge"
 	"github.com/coze-dev/coze-studio/backend/application/memory"
 	"github.com/coze-dev/coze-studio/backend/application/singleagent"
@@ -37,17 +38,17 @@ func ListDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.ListDatabaseRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.ListDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDatabaseByID .
@@ -57,17 +58,17 @@ func GetDatabaseByID(ctx context.Context, c *app.RequestContext) {
 	var req table.SingleDatabaseRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetDatabaseByID(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // AddDatabase .
@@ -77,17 +78,17 @@ func AddDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.AddDatabaseRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.AddDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDatabase .
@@ -97,17 +98,17 @@ func UpdateDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.UpdateDatabaseRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.UpdateDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteDatabase .
@@ -117,17 +118,17 @@ func DeleteDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.DeleteDatabaseRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.DeleteDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // BindDatabase .
@@ -137,17 +138,17 @@ func BindDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.BindDatabaseToBotRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.BindDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UnBindDatabase .
@@ -157,17 +158,17 @@ func UnBindDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.BindDatabaseToBotRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.UnBindDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListDatabaseRecords .
@@ -177,17 +178,17 @@ func ListDatabaseRecords(ctx context.Context, c *app.RequestContext) {
 	var req table.ListDatabaseRecordsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.ListDatabaseRecords(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDatabaseRecords .
@@ -197,17 +198,17 @@ func UpdateDatabaseRecords(ctx context.Context, c *app.RequestContext) {
 	var req table.UpdateDatabaseRecordsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.UpdateDatabaseRecords(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOnlineDatabaseId .
@@ -217,17 +218,17 @@ func GetOnlineDatabaseId(ctx context.Context, c *app.RequestContext) {
 	var req table.GetOnlineDatabaseIdRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetOnlineDatabaseId(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ResetBotTable .
@@ -237,17 +238,17 @@ func ResetBotTable(ctx context.Context, c *app.RequestContext) {
 	var req table.ResetBotTableRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.ResetBotTable(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDatabaseTemplate .
@@ -257,17 +258,17 @@ func GetDatabaseTemplate(ctx context.Context, c *app.RequestContext) {
 	var req table.GetDatabaseTemplateRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetDatabaseTemplate(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetConnectorName .
@@ -277,17 +278,17 @@ func GetConnectorName(ctx context.Context, c *app.RequestContext) {
 	var req table.GetSpaceConnectorListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetConnectorName(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetBotDatabase .
@@ -297,17 +298,17 @@ func GetBotDatabase(ctx context.Context, c *app.RequestContext) {
 	var req table.GetBotTableRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetBotDatabase(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDatabaseBotSwitch .
@@ -317,17 +318,17 @@ func UpdateDatabaseBotSwitch(ctx context.Context, c *app.RequestContext) {
 	var req table.UpdateDatabaseBotSwitchRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.UpdatePromptDisable(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDatabaseTableSchema .
@@ -337,18 +338,18 @@ func GetDatabaseTableSchema(ctx context.Context, c *app.RequestContext) {
 	var req table.GetTableSchemaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	var resp *knowledge.GetTableSchemaInfoResponse
 	resp, err = memory.DatabaseApplicationSVC.GetDatabaseTableSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SubmitDatabaseInsertTask .
@@ -358,17 +359,17 @@ func SubmitDatabaseInsertTask(ctx context.Context, c *app.RequestContext) {
 	var req table.SubmitDatabaseInsertRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.SubmitDatabaseInsertTask(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DatabaseFileProgressData .
@@ -378,17 +379,17 @@ func DatabaseFileProgressData(ctx context.Context, c *app.RequestContext) {
 	var req table.GetDatabaseFileProgressRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.DatabaseFileProgressData(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ValidateDatabaseTableSchema .
@@ -398,15 +399,15 @@ func ValidateDatabaseTableSchema(ctx context.Context, c *app.RequestContext) {
 	var req table.ValidateTableSchemaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.ValidateDatabaseTableSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

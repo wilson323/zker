@@ -1,0 +1,187 @@
+# ZKER 增强型Prometheus配置
+# 版本: v2.0.0
+# 说明: 支持高QPS、业务指标采集、性能优化的企业级监控配置
+
+global:
+  scrape_interval: 10s # 降低抓取间隔以支持高QPS场景
+  scrape_timeout: 5s
+  evaluation_interval: 10s # 告警规则评估间隔
+  external_labels:
+    cluster: 'zker-production'
+    environment: 'production'
+    datacenter: 'dc1'
+
+# 远程写入配置（可选：用于长期存储）
+# remote_write:
+#   - url: "http://thanos-receiver:19291/api/v1/receive"
+#     queue_config:
+#       capacity: 10000
+#       max_shards: 200
+#       min_shards: 1
+#       max_samples_per_send: 5000
+#       batch_send_deadline: 5s
+#       min_backoff: 30ms
+#       max_backoff: 100ms
+
+# 告警管理器配置
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+      timeout: 10s
+      api_version: v2
+
+# 告警规则文件
+rule_files:
+  - '/etc/prometheus/rules/*.yml'
+  - '/etc/prometheus/alerts.yml'
+
+# 抓取配置
+scrape_configs:
+  # ========== ZKER 核心服务 ==========
+  # Coze Studio API服务
+  - job_name: 'zker-api'
+    static_configs:
+      - targets: ['coze-studio:8888']
+        labels:
+          service: 'coze-api'
+          tier: 'backend'
+          environment: 'production'
+    metrics_path: '/metrics'
+    scrape_interval: 5s # 高频抓取以捕获高QPS
+    sample_limit: 10000 # 限制采样数量
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'zker-api-primary'
+
+  # ========== 基础设施 Exporters ==========
+  # MySQL Exporter
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+        labels:
+          service: 'mysql'
+          tier: 'database'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Redis Exporter
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis-exporter:9121']
+        labels:
+          service: 'redis'
+          tier: 'cache'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Elasticsearch Exporter
+  - job_name: 'elasticsearch'
+    static_configs:
+      - targets: ['elasticsearch-exporter:9114']
+        labels:
+          service: 'elasticsearch'
+          tier: 'database'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # Node Exporter (系统指标)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['node-exporter:9100']
+        labels:
+          service: 'node-exporter'
+          tier: 'infrastructure'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+
+  # cAdvisor (容器指标)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+        labels:
+          service: 'cadvisor'
+          tier: 'infrastructure'
+    scrape_interval: 15s
+    metrics_path: '/metrics'
+    honor_labels: true
+
+  # ========== Prometheus 自监控 ==========
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'
+          tier: 'monitoring'
+    scrape_interval: 30s
+
+  # Alertmanager 监控
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+        labels:
+          service: 'alertmanager'
+          tier: 'monitoring'
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # ========== 业务指标采集 ==========
+  # 租户指标（模拟）
+  - job_name: 'tenant-metrics'
+    static_configs:
+      - targets: ['coze-studio:8888']
+        labels:
+          service: 'tenant-metrics'
+          tier: 'business'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    honor_labels: true
+
+  # 订阅指标
+  - job_name: 'subscription-metrics'
+    static_configs:
+      - targets: ['coze-studio:8888']
+        labels:
+          service: 'subscription-metrics'
+          tier: 'business'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    honor_labels: true
+
+  # 计费指标
+  - job_name: 'billing-metrics'
+    static_configs:
+      - targets: ['coze-studio:8888']
+        labels:
+          service: 'billing-metrics'
+          tier: 'business'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    honor_labels: true
+
+  # 路由性能指标
+  - job_name: 'routing-metrics'
+    static_configs:
+      - targets: ['coze-studio:8888']
+        labels:
+          service: 'routing-metrics'
+          tier: 'business'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    honor_labels: true
+
+# ========== 存储配置 ==========
+# tsdb配置优化（高QPS场景）
+# storage:
+#   tsdb:
+#     out_of_order_time_window: 30m
+#     out_of_order_cap_max: 10000
+
+# ========== 追踪配置 ==========
+# tracing:
+#   endpoint: "localhost:4318"
+#   client_type: "grpc"
+#   headers:
+#     X-Trace-Header: "zker-monitoring"

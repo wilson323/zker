@@ -16,13 +16,11 @@
 
 package vo
 
-import (
-	"github.com/coze-dev/coze-studio/backend/api/model/workflow"
-	"github.com/coze-dev/coze-studio/backend/pkg/sonic"
-)
+import "github.com/coze-dev/coze-studio/backend/pkg/sonic"
+
 
 type ReleasedWorkflowData struct {
-	WorkflowList []*workflow.ReleasedWorkflow
+	WorkflowList []*ReleasedWorkflow
 	Inputs       map[string]any
 	Outputs      map[string]any
 }
@@ -50,7 +48,7 @@ func (r *ReleasedWorkflowData) MarshalJSON() ([]byte, error) {
 }
 
 type WorkflowDetailDataList struct {
-	List    []*workflow.WorkflowDetailData
+	List    []*WorkflowDetailData
 	Inputs  map[string]any
 	Outputs map[string]any
 }
@@ -74,7 +72,7 @@ func (r *WorkflowDetailDataList) MarshalJSON() ([]byte, error) {
 }
 
 type WorkflowDetailInfoDataList struct {
-	List []*workflow.WorkflowDetailInfoData
+	List []*WorkflowDetailInfoData
 
 	Inputs  map[string]any
 	Outputs map[string]any

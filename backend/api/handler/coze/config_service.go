@@ -15,6 +15,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/admin/config"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	bizConf "github.com/coze-dev/coze-studio/backend/bizpkg/config"
 	"github.com/coze-dev/coze-studio/backend/bizpkg/config/modelmgr"
 	"github.com/coze-dev/coze-studio/backend/bizpkg/llm/modelbuilder"
@@ -36,7 +37,7 @@ func GetBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 	resp := new(config.GetBasicConfigurationResp)
 	resp.Configuration = baseConfig
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SaveBasicConfiguration .
@@ -51,7 +52,7 @@ func SaveBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.Configuration == nil {
-		invalidParamRequestResponse(c, "Configuration is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "Configuration is nil", "参数验证失败", nil)
 		return
 	}
 
@@ -59,7 +60,7 @@ func SaveBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 
 	// Validate ServerHost: allow http/https URLs, or hostname:port
 	if req.Configuration.ServerHost == "" {
-		invalidParamRequestResponse(c, "ServerHost is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "ServerHost is empty", "参数验证失败", nil)
 		return
 	}
 
@@ -67,19 +68,19 @@ func SaveBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 	if strings.Contains(host, "://") {
 		u, parseErr := url.Parse(host)
 		if parseErr != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
-			invalidParamRequestResponse(c, "ServerHost is invalid URL, require http/https")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "ServerHost is invalid URL, require http/https", "参数验证失败", nil)
 			return
 		}
 	} else {
 		// Expect hostname:port format
 		h, p, splitErr := net.SplitHostPort(host)
 		if splitErr != nil || h == "" {
-			invalidParamRequestResponse(c, "ServerHost must be hostname:port or http(s) URL")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "ServerHost must be hostname:port or http(s, "参数验证失败", nil) URL")
 			return
 		}
 		port, portErr := strconv.Atoi(p)
 		if portErr != nil || port <= 0 || port > 65535 {
-			invalidParamRequestResponse(c, "ServerHost port is invalid")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "ServerHost port is invalid", "参数验证失败", nil)
 			return
 		}
 	}
@@ -87,7 +88,7 @@ func SaveBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 	logs.Infof("server host is valid %s", req.Configuration.ServerHost)
 
 	if req.Configuration.CodeRunnerType.String() == "<UNSET>" {
-		invalidParamRequestResponse(c, "CodeRunnerType is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "CodeRunnerType is invalid", "参数验证失败", nil)
 		return
 	}
 
@@ -98,7 +99,7 @@ func SaveBasicConfiguration(ctx context.Context, c *app.RequestContext) {
 	}
 
 	resp := new(config.SaveBasicConfigurationResp)
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetKnowledgeConfig .
@@ -113,7 +114,7 @@ func GetKnowledgeConfig(ctx context.Context, c *app.RequestContext) {
 	resp := new(config.GetKnowledgeConfigResp)
 	resp.KnowledgeConfig = knowledgeConfig
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateKnowledgeConfig .
@@ -128,28 +129,28 @@ func UpdateKnowledgeConfig(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.KnowledgeConfig == nil {
-		invalidParamRequestResponse(c, "KnowledgeConfig is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "KnowledgeConfig is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.KnowledgeConfig.EmbeddingConfig == nil {
-		invalidParamRequestResponse(c, "EmbeddingConfig is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "EmbeddingConfig is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.KnowledgeConfig.EmbeddingConfig.Connection == nil {
-		invalidParamRequestResponse(c, "Connection is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "Connection is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.KnowledgeConfig.EmbeddingConfig.Connection.EmbeddingInfo == nil {
-		invalidParamRequestResponse(c, "EmbeddingInfo is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "EmbeddingInfo is nil", "参数验证失败", nil)
 		return
 	}
 
 	embedding, err := impl.GetEmbedding(ctx, req.KnowledgeConfig.EmbeddingConfig)
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("get embedding failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("get embedding failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
@@ -158,27 +159,27 @@ func UpdateKnowledgeConfig(ctx context.Context, c *app.RequestContext) {
 
 		embedding, err = impl.GetEmbedding(ctx, req.KnowledgeConfig.EmbeddingConfig)
 		if err != nil {
-			invalidParamRequestResponse(c, fmt.Sprintf("get embedding failed: %v", err))
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("get embedding failed: %v", err, "参数验证失败", nil))
 			return
 		}
 	}
 
 	denseEmbeddings, err := embedding.EmbedStrings(ctx, []string{"test"})
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("embed test string failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("embed test string failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
 	if len(denseEmbeddings) == 0 {
-		invalidParamRequestResponse(c, fmt.Sprintf("embed test string failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("embed test string failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
 	logs.CtxDebugf(ctx, "embed test string result: %d, expect %d",
 		len(denseEmbeddings[0]), req.KnowledgeConfig.EmbeddingConfig.Connection.EmbeddingInfo.Dims)
 	if len(denseEmbeddings[0]) != int(req.KnowledgeConfig.EmbeddingConfig.Connection.EmbeddingInfo.Dims) {
-		invalidParamRequestResponse(c, fmt.Sprintf("embed test string failed: dims not match, expect %d, got %d",
-			req.KnowledgeConfig.EmbeddingConfig.Connection.EmbeddingInfo.Dims, len(denseEmbeddings[0])))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("embed test string failed: dims not match, expect %d, got %d",
+			req.KnowledgeConfig.EmbeddingConfig.Connection.EmbeddingInfo.Dims, len(denseEmbeddings[0], "参数验证失败", nil)))
 		return
 	}
 
@@ -190,7 +191,7 @@ func UpdateKnowledgeConfig(ctx context.Context, c *app.RequestContext) {
 
 	resp := new(config.UpdateKnowledgeConfigResp)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetModelList .
@@ -213,7 +214,7 @@ func GetModelList(ctx context.Context, c *app.RequestContext) {
 	resp := new(config.GetModelListResp)
 	resp.ProviderModelList = modelList
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateModel .
@@ -232,7 +233,7 @@ func CreateModel(ctx context.Context, c *app.RequestContext) {
 		Connection:      req.Connection,
 	})
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("create model builder failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("create model builder failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
@@ -240,14 +241,14 @@ func CreateModel(ctx context.Context, c *app.RequestContext) {
 
 	chatModel, err := modelBuilder.Build(ctx, &modelbuilder.LLMParams{EnableThinking: ptr.Of(false)})
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("build model failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("build model failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
 	respMsgs, err := chatModel.Generate(ctx, []*schema.Message{
 		schema.SystemMessage("1+1=?,Just answer with a number, no explanation.")})
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("generate model failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("generate model failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
@@ -257,14 +258,14 @@ func CreateModel(ctx context.Context, c *app.RequestContext) {
 		EnableBase64URL: req.EnableBase64URL,
 	})
 	if err != nil {
-		invalidParamRequestResponse(c, fmt.Sprintf("create model failed: %v", err))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("create model failed: %v", err, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(config.CreateModelResp)
 	resp.ID = id
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteModel .
@@ -286,5 +287,5 @@ func DeleteModel(ctx context.Context, c *app.RequestContext) {
 
 	resp := new(config.DeleteModelResp)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -89,11 +90,20 @@ type PermissionCache interface {
 	// SetDataPermissionFilter 设置数据权限过滤器缓存
 	SetDataPermissionFilter(ctx context.Context, userID, resourceType string, filter *DataFilterInfo) error
 
-	// GetFieldPermissions 获取字段权限缓存
-	GetFieldPermissions(ctx context.Context, userID, resourceType string) (map[string]*FieldPermInfo, error)
+	// GetFieldPermissions 获取字段权限缓存（返回 map[string]string 格式）
+	GetFieldPermissions(ctx context.Context, cacheKey string, loader func() (map[string]string, error)) (map[string]string, error)
 
 	// SetFieldPermissions 设置字段权限缓存
 	SetFieldPermissions(ctx context.Context, userID, resourceType string, perms map[string]*FieldPermInfo) error
+
+	// CheckDataPermission 检查数据权限（带缓存）
+	CheckDataPermission(ctx context.Context, cacheKey string, loader func() (bool, error)) (bool, error)
+
+	// InvalidateUserPermissions 使用户权限缓存失效
+	InvalidateUserPermissions(ctx context.Context, userID string) error
+
+	// InvalidateDataPermission 使特定数据权限缓存失效
+	InvalidateDataPermission(ctx context.Context, cacheKey string) error
 
 	// InvalidateUser 失效用户相关缓存
 	InvalidateUser(ctx context.Context, userID string) error
@@ -103,6 +113,42 @@ type PermissionCache interface {
 
 	// InvalidateRoleUsers 失效角色的所有用户缓存
 	InvalidateRoleUsers(ctx context.Context, roleID string, userIDs []string) error
+
+	// GetCacheStats 获取缓存统计信息
+	GetCacheStats() PermissionCacheStats
+}
+
+// PermissionCacheStats 权限缓存统计信息
+type PermissionCacheStats struct {
+	HitCount  uint64 `json:"hit_count"`
+	MissCount uint64 `json:"miss_count"`
+	EvictCount uint64 `json:"evict_count"`
+	L1Hits    uint64 `json:"l1_hits"` // L1缓存命中
+	L2Hits    uint64 `json:"l2_hits"` // L2缓存命中
+	mu        sync.RWMutex
+}
+
+// HitRate 缓存命中率
+func (s *PermissionCacheStats) HitRate() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	total := s.HitCount + s.MissCount
+	if total == 0 {
+		return 0
+	}
+	return float64(s.HitCount) / float64(total)
+}
+
+// L1HitRate L1缓存命中率
+func (s *PermissionCacheStats) L1HitRate() float64 {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.HitCount == 0 {
+		return 0
+	}
+	return float64(s.L1Hits) / float64(s.HitCount)
 }
 
 // PermissionCacheImpl 权限缓存实现
@@ -293,8 +339,56 @@ func (c *PermissionCacheImpl) SetDataPermissionFilter(ctx context.Context, userI
 	return nil
 }
 
-// GetFieldPermissions 获取字段权限缓存
-func (c *PermissionCacheImpl) GetFieldPermissions(ctx context.Context, userID, resourceType string) (map[string]*FieldPermInfo, error) {
+// GetFieldPermissions 获取字段权限缓存（新版本：带 loader 的缓存模式）
+func (c *PermissionCacheImpl) GetFieldPermissions(ctx context.Context, cacheKey string, loader func() (map[string]string, error)) (map[string]string, error) {
+	// 尝试从缓存获取
+	val, err := c.redis.Get(ctx, cacheKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			// 缓存未命中，调用 loader 加载数据
+			result, loadErr := loader()
+			if loadErr != nil {
+				return nil, loadErr
+			}
+			// 将加载的数据写入缓存
+			data, marshalErr := json.Marshal(result)
+			if marshalErr != nil {
+				c.logger.Error("failed to marshal field permissions",
+					zap.String("cache_key", cacheKey),
+					zap.Error(marshalErr))
+				return result, nil // 即使缓存失败，也返回加载的数据
+			}
+			if setErr := c.redis.Set(ctx, cacheKey, data, cacheTTLFieldPerms).Err(); setErr != nil {
+				c.logger.Error("failed to set field permissions to cache",
+					zap.String("cache_key", cacheKey),
+					zap.Error(setErr))
+			}
+			return result, nil
+		}
+		c.logger.Error("failed to get field permissions from cache",
+			zap.String("cache_key", cacheKey),
+			zap.Error(err))
+		return nil, err
+	}
+
+	// 缓存命中，反序列化数据
+	var perms map[string]string
+	if err := json.Unmarshal([]byte(val), &perms); err != nil {
+		c.logger.Error("failed to unmarshal field permissions",
+			zap.String("cache_key", cacheKey),
+			zap.Error(err))
+		return nil, err
+	}
+
+	c.logger.Debug("cache hit for field permissions",
+		zap.String("cache_key", cacheKey),
+		zap.Int("count", len(perms)))
+
+	return perms, nil
+}
+
+// GetFieldPermissionsByUser 获取字段权限缓存（原版本：保留用于兼容）
+func (c *PermissionCacheImpl) GetFieldPermissionsByUser(ctx context.Context, userID, resourceType string) (map[string]*FieldPermInfo, error) {
 	key := c.buildCacheKey(cacheKeyPrefixFieldPerms, userID, ":", resourceType)
 
 	val, err := c.redis.Get(ctx, key).Result()
@@ -385,6 +479,73 @@ func (c *PermissionCacheImpl) InvalidateUser(ctx context.Context, userID string)
 	return nil
 }
 
+// CheckDataPermission 检查数据权限（带缓存）
+func (c *PermissionCacheImpl) CheckDataPermission(ctx context.Context, cacheKey string, loader func() (bool, error)) (bool, error) {
+	// 尝试从缓存获取
+	val, err := c.redis.Get(ctx, cacheKey).Result()
+	if err != nil {
+		if err == redis.Nil {
+			// 缓存未命中，调用 loader 加载数据
+			result, loadErr := loader()
+			if loadErr != nil {
+				return false, loadErr
+			}
+			// 将加载的结果写入缓存（使用较短的有效期，5分钟）
+			strResult := "false"
+			if result {
+				strResult = "true"
+			}
+			data, _ := json.Marshal(strResult)
+			if setErr := c.redis.Set(ctx, cacheKey, data, 5*time.Minute).Err(); setErr != nil {
+				c.logger.Error("failed to set data permission to cache",
+					zap.String("cache_key", cacheKey),
+					zap.Error(setErr))
+			}
+			return result, nil
+		}
+		c.logger.Error("failed to get data permission from cache",
+			zap.String("cache_key", cacheKey),
+			zap.Error(err))
+		return false, err
+	}
+
+	// 缓存命中，解析结果
+	var strResult string
+	if err := json.Unmarshal([]byte(val), &strResult); err != nil {
+		c.logger.Error("failed to unmarshal data permission",
+			zap.String("cache_key", cacheKey),
+			zap.Error(err))
+		return false, err
+	}
+
+	c.logger.Debug("cache hit for data permission",
+		zap.String("cache_key", cacheKey),
+		zap.String("result", strResult))
+
+	return strResult == "true", nil
+}
+
+// InvalidateUserPermissions 使用户权限缓存失效
+func (c *PermissionCacheImpl) InvalidateUserPermissions(ctx context.Context, userID string) error {
+	// 复用 InvalidateUser 方法
+	return c.InvalidateUser(ctx, userID)
+}
+
+// InvalidateDataPermission 使特定数据权限缓存失效
+func (c *PermissionCacheImpl) InvalidateDataPermission(ctx context.Context, cacheKey string) error {
+	if err := c.redis.Del(ctx, cacheKey).Err(); err != nil {
+		c.logger.Error("failed to delete data permission cache",
+			zap.String("cache_key", cacheKey),
+			zap.Error(err))
+		return err
+	}
+
+	c.logger.Debug("invalidated data permission cache",
+		zap.String("cache_key", cacheKey))
+
+	return nil
+}
+
 // InvalidateRole 失效角色相关缓存
 func (c *PermissionCacheImpl) InvalidateRole(ctx context.Context, roleID string) error {
 	// 失效角色权限缓存
@@ -452,4 +613,13 @@ func (c *PermissionCacheImpl) InvalidateRoleUsers(ctx context.Context, roleID st
 // buildCacheKey 构建缓存键
 func (c *PermissionCacheImpl) buildCacheKey(parts ...string) string {
 	return fmt.Sprintf("%s%s", "coze:studio:", strings.Join(parts, ""))
+}
+
+// GetCacheStats 获取缓存统计信息
+// 注意：由于当前使用Redis客户端，未实现本地统计，返回空统计
+func (c *PermissionCacheImpl) GetCacheStats() PermissionCacheStats {
+	// TODO: 实现缓存统计功能
+	// 可以在 PermissionCacheImpl 中添加统计字段，
+	// 或使用 Redis 的 INFO 命令获取统计信息
+	return PermissionCacheStats{}
 }

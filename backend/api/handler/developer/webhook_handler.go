@@ -96,7 +96,7 @@ func (h *WebhookHandler) ListWebhooks(ctx context.Context, c *app.RequestContext
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -144,7 +144,7 @@ func (h *WebhookHandler) CreateWebhook(ctx context.Context, c *app.RequestContex
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -157,7 +157,7 @@ func (h *WebhookHandler) CreateWebhook(ctx context.Context, c *app.RequestContex
 
 	// 验证URL有效性
 	if !h.isValidWebhookURL(req.WebhookURL) {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookURLInvalid.Code, berrno.ErrWebhookURLInvalid.Message, berrno.ErrWebhookURLInvalid.MessageZH, map[string]interface{}{
+		httputil.BuildErrorResp(c, berrno.ErrWebhookURLInvalid.Int32Code(), berrno.ErrWebhookURLInvalid.Message(), berrno.ErrWebhookURLInvalid.MessageZH(), map[string]interface{}{
 			"webhook_url": req.WebhookURL,
 		})
 		return
@@ -165,7 +165,7 @@ func (h *WebhookHandler) CreateWebhook(ctx context.Context, c *app.RequestContex
 
 	// 验证事件类型有效性
 	if !h.isValidEvents(req.Events) {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookEventInvalid.Code, berrno.ErrWebhookEventInvalid.Message, berrno.ErrWebhookEventInvalid.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookEventInvalid.Int32Code(), berrno.ErrWebhookEventInvalid.Message(), berrno.ErrWebhookEventInvalid.MessageZH(), nil)
 		return
 	}
 
@@ -210,7 +210,7 @@ func (h *WebhookHandler) GetWebhook(ctx context.Context, c *app.RequestContext) 
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -223,7 +223,7 @@ func (h *WebhookHandler) GetWebhook(ctx context.Context, c *app.RequestContext) 
 
 	// 验证租户隔离
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -242,7 +242,7 @@ func (h *WebhookHandler) UpdateWebhook(ctx context.Context, c *app.RequestContex
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -254,7 +254,7 @@ func (h *WebhookHandler) UpdateWebhook(ctx context.Context, c *app.RequestContex
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -267,13 +267,13 @@ func (h *WebhookHandler) UpdateWebhook(ctx context.Context, c *app.RequestContex
 
 	// 验证URL有效性（如果提供）
 	if req.WebhookURL != nil && !h.isValidWebhookURL(*req.WebhookURL) {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookURLInvalid.Code, berrno.ErrWebhookURLInvalid.Message, berrno.ErrWebhookURLInvalid.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookURLInvalid.Int32Code(), berrno.ErrWebhookURLInvalid.Message(), berrno.ErrWebhookURLInvalid.MessageZH(), nil)
 		return
 	}
 
 	// 验证事件类型有效性（如果提供）
 	if req.Events != nil && !h.isValidEvents(*req.Events) {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookEventInvalid.Code, berrno.ErrWebhookEventInvalid.Message, berrno.ErrWebhookEventInvalid.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookEventInvalid.Int32Code(), berrno.ErrWebhookEventInvalid.Message(), berrno.ErrWebhookEventInvalid.MessageZH(), nil)
 		return
 	}
 
@@ -308,7 +308,7 @@ func (h *WebhookHandler) DeleteWebhook(ctx context.Context, c *app.RequestContex
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -320,7 +320,7 @@ func (h *WebhookHandler) DeleteWebhook(ctx context.Context, c *app.RequestContex
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -348,7 +348,7 @@ func (h *WebhookHandler) TestWebhook(ctx context.Context, c *app.RequestContext)
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -360,7 +360,7 @@ func (h *WebhookHandler) TestWebhook(ctx context.Context, c *app.RequestContext)
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -409,7 +409,7 @@ func (h *WebhookHandler) PauseWebhook(ctx context.Context, c *app.RequestContext
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -421,13 +421,13 @@ func (h *WebhookHandler) PauseWebhook(ctx context.Context, c *app.RequestContext
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查当前状态
 	if !webhook.IsActive() {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, "Webhook is already paused", "Webhook已暂停", nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), "Webhook is already paused", "Webhook已暂停", nil)
 		return
 	}
 
@@ -456,7 +456,7 @@ func (h *WebhookHandler) ResumeWebhook(ctx context.Context, c *app.RequestContex
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -468,13 +468,13 @@ func (h *WebhookHandler) ResumeWebhook(ctx context.Context, c *app.RequestContex
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查当前状态
 	if webhook.IsActive() {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, "Webhook is already active", "Webhook已激活", nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), "Webhook is already active", "Webhook已激活", nil)
 		return
 	}
 
@@ -503,7 +503,7 @@ func (h *WebhookHandler) GetWebhookStats(ctx context.Context, c *app.RequestCont
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -515,7 +515,7 @@ func (h *WebhookHandler) GetWebhookStats(ctx context.Context, c *app.RequestCont
 	}
 
 	if webhook == nil || webhook.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Code, berrno.ErrWebhookNotFound.Message, berrno.ErrWebhookNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrWebhookNotFound.Int32Code(), berrno.ErrWebhookNotFound.Message(), berrno.ErrWebhookNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -541,7 +541,7 @@ func (h *WebhookHandler) GetProjectWebhooks(ctx context.Context, c *app.RequestC
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 

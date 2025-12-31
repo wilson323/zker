@@ -86,16 +86,16 @@ func (c *CreateConversation) Invoke(ctx context.Context, input map[string]any) (
 		})
 	)
 	if agentID != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, create conversation is not available"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, create conversation is not available"))
 	}
 
 	if appID == nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, errors.New("create conversation node, app id is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, errors.New("create conversation node, app id is required"))
 	}
 
 	conversationName, ok := input["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversation name is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversation name is required"))
 	}
 
 	template, existed, err := workflow.GetRepository().GetConversationTemplate(ctx, env, vo.GetConversationTemplatePolicy{

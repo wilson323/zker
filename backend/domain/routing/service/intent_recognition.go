@@ -20,11 +20,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"sort"
 
 	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"go.uber.org/zap"
 )
@@ -93,7 +93,7 @@ func NewIntentRecognitionService(
 // RecognizeIntent 识别意图
 func (s *IntentRecognitionService) RecognizeIntent(ctx context.Context, tenantID, text string) (*entity.IntentRecognitionResult, error) {
 	if text == "" {
-		return nil, errno.ROUTING201001.WithDetail("reason", "empty text")
+		return nil, errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "empty text"))
 	}
 
 	// 获取租户的所有激活意图
@@ -102,11 +102,11 @@ func (s *IntentRecognitionService) RecognizeIntent(ctx context.Context, tenantID
 		s.logger.Error("failed to get active intents",
 			zap.String("tenant_id", tenantID),
 			zap.Error(err))
-		return nil, errno.ROUTING500002.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrIntentRecognitionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	if len(intents) == 0 {
-		return nil, errno.ROUTING404001.WithDetail("reason", "no active intents")
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "no active intents"))
 	}
 
 	// 根据策略识别意图
@@ -119,7 +119,7 @@ func (s *IntentRecognitionService) RecognizeIntent(ctx context.Context, tenantID
 	case "hybrid":
 		result, err = s.recognizeByHybrid(ctx, tenantID, text, intents)
 	default:
-		return nil, errno.ROUTING201001.WithDetail("reason", "unknown recognition strategy")
+		return nil, errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "unknown recognition strategy"))
 	}
 
 	if err != nil {
@@ -128,7 +128,7 @@ func (s *IntentRecognitionService) RecognizeIntent(ctx context.Context, tenantID
 
 	// 检查置信度是否达标
 	if result.Confidence < 0.5 {
-		return nil, errno.ROUTING500002.WithDetail("reason", "low confidence", "confidence", result.Confidence)
+		return nil, errorx.New(errno.ErrIntentRecognitionFailedCode, errorx.KV("reason", "low confidence"), errorx.KV("confidence", fmt.Sprintf("%.2f", result.Confidence)))
 	}
 
 	return result, nil
@@ -158,7 +158,7 @@ func (s *IntentRecognitionService) TrainIntentModel(ctx context.Context, intentI
 	// 1. 验证意图是否存在
 	intent, err := s.intentRepo.GetByID(ctx, intentID)
 	if err != nil {
-		return errno.ROUTING404001.WithDetail("reason", "intent not found", "intent_id", intentID)
+		return errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "intent not found"), errorx.KV("intent_id", intentID))
 	}
 
 	// 2. 删除旧样本
@@ -233,7 +233,7 @@ func (s *IntentRecognitionService) recognizeByLLM(ctx context.Context, text stri
 	// 调用LLM
 	response, err := s.llmClient.GenerateText(ctx, prompt)
 	if err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrIntentRecognitionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	// 解析LLM响应
@@ -243,7 +243,7 @@ func (s *IntentRecognitionService) recognizeByLLM(ctx context.Context, text stri
 		Reasoning  string  `json:"reasoning"`
 	}
 	if err := json.Unmarshal([]byte(response), &llmResult); err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", "failed to parse llm response")
+		return nil, errorx.New(errno.ErrIntentRecognitionFailedCode, errorx.KV("error", "failed to parse llm response"))
 	}
 
 	// 查找匹配的意图
@@ -256,7 +256,7 @@ func (s *IntentRecognitionService) recognizeByLLM(ctx context.Context, text stri
 	}
 
 	if matchedIntent == nil {
-		return nil, errno.ROUTING404001.WithDetail("reason", "intent not found", "intent_name", llmResult.IntentName)
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "intent not found"), errorx.KV("intent_name", llmResult.IntentName))
 	}
 
 	return &entity.IntentRecognitionResult{
@@ -274,17 +274,17 @@ func (s *IntentRecognitionService) recognizeByVector(ctx context.Context, tenant
 	// 1. 生成文本的向量嵌入
 	embedding, err := s.llmClient.GenerateEmbedding(ctx, text)
 	if err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrIntentRecognitionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	// 2. 向量相似度搜索
 	results, err := s.vectorStore.Search(ctx, embedding, 10)
 	if err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrIntentRecognitionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	if len(results) == 0 {
-		return nil, errno.ROUTING404001.WithDetail("reason", "no similar vectors found")
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "no similar vectors found"))
 	}
 
 	// 3. 按意图分组统计得分
@@ -323,7 +323,7 @@ func (s *IntentRecognitionService) recognizeByVector(ctx context.Context, tenant
 	}
 
 	if matchedIntent == nil {
-		return nil, errno.ROUTING404001.WithDetail("reason", "intent not found")
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "intent not found"))
 	}
 
 	return &entity.IntentRecognitionResult{

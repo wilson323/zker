@@ -21,12 +21,13 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // TemporaryGrantService 临时授权服务
@@ -69,13 +70,17 @@ func (s *TemporaryGrantService) CreateTemporaryGrant(
 	// 1. 生成授权码
 	grantCode, err := s.generateGrantCode()
 	if err != nil {
-		return nil, fmt.Errorf("生成授权码失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "生成授权码失败"),
+            )
 	}
 
 	// 2. 序列化权限数据
 	permDataJSON, err := json.Marshal(req.PermissionData)
 	if err != nil {
-		return nil, fmt.Errorf("序列化权限数据失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "序列化权限数据失败"),
+            )
 	}
 
 	// 3. 计算过期时间
@@ -96,12 +101,16 @@ func (s *TemporaryGrantService) CreateTemporaryGrant(
 
 	// 反序列化权限数据到实体
 	if err := json.Unmarshal(permDataJSON, &grant.PermissionData); err != nil {
-		return nil, fmt.Errorf("反序列化权限数据失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "反序列化权限数据失败"),
+            )
 	}
 
 	// 5. 保存到数据库
 	if err := s.grantRepo.Create(ctx, grant); err != nil {
-		return nil, fmt.Errorf("保存临时授权失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "保存临时授权失败"),
+            )
 	}
 
 	// 6. 记录历史
@@ -119,28 +128,40 @@ func (s *TemporaryGrantService) UseTemporaryGrant(
 	// 1. 查询临时授权
 	grant, err := s.grantRepo.GetByGrantCode(ctx, grantCode)
 	if err != nil {
-		return nil, fmt.Errorf("查询授权码失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "查询授权码失败"),
+            )
 	}
 	if grant == nil {
-		return nil, fmt.Errorf("授权码不存在")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码不存在"),
+            )
 	}
 
 	// 2. 验证授权有效性
 	if !grant.IsValid() {
 		if grant.IsExpired() {
-			return nil, fmt.Errorf("授权码已过期")
+			return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码已过期"),
+            )
 		}
 		if grant.IsUsed {
-			return nil, fmt.Errorf("授权码已被使用")
+			return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码已被使用"),
+            )
 		}
 		if grant.IsRevoked {
-			return nil, fmt.Errorf("授权码已被撤销")
+			return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码已被撤销"),
+            )
 		}
 	}
 
 	// 3. 验证被授权人
 	if grant.GranteeID != userID {
-		return nil, fmt.Errorf("授权码不属于当前用户")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码不属于当前用户"),
+            )
 	}
 
 	// 4. 根据权限类型创建UserRole
@@ -149,13 +170,21 @@ func (s *TemporaryGrantService) UseTemporaryGrant(
 		return s.useRoleGrant(ctx, grant)
 
 	case entity.PermissionTypeDataPermission:
-		return nil, fmt.Errorf("数据权限临时授予功能暂未实现")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "数据权限临时授予功能暂未实现"),
+            )
 
 	case entity.PermissionTypeFieldPermission:
-		return nil, fmt.Errorf("字段权限临时授予功能暂未实现")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "字段权限临时授予功能暂未实现"),
+            )
 
 	default:
-		return nil, fmt.Errorf("无效的权限类型: %s", grant.PermissionType)
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("field", "permission_type"),
+                errorx.KV("value", string(grant.PermissionType)),
+                errorx.KV("reason", "invalid permission type"),
+            )
 	}
 }
 
@@ -167,16 +196,22 @@ func (s *TemporaryGrantService) useRoleGrant(
 	// 1. 解析权限数据
 	roleID, ok := grant.PermissionData["role_id"].(string)
 	if !ok || roleID == "" {
-		return nil, fmt.Errorf("无效的角色ID")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "无效的角色ID"),
+            )
 	}
 
 	// 2. 检查是否已经分配该角色
 	exists, err := s.userRoleRepo.Exists(ctx, grant.GranteeID, grant.TenantID, roleID)
 	if err != nil {
-		return nil, fmt.Errorf("检查角色分配失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "检查角色分配失败"),
+            )
 	}
 	if exists {
-		return nil, fmt.Errorf("用户已拥有该角色")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "用户已拥有该角色"),
+            )
 	}
 
 	// 3. 创建UserRole（带过期时间）
@@ -190,13 +225,17 @@ func (s *TemporaryGrantService) useRoleGrant(
 
 	// 4. 保存UserRole
 	if err := s.userRoleRepo.Create(ctx, userRole); err != nil {
-		return nil, fmt.Errorf("分配角色失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "分配角色失败"),
+            )
 	}
 
 	// 5. 标记授权码为已使用
 	grant.MarkAsUsed()
 	if err := s.grantRepo.Update(ctx, grant); err != nil {
-		return nil, fmt.Errorf("更新授权码状态失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "更新授权码状态失败"),
+            )
 	}
 
 	// 6. 记录历史
@@ -215,26 +254,36 @@ func (s *TemporaryGrantService) RevokeTemporaryGrant(
 	// 1. 查询临时授权
 	grant, err := s.grantRepo.GetByGrantCode(ctx, grantCode)
 	if err != nil {
-		return fmt.Errorf("查询授权码失败: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "查询授权码失败"),
+            )
 	}
 	if grant == nil {
-		return fmt.Errorf("授权码不存在")
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码不存在"),
+            )
 	}
 
 	// 2. 检查是否已使用
 	if grant.IsUsed {
-		return fmt.Errorf("授权码已被使用，无法撤销")
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码已被使用，无法撤销"),
+            )
 	}
 
 	// 3. 检查是否已撤销
 	if grant.IsRevoked {
-		return fmt.Errorf("授权码已被撤销")
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码已被撤销"),
+            )
 	}
 
 	// 4. 标记为已撤销
 	grant.MarkAsRevoked(reason)
 	if err := s.grantRepo.Update(ctx, grant); err != nil {
-		return fmt.Errorf("撤销授权码失败: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "撤销授权码失败"),
+            )
 	}
 
 	// 5. 记录历史
@@ -250,7 +299,9 @@ func (s *TemporaryGrantService) CleanupExpiredGrants(ctx context.Context) (int64
 	// 1. 查询所有过期的授权
 	expiredGrants, err := s.grantRepo.ListExpired(ctx, now)
 	if err != nil {
-		return 0, fmt.Errorf("查询过期授权失败: %w", err)
+		return 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "查询过期授权失败"),
+            )
 	}
 
 	count := int64(len(expiredGrants))
@@ -273,7 +324,9 @@ func (s *TemporaryGrantService) CleanupExpiredGrants(ctx context.Context) (int64
 	// 3. 删除过期的临时授权
 	deletedCount, err := s.grantRepo.DeleteExpired(ctx, now)
 	if err != nil {
-		return count, fmt.Errorf("删除过期授权失败: %w", err)
+		return count, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "删除过期授权失败"),
+            )
 	}
 
 	return count + deletedCount, nil
@@ -286,10 +339,14 @@ func (s *TemporaryGrantService) GetTemporaryGrant(
 ) (*entity.TemporaryGrant, error) {
 	grant, err := s.grantRepo.GetByGrantCode(ctx, grantCode)
 	if err != nil {
-		return nil, fmt.Errorf("查询授权码失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "查询授权码失败"),
+            )
 	}
 	if grant == nil {
-		return nil, fmt.Errorf("授权码不存在")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "授权码不存在"),
+            )
 	}
 
 	return grant, nil
@@ -302,7 +359,9 @@ func (s *TemporaryGrantService) ListTemporaryGrants(
 ) ([]*entity.TemporaryGrant, int64, error) {
 	grants, total, err := s.grantRepo.List(ctx, filter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("查询临时授权列表失败: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "查询临时授权列表失败"),
+            )
 	}
 
 	return grants, total, nil
@@ -315,7 +374,9 @@ func (s *TemporaryGrantService) GetGrantHistory(
 ) ([]*entity.TemporaryGrantHistory, error) {
 	histories, err := s.historyRepo.GetByGrantCode(ctx, grantCode)
 	if err != nil {
-		return nil, fmt.Errorf("查询授权历史失败: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "查询授权历史失败"),
+            )
 	}
 
 	return histories, nil
@@ -325,7 +386,9 @@ func (s *TemporaryGrantService) GetGrantHistory(
 func (s *TemporaryGrantService) CleanupExpiredHistory(ctx context.Context, before int64) (int64, error) {
 	count, err := s.historyRepo.DeleteExpired(ctx, before)
 	if err != nil {
-		return 0, fmt.Errorf("清理过期历史失败: %w", err)
+		return 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "清理过期历史失败"),
+            )
 	}
 
 	return count, nil

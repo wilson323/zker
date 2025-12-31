@@ -40,7 +40,7 @@ func (c *cancelSignalStoreImpl) SetWorkflowCancelFlag(ctx context.Context, wfExe
 	// set a kv to redis to indicate cancellation status
 	err = c.redis.Set(ctx, statusKey, "cancelled", expiration).Err()
 	if err != nil {
-		return vo.WrapError(errno.ErrRedisError,
+		return vo.WrapError(errno.DeprecatedErrRedisError,
 			fmt.Errorf("failed to set workflow cancel status for wfExeID %d after publishing signal: %w", wfExeID, err))
 	}
 
@@ -54,7 +54,7 @@ func (c *cancelSignalStoreImpl) GetWorkflowCancelFlag(ctx context.Context, wfExe
 	// Check if the key exists in Redis
 	count, err := c.redis.Exists(ctx, key).Result()
 	if err != nil {
-		return false, vo.WrapError(errno.ErrRedisError, fmt.Errorf("failed to check cancellation status in Redis: %w", err))
+		return false, vo.WrapError(errno.DeprecatedErrRedisError, fmt.Errorf("failed to check cancellation status in Redis: %w", err))
 	}
 
 	// If key exists (count == 1), return true; otherwise return false

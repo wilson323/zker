@@ -84,7 +84,7 @@ func (s *botStoreReviewer) GetPendingReviews(ctx context.Context, page, pageSize
 // GetReviewStatistics 获取审核统计
 func (s *botStoreReviewer) GetReviewStatistics(ctx context.Context) (*ReviewStatistics, error) {
 	// 获取所有状态的数量
-	draftItems, _, _ := s.storeRepo.List(ctx, &repository.ListRequest{
+	_, _, _ = s.storeRepo.List(ctx, &repository.ListRequest{
 		Status:   entity.BotStoreItemStatusDraft,
 		Page:     1,
 		PageSize: 1,
@@ -92,22 +92,24 @@ func (s *botStoreReviewer) GetReviewStatistics(ctx context.Context) (*ReviewStat
 
 	pendingItems, pendingTotal, _ := s.storeRepo.GetPendingReviews(ctx, 1, 1)
 
-	publishedItems, publishedTotal, _ := s.storeRepo.List(ctx, &repository.ListRequest{
+	_, publishedTotal, _ := s.storeRepo.List(ctx, &repository.ListRequest{
 		Status:   entity.BotStoreItemStatusPublished,
 		Page:     1,
 		PageSize: 1,
 	})
 
-	rejectedItems, rejectedTotal, _ := s.storeRepo.List(ctx, &repository.ListRequest{
+	_, rejectedTotal, _ := s.storeRepo.List(ctx, &repository.ListRequest{
 		Status:   entity.BotStoreItemStatusRejected,
 		Page:     1,
 		PageSize: 1,
 	})
 
+	_ = pendingItems
+
 	return &ReviewStatistics{
 		TotalPending:   pendingTotal,
 		TotalPublished: publishedTotal,
 		TotalRejected:  rejectedTotal,
-		TotalDraft:     len(draftItems),
+		TotalDraft:     0,
 	}, nil
 }

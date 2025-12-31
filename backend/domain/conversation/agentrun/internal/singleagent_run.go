@@ -438,7 +438,7 @@ func transformEventMap(eventType singleagent.EventType) (message.MessageType, er
 	case singleagent.EventTypeOfInterrupt:
 		return message.MessageTypeInterrupt, nil
 	}
-	return eType, errorx.New(errno.ErrReplyUnknowEventType)
+	return eType, errorx.New(errno.DeprecatedErrReplyUnknowEventType)
 }
 
 func (art *AgentRuntime) saveReasoningContent(ctx context.Context, firstAnswerMsg *msgEntity.Message, reasoningContent string) {

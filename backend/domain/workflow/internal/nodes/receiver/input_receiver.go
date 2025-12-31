@@ -133,7 +133,7 @@ func (i *InputReceiver) Invoke(ctx context.Context, _ map[string]any) (map[strin
 
 		eventID, err := workflow.GetRepository().GenID(ctx)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrIDGenError, err)
+			return nil, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 		}
 		return nil, compose.NewInterruptAndRerunErr(&entity.InterruptEvent{
 			ID:            eventID,
@@ -215,7 +215,7 @@ func (i *InputReceiver) ToCallbackOutput(ctx context.Context, output map[string]
 
 	var wfe vo.WorkflowError
 	if warnings, ok := ctxcache.Get[nodes.ConversionWarnings](ctx, warningKey); ok {
-		wfe = vo.WrapWarn(errno.ErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
+		wfe = vo.WrapWarn(errno.DeprecatedErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
 	}
 	return &nodes.StructuredCallbackOutput{
 		Output: output,

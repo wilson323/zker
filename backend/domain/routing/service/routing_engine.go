@@ -267,3 +267,24 @@ func (r *ScoreBasedRouter) GetRoutingHistory(ctx context.Context, tenantID strin
 	logs, _, err := r.logRepo.List(ctx, filter)
 	return logs, err
 }
+
+// RoutingEngine 路由引擎类型别名
+type RoutingEngine = ScoreBasedRouter
+
+// NewRoutingEngine 创建路由引擎实例（扩展版本）
+func NewRoutingEngine(
+	intentMatcher IntentMatcher,
+	serviceRegistry ServiceRegistry,
+	loadMonitor LoadMonitor,
+	logRepo repository.RoutingLogRepository,
+	intentWeight, healthWeight, loadWeight, costWeight, regionWeight float64,
+) *RoutingEngine {
+	engine := &ScoreBasedRouter{
+		intentMatcher:   intentMatcher,
+		serviceRegistry: serviceRegistry,
+		loadMonitor:     loadMonitor,
+		logRepo:         logRepo,
+	}
+	engine.SetWeights(intentWeight, healthWeight, loadWeight, costWeight, regionWeight)
+	return engine
+}

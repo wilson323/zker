@@ -79,10 +79,10 @@ func (c *ConversationList) Invoke(ctx context.Context, _ map[string]any) (map[st
 		version     = execCtx.ExeCfg.Version
 	)
 	if agentID != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, query conversation list is not available"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, query conversation list is not available"))
 	}
 	if appID == nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("query conversation list node, app id is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("query conversation list node, app id is required"))
 	}
 
 	templates, err := workflow.GetRepository().ListConversationTemplate(ctx, env, &vo.ListConversationTemplatePolicy{

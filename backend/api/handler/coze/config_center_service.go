@@ -24,6 +24,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/config"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/domain/config/service"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 )
@@ -68,7 +69,7 @@ func CreateConfig(ctx context.Context, c *app.RequestContext) {
 	resp := &config.CreateConfigResp{
 		ConfigID: result.ConfigID,
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetConfig 获取配置
@@ -97,7 +98,7 @@ func GetConfig(ctx context.Context, c *app.RequestContext) {
 		Description: result.Description,
 		UpdatedAt:   result.UpdatedAt.Format("2006-01-02 15:04:05"),
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateConfig 更新配置
@@ -132,7 +133,7 @@ func UpdateConfig(ctx context.Context, c *app.RequestContext) {
 	resp := &config.UpdateConfigResp{
 		Success: true,
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteConfig 删除配置
@@ -154,7 +155,7 @@ func DeleteConfig(ctx context.Context, c *app.RequestContext) {
 	resp := &config.DeleteConfigResp{
 		Success: true,
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListConfigs 列出租户所有配置
@@ -190,7 +191,7 @@ func ListConfigs(ctx context.Context, c *app.RequestContext) {
 		Configs: items,
 		Total:   len(items),
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetConfigHistory 获取配置变更历史
@@ -238,7 +239,7 @@ func GetConfigHistory(ctx context.Context, c *app.RequestContext) {
 		History: items,
 		Total:   len(items),
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // RollbackConfig 回滚配置到指定版本
@@ -272,5 +273,5 @@ func RollbackConfig(ctx context.Context, c *app.RequestContext) {
 	resp := &config.RollbackConfigResp{
 		Success: true,
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

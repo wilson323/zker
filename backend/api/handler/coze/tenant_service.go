@@ -53,8 +53,10 @@ func CreateTenant(ctx context.Context, c *app.RequestContext) {
 // @router /api/tenants/:tenant_id [GET]
 func GetTenant(ctx context.Context, c *app.RequestContext) {
 	tenantID := c.Param("tenant_id")
-	if tenantID == "" {
-		invalidParamRequestResponse(c, "tenant_id is required")
+
+	// ✅ 使用验证函数替代简单的空值检查
+	if err := ValidateTenantID(tenantID); err != nil {
+		invalidParamRequestResponse(c, err.Error())
 		return
 	}
 
@@ -71,8 +73,10 @@ func GetTenant(ctx context.Context, c *app.RequestContext) {
 // @router /api/tenants/:tenant_id [PUT]
 func UpdateTenant(ctx context.Context, c *app.RequestContext) {
 	tenantID := c.Param("tenant_id")
-	if tenantID == "" {
-		invalidParamRequestResponse(c, "tenant_id is required")
+
+	// ✅ 使用验证函数
+	if err := ValidateTenantID(tenantID); err != nil {
+		invalidParamRequestResponse(c, err.Error())
 		return
 	}
 
@@ -97,8 +101,10 @@ func UpdateTenant(ctx context.Context, c *app.RequestContext) {
 // @router /api/tenants/:tenant_id [DELETE]
 func DeleteTenant(ctx context.Context, c *app.RequestContext) {
 	tenantID := c.Param("tenant_id")
-	if tenantID == "" {
-		invalidParamRequestResponse(c, "tenant_id is required")
+
+	// ✅ 使用验证函数
+	if err := ValidateTenantID(tenantID); err != nil {
+		invalidParamRequestResponse(c, err.Error())
 		return
 	}
 

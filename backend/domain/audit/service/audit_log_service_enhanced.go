@@ -18,12 +18,15 @@ package service
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/olivere/elastic/v7"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/coze-dev/coze-studio/backend/domain/audit/entity"
 	auditrepo "github.com/coze-dev/coze-studio/backend/domain/audit/repository"
@@ -148,20 +151,20 @@ func (s *AuditLogServiceEnhanced) LogAction(ctx context.Context, action *AuditAc
 
 	// 脱敏敏感数据
 	if err := s.maskSensitiveData(log); err != nil {
-		return errorx.Wrapf(err, errno.DataMaskingFailed)
+		return errorx.WrapByCode(err, errno.DataMaskingFailed)
 	}
 
 	// 生成数字签名
 	signature, err := s.generateSignature(log)
 	if err != nil {
-		return errorx.Wrapf(err, errno.SignatureGenerationFailed)
+		return errorx.WrapByCode(err, errno.SignatureGenerationFailed)
 	}
 	log.Signature = signature
 
 	// 保存到数据库
 	if err := s.repo.Create(ctx, log); err != nil {
 		s.logger.Error("Failed to save audit log to database", zap.Error(err))
-		return errorx.Wrapf(err, errno.AuditLogSaveFailed)
+		return errorx.WrapByCode(err, errno.AuditLogSaveFailed)
 	}
 
 	// 异步索引到Elasticsearch
@@ -182,7 +185,7 @@ func (s *AuditLogServiceEnhanced) QueryLogs(ctx context.Context, req *QueryLogsR
 
 	// 验证请求
 	if err := req.Validate(); err != nil {
-		return nil, errorx.Wrapf(err, errno.InvalidRequest)
+		return nil, errorx.WrapByCode(err, errno.InvalidRequest)
 	}
 
 	// 构建过滤器
@@ -208,7 +211,7 @@ func (s *AuditLogServiceEnhanced) QueryLogs(ctx context.Context, req *QueryLogsR
 	// 查询
 	logs, total, err := s.repo.Query(ctx, filter)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	response := &AuditLogsResponse{
@@ -216,7 +219,7 @@ func (s *AuditLogServiceEnhanced) QueryLogs(ctx context.Context, req *QueryLogsR
 		Total:      total,
 		Page:       req.Page,
 		PageSize:   req.PageSize,
-		TotalPages: (total + int64(req.PageSize) - 1) / int64(req.PageSize),
+		TotalPages: int((total + int64(req.PageSize) - 1) / int64(req.PageSize)),
 	}
 
 	return response, nil
@@ -254,7 +257,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsByUser(
 
 	logs, _, err := s.repo.Query(ctx, filter)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	return logs, nil
@@ -280,7 +283,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsByResource(
 	}
 
 	filter := &entity.LogFilter{
-		Resource:   entity.AuditResource(resourceType),
+		Resources:  []entity.AuditResource{entity.AuditResource(resourceType)},
 		ResourceID: resourceID,
 		Page:       page,
 		PageSize:   pageSize,
@@ -290,7 +293,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsByResource(
 
 	logs, _, err := s.repo.Query(ctx, filter)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	return logs, nil
@@ -325,7 +328,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsByTimeRange(
 
 	logs, _, err := s.repo.Query(ctx, filter)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	return logs, nil
@@ -350,12 +353,14 @@ func (s *AuditLogServiceEnhanced) ExportLogs(ctx context.Context, req *ExportReq
 	// 查询日志
 	logs, total, err := s.repo.Query(ctx, filter)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	// 检查导出行数限制
 	if total > int64(req.MaxRows) {
-		return nil, errorx.New(errno.ExportLimitExceeded, fmt.Sprintf("Export limit exceeded: %d > %d", total, req.MaxRows))
+		return nil, errorx.New(errno.ExportLimitExceeded,
+			errorx.KVf("requested", "%d", total),
+			errorx.KVf("maximum", "%d", req.MaxRows))
 	}
 
 	// 根据格式生成导出文件
@@ -374,7 +379,9 @@ func (s *AuditLogServiceEnhanced) ExportLogs(ctx context.Context, req *ExportReq
 		data, fileName, err = s.exportToJSON(logs)
 		contentType = "application/json"
 	default:
-		return nil, errorx.New(errno.InvalidExportFormat, "Unsupported export format: "+req.Format)
+		return nil, errorx.New(errno.InvalidExportFormat,
+			errorx.KVf("format", "%s", req.Format),
+			errorx.Extra("supported_formats", "csv, excel, json"))
 	}
 
 	if err != nil {
@@ -382,15 +389,16 @@ func (s *AuditLogServiceEnhanced) ExportLogs(ctx context.Context, req *ExportReq
 	}
 
 	// 生成导出结果
+	fileID := generateFileID()
 	result := &ExportResponse{
-		FileID:       generateFileID(),
+		FileID:       fileID,
 		FileName:     fileName,
 		FileSize:     int64(len(data)),
 		RecordCount:  len(logs),
 		Format:       req.Format,
 		ContentType:  contentType,
 		Data:         data,
-		DownloadURL:  fmt.Sprintf("/api/audit/download/%s", result.FileID),
+		DownloadURL:  fmt.Sprintf("/api/audit/download/%s", fileID),
 		ExpiresAt:    time.Now().Add(24 * time.Hour),
 		CreatedAt:    time.Now(),
 	}
@@ -410,7 +418,7 @@ func (s *AuditLogServiceEnhanced) GetAuditStatistics(
 
 	stats, err := s.repo.GetStatistics(ctx, tenantID, timeRange.StartTime, timeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AuditStatisticsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditStatisticsQueryFailed)
 	}
 
 	return &AuditStatistics{
@@ -433,7 +441,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsFullText(
 	req *FullTextSearchRequest,
 ) (*AuditLogsResponse, error) {
 	if !s.enableES || s.esClient == nil {
-		return nil, errorx.New(errno.ElasticsearchNotAvailable, "Elasticsearch is not enabled")
+		return nil, errorx.New(errno.ElasticsearchNotAvailable)
 	}
 
 	s.logger.Info("Full text searching audit logs",
@@ -472,7 +480,7 @@ func (s *AuditLogServiceEnhanced) QueryLogsFullText(
 
 	if err != nil {
 		s.logger.Error("Elasticsearch search failed", zap.Error(err))
-		return nil, errorx.Wrapf(err, errno.AuditLogQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.AuditLogQueryFailed)
 	}
 
 	// 解析结果
@@ -739,8 +747,4 @@ type FullTextSearchRequest struct {
 	PageSize   int       `json:"page_size" binding:"min=1,max=1000"`
 }
 
-import (
-	"crypto/sha256"
-	"encoding/hex"
-	"gorm.io/gorm"
-)
+// hashSHA256 计算SHA256哈希

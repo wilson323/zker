@@ -50,7 +50,7 @@ func Health(ctx context.Context, c *app.RequestContext) {
 // Live 存活检查
 // @router /api/health/live [GET]
 func Live(ctx context.Context, c *app.RequestContext) {
-	c.JSON(http.StatusOK, &health.LiveResponse{
+	httputil.BuildSuccessResp(c, &health.LiveResponse{
 		Status:  "ok",
 		Message: "Service is alive",
 	})
@@ -68,7 +68,7 @@ func Ready(ctx context.Context, c *app.RequestContext) {
 		status = "not_ready"
 	}
 
-	c.JSON(http.StatusOK, &health.ReadyResponse{
+	httputil.BuildSuccessResp(c, &health.ReadyResponse{
 		Status: status,
 		Checks: checks,
 	})
@@ -99,7 +99,7 @@ func Detailed(ctx context.Context, c *app.RequestContext) {
 		overallStatus = "degraded"
 	}
 
-	c.JSON(http.StatusOK, &health.DetailedHealthResponse{
+	httputil.BuildSuccessResp(c, &health.DetailedHealthResponse{
 		Status:     overallStatus,
 		Timestamp:  time.Now().UnixMilli(),
 		Components: detailedHealth.Components,

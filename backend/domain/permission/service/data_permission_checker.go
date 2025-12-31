@@ -26,6 +26,8 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // DataPermissionLevel 5级数据权限级别
@@ -128,7 +130,9 @@ func (c *DataPermissionCheckerImpl) Filter(
 		// 本部门及子部门
 		deptIDs, err := c.GetAccessibleDepartmentIDs(ctx, userID, level)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get department IDs: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get department IDs"),
+            )
 		}
 
 		if len(deptIDs) == 0 {
@@ -157,7 +161,9 @@ func (c *DataPermissionCheckerImpl) Filter(
 		// 仅本部门
 		userDepts, err := c.userDeptRepo.GetByUser(ctx, userID, "")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user departments: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get user departments"),
+            )
 		}
 
 		if len(userDepts) == 0 {
@@ -198,7 +204,9 @@ func (c *DataPermissionCheckerImpl) Filter(
 		// 自定义过滤：从角色权限中获取custom_filter
 		roles, err := c.userRoleRepo.GetRolesByUser(ctx, userID, "")
 		if err != nil {
-			return nil, fmt.Errorf("failed to get user roles: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get user roles"),
+            )
 		}
 
 		for _, role := range roles {
@@ -226,7 +234,10 @@ func (c *DataPermissionCheckerImpl) Filter(
 		}, nil
 
 	default:
-		return nil, fmt.Errorf("unknown permission level: %d", level)
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "unknown permission level"),
+                errorx.KV("level", fmt.Sprintf("%d", level)),
+            )
 	}
 }
 
@@ -259,7 +270,10 @@ func (c *DataPermissionCheckerImpl) CheckAccess(
 		return c.checkCustomFilter(ctx, userID, resourceID, resourceType)
 
 	default:
-		return false, fmt.Errorf("unknown permission level: %d", level)
+		return false, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "unknown permission level"),
+                errorx.KV("level", fmt.Sprintf("%d", level)),
+            )
 	}
 }
 
@@ -285,7 +299,9 @@ func (c *DataPermissionCheckerImpl) GetAccessibleResourceIDs(
 	// 执行查询
 	var resourceIDs []string
 	if err := query.Pluck("id", &resourceIDs).Error; err != nil {
-		return nil, fmt.Errorf("failed to query resource IDs: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to query resource IDs"),
+            )
 	}
 
 	return resourceIDs, nil
@@ -300,7 +316,9 @@ func (c *DataPermissionCheckerImpl) GetAccessibleDepartmentIDs(
 	// 获取用户的部门
 	userDepts, err := c.userDeptRepo.GetByUser(ctx, userID, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user departments: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get user departments"),
+            )
 	}
 
 	deptIDs := make([]string, 0)
@@ -333,7 +351,9 @@ func (c *DataPermissionCheckerImpl) checkDepartmentAccess(
 	// 1. 获取用户的部门ID列表
 	deptIDs, err := c.userDeptRepo.GetByUser(ctx, userID, "")
 	if err != nil {
-		return false, fmt.Errorf("failed to get user departments: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "get user departments"),
+            )
 	}
 
 	if len(deptIDs) == 0 {
@@ -348,7 +368,9 @@ func (c *DataPermissionCheckerImpl) checkDepartmentAccess(
 		Scan(&resourceDeptID).Error
 
 	if err != nil {
-		return false, fmt.Errorf("failed to get resource department: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "get resource department"),
+            )
 	}
 
 	if resourceDeptID == "" {
@@ -391,7 +413,9 @@ func (c *DataPermissionCheckerImpl) checkOwnership(
 		Scan(&creatorID).Error
 
 	if err != nil {
-		return false, fmt.Errorf("failed to check ownership: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "check ownership"),
+            )
 	}
 
 	return creatorID == userID, nil
@@ -405,7 +429,9 @@ func (c *DataPermissionCheckerImpl) checkCustomFilter(
 	// 获取自定义过滤器
 	roles, err := c.userRoleRepo.GetRolesByUser(ctx, userID, "")
 	if err != nil {
-		return false, fmt.Errorf("failed to get user roles: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "get user roles"),
+            )
 	}
 
 	for _, role := range roles {

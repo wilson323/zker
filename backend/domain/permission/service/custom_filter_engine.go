@@ -22,6 +22,9 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // CustomFilterEngine 自定义过滤器引擎
@@ -50,7 +53,9 @@ func (e *CustomFilterEngine) Match(ctx context.Context, customFilterJSON string,
 
 	var conditions []FilterCondition
 	if err := json.Unmarshal([]byte(customFilterJSON), &conditions); err != nil {
-		return false, fmt.Errorf("failed to parse custom filter: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "parse custom filter"),
+            )
 	}
 
 	return e.evaluateConditions(resource, conditions), nil
@@ -64,7 +69,9 @@ func (e *CustomFilterEngine) MatchWithJSON(ctx context.Context, customFilterJSON
 
 	var resource map[string]interface{}
 	if err := json.Unmarshal([]byte(resourceJSON), &resource); err != nil {
-		return false, fmt.Errorf("failed to parse resource JSON: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionInvalidParamCode,
+                errorx.KV("operation", "parse resource JSON"),
+            )
 	}
 
 	return e.Match(ctx, customFilterJSON, resource)
@@ -252,7 +259,10 @@ func toFloat64(value interface{}) (float64, error) {
 		_, err := fmt.Sscanf(v, "%f", &f)
 		return f, err
 	default:
-		return 0, fmt.Errorf("cannot convert %T to float64", value)
+		return 0, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "cannot convert to float64"),
+                errorx.KV("value_type", fmt.Sprintf("%T", value)),
+            )
 	}
 }
 
@@ -288,17 +298,28 @@ func (e *CustomFilterEngine) ValidateConditions(conditions []FilterCondition) er
 	for i, condition := range conditions {
 		// 验证操作符
 		if !validOperators[condition.Operator] {
-			return fmt.Errorf("invalid operator '%s' at condition %d", condition.Operator, i)
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "invalid operator"),
+                errorx.KV("operator", condition.Operator),
+                errorx.KV("condition_index", fmt.Sprintf("%d", i)),
+            )
 		}
 
 		// 验证逻辑操作符
 		if condition.Logic != "" && condition.Logic != "AND" && condition.Logic != "OR" {
-			return fmt.Errorf("invalid logic operator '%s' at condition %d", condition.Logic, i)
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "invalid logic operator"),
+                errorx.KV("logic", condition.Logic),
+                errorx.KV("condition_index", fmt.Sprintf("%d", i)),
+            )
 		}
 
 		// 验证字段名
 		if condition.Field == "" {
-			return fmt.Errorf("empty field name at condition %d", i)
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "empty field name"),
+                errorx.KV("condition_index", fmt.Sprintf("%d", i)),
+            )
 		}
 	}
 

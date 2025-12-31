@@ -184,8 +184,6 @@ func (m *MockInvoiceRepository) DeleteLineItem(ctx context.Context, id uint64) e
 }
 
 // MockTokenUsageLogRepository 模拟Token使用日志仓储
-type MockTokenUsageLogRepository struct {
-	mock.Mock
 }
 
 func (m *MockTokenUsageLogRepository) Create(ctx context.Context, log *entity.TokenUsageLog) error {

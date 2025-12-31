@@ -18,13 +18,11 @@ package vo
 
 import (
 	"time"
-
-	"github.com/coze-dev/coze-studio/backend/api/model/workflow"
 )
 
-type ContentType = workflow.WorkFlowType
-type Tag = workflow.Tag
-type Mode = workflow.WorkflowMode
+type ContentType = WorkFlowType
+type TagAlias = Tag // 避免与Tag类型冲突
+type ModeAlias = WorkflowMode // 避免与WorkflowMode类型冲突
 
 type Meta struct {
 	// the following fields are immutable
@@ -32,7 +30,7 @@ type Meta struct {
 	CreatorID   int64
 	CreatedAt   time.Time
 	ContentType ContentType
-	Tag         *Tag
+	Tag         *TagAlias
 	AppID       *int64
 	SourceID    *int64
 	AuthorID    int64
@@ -42,7 +40,7 @@ type Meta struct {
 	Desc                   string
 	IconURI                string
 	IconURL                string
-	Mode                   Mode
+	Mode                   ModeAlias
 	UpdatedAt              *time.Time
 	UpdaterID              *int64
 	DeletedAt              *time.Time
@@ -58,7 +56,7 @@ type MetaCreate struct {
 	CreatorID        int64
 	ContentType      ContentType
 	AppID            *int64
-	Mode             Mode
+	Mode             ModeAlias
 	InitCanvasSchema string
 }
 
@@ -68,7 +66,7 @@ type MetaUpdate struct {
 	IconURI                *string
 	HasPublished           *bool
 	LatestPublishedVersion *string
-	WorkflowMode           *Mode
+	WorkflowMode           *ModeAlias
 }
 
 type MetaQuery struct {
@@ -81,5 +79,5 @@ type MetaQuery struct {
 	LibOnly         bool
 	NeedTotalNumber bool
 	DescByUpdate    bool
-	Mode            *workflow.WorkflowMode
+	Mode            *WorkflowMode
 }

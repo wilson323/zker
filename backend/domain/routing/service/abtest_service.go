@@ -25,6 +25,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"go.uber.org/zap"
 )
@@ -54,7 +55,7 @@ func NewABTestService(
 func (s *ABTestService) CreateABTest(ctx context.Context, test *entity.ABTest) error {
 	// 1. 验证测试参数
 	if err := s.validateABTest(test); err != nil {
-		return errno.ROUTING201001.WithDetail("error", err.Error())
+		return errorx.WrapByCode(err, errno.ErrRouteFormatInvalidCode)
 	}
 
 	// 2. 设置默认值
@@ -81,7 +82,7 @@ func (s *ABTestService) CreateABTest(ctx context.Context, test *entity.ABTest) e
 		s.logger.Error("failed to create ab test",
 			zap.String("tenant_id", test.TenantID),
 			zap.Error(err))
-		return errno.ROUTING500001.WithDetail("error", err.Error())
+		return errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode)
 	}
 
 	return nil
@@ -92,12 +93,12 @@ func (s *ABTestService) ExecuteABTest(ctx context.Context, testID string, req *R
 	// 1. 获取测试信息
 	test, err := s.abTestRepo.GetByID(ctx, testID)
 	if err != nil {
-		return nil, errno.ROUTING404001.WithDetail("reason", "test not found", "test_id", testID)
+		return nil, errorx.New(errno.ErrABTestNotFoundCode, errorx.KV("test_id", testID))
 	}
 
 	// 2. 验证测试状态
 	if !test.IsTestActive() {
-		return nil, errno.ROUTING201001.WithDetail("reason", "test is not active")
+		return nil, errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "test is not active"))
 	}
 
 	// 3. 根据流量分配选择策略
@@ -133,13 +134,13 @@ func (s *ABTestService) GetABTestResults(ctx context.Context, testID string) (*e
 	// 1. 获取测试信息
 	test, err := s.abTestRepo.GetByID(ctx, testID)
 	if err != nil {
-		return nil, errno.ROUTING404001.WithDetail("reason", "test not found", "test_id", testID)
+		return nil, errorx.New(errno.ErrABTestNotFoundCode, errorx.KV("test_id", testID))
 	}
 
 	// 2. 获取测试记录
 	records, err := s.abRecordRepo.GetByTestID(ctx, testID)
 	if err != nil {
-		return nil, errno.ROUTING500001.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	// 3. 统计结果
@@ -165,12 +166,12 @@ func (s *ABTestService) ConcludeABTest(ctx context.Context, testID string, winne
 	// 1. 获取测试信息
 	test, err := s.abTestRepo.GetByID(ctx, testID)
 	if err != nil {
-		return errno.ROUTING404001.WithDetail("reason", "test not found", "test_id", testID)
+		return errorx.New(errno.ErrABTestNotFoundCode, errorx.KV("reason", "test not found"), errorx.KV("test_id", testID))
 	}
 
 	// 2. 验证测试状态
 	if test.Status != entity.ABTestStatusRunning {
-		return errno.ROUTING201001.WithDetail("reason", "test is not running")
+		return errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "test is not running"))
 	}
 
 	// 3. 获取测试结果
@@ -191,7 +192,7 @@ func (s *ABTestService) ConcludeABTest(ctx context.Context, testID string, winne
 		s.logger.Error("failed to update ab test",
 			zap.String("test_id", testID),
 			zap.Error(err))
-		return errno.ROUTING500001.WithDetail("error", err.Error())
+		return errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode)
 	}
 
 	return nil
@@ -353,18 +354,18 @@ func hash(s string) uint32 {
 func (s *ABTestService) PauseABTest(ctx context.Context, testID string) error {
 	test, err := s.abTestRepo.GetByID(ctx, testID)
 	if err != nil {
-		return errno.ROUTING404001.WithDetail("reason", "test not found", "test_id", testID)
+		return errorx.New(errno.ErrABTestNotFoundCode, errorx.KV("reason", "test not found"), errorx.KV("test_id", testID))
 	}
 
 	if test.Status != entity.ABTestStatusRunning {
-		return errno.ROUTING201001.WithDetail("reason", "test is not running")
+		return errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "test is not running"))
 	}
 
 	test.Status = entity.ABTestStatusPaused
 	test.UpdatedAt = time.Now()
 
 	if err := s.abTestRepo.Update(ctx, test); err != nil {
-		return errno.ROUTING500001.WithDetail("error", err.Error())
+		return errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode)
 	}
 
 	return nil
@@ -374,18 +375,18 @@ func (s *ABTestService) PauseABTest(ctx context.Context, testID string) error {
 func (s *ABTestService) ResumeABTest(ctx context.Context, testID string) error {
 	test, err := s.abTestRepo.GetByID(ctx, testID)
 	if err != nil {
-		return errno.ROUTING404001.WithDetail("reason", "test not found", "test_id", testID)
+		return errorx.New(errno.ErrABTestNotFoundCode, errorx.KV("reason", "test not found"), errorx.KV("test_id", testID))
 	}
 
 	if test.Status != entity.ABTestStatusPaused {
-		return errno.ROUTING201001.WithDetail("reason", "test is not paused")
+		return errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "test is not paused"))
 	}
 
 	test.Status = entity.ABTestStatusRunning
 	test.UpdatedAt = time.Now()
 
 	if err := s.abTestRepo.Update(ctx, test); err != nil {
-		return errno.ROUTING500001.WithDetail("error", err.Error())
+		return errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode)
 	}
 
 	return nil

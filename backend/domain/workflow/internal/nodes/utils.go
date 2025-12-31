@@ -72,7 +72,7 @@ func TemplateRender(template string, vals map[string]interface{}) (string, error
 	sb := strings.Builder{}
 	valsBytes, err := sonic.Marshal(vals)
 	if err != nil {
-		return "", vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return "", vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 	parts := ParseTemplate(template)
 	for idx := range parts {
@@ -327,6 +327,6 @@ func ConvertMessageToString(_ context.Context, msg *crossmessage.WfMessage) (str
 	} else if msg.Text != nil {
 		return ptr.From(msg.Text), nil
 	} else {
-		return "", vo.WrapError(errno.ErrInvalidParameter, errors.New("message is invalid"))
+		return "", vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("message is invalid"))
 	}
 }

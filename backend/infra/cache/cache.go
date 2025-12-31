@@ -33,6 +33,7 @@ type Cmdable interface {
 	HashCmdable
 	GenericCmdable
 	ListCmdable
+	Ping(ctx context.Context) StatusCmd
 }
 
 type StringCmdable interface {
@@ -51,6 +52,7 @@ type GenericCmdable interface {
 	Del(ctx context.Context, keys ...string) IntCmd
 	Exists(ctx context.Context, keys ...string) IntCmd
 	Expire(ctx context.Context, key string, expiration time.Duration) BoolCmd
+	Scan(ctx context.Context, cursor uint64, match string, count int64) ScanCmd
 }
 
 type Pipeliner interface {
@@ -109,4 +111,26 @@ type StringCmd interface {
 type StringSliceCmd interface {
 	baseCmd
 	Result() ([]string, error)
+}
+
+// ScanCmd SCAN命令接口
+type ScanCmd interface {
+	baseCmd
+	Iterator() ScanIterator
+}
+
+// ScanIterator SCAN迭代器
+type ScanIterator interface {
+	Next(ctx context.Context) bool
+	Val() string
+	Err() error
+}
+
+// buildKey 构建缓存键（辅助函数）
+func buildKey(prefix string, parts ...string) string {
+	key := "zker:" + prefix
+	for _, part := range parts {
+		key += ":" + part
+	}
+	return key
 }

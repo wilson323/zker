@@ -497,7 +497,7 @@ func (q *QuestionAnswer) Invoke(ctx context.Context, in map[string]any) (out map
 		case DynamicChoices:
 			dynamicChoices, ok := nodes.TakeMapValue(in, compose.FieldPath{DynamicChoicesKey})
 			if !ok || len(dynamicChoices.([]any)) == 0 {
-				return nil, vo.NewError(errno.ErrQuestionOptionsEmpty)
+				return nil, vo.NewError(errno.DeprecatedErrQuestionOptionsEmpty)
 			}
 
 			const maxDynamicChoices = 26

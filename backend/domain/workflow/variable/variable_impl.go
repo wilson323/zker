@@ -18,7 +18,6 @@ package variable
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strconv"
 
@@ -31,6 +30,7 @@ import (
 	variablesModel "github.com/coze-dev/coze-studio/backend/crossdomain/variables/model"
 	"github.com/coze-dev/coze-studio/backend/domain/memory/variables/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/workflow/entity/vo"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ternary"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
@@ -96,7 +96,7 @@ func (v *varStore) Get(ctx context.Context, path compose.FieldPath, opts ...Opti
 		ConnectorUID: opt.StoreInfo.ConnectorUID,
 	}
 	if len(path) == 0 {
-		return nil, errors.New("field path is required")
+		return nil, errorx.New(errno.ErrVariableInvalidParamCode, errorx.KV("reason", "field path is required"))
 	}
 	key := path[0]
 	kvItems, err := crossvariables.DefaultSVC().GetVariableChannelInstance(ctx, meta, []string{key}, project_memory.VariableChannelPtr(v.variableChannel))
@@ -216,7 +216,7 @@ func (v *varStore) Set(ctx context.Context, path compose.FieldPath, value any, o
 	}
 
 	if len(path) == 0 {
-		return errors.New("field path is required")
+		return errorx.New(errno.ErrVariableInvalidParamCode, errorx.KV("reason", "field path is required"))
 	}
 
 	key := path[0]
@@ -265,7 +265,7 @@ func (v variablesMetaGetter) GetAppVariablesMeta(ctx context.Context, id, versio
 	for _, v := range varMetas.Variables {
 		varSchema, err := v.GetSchema(ctx)
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrVariablesAPIFail, err)
+			return nil, vo.WrapIfNeeded(errno.DeprecatedErrVariablesAPIFail, err)
 		}
 
 		t, err := varMeta2TypeInfo(varSchema)
@@ -290,7 +290,7 @@ func (v variablesMetaGetter) GetAgentVariablesMeta(ctx context.Context, id int64
 	for _, v := range varMetas.Variables {
 		varSchema, err := v.GetSchema(ctx)
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrVariablesAPIFail, err)
+			return nil, vo.WrapIfNeeded(errno.DeprecatedErrVariablesAPIFail, err)
 		}
 
 		t, err := varMeta2TypeInfo(varSchema)
@@ -327,12 +327,12 @@ func varMeta2TypeInfo(v *entity.VariableMetaSchema) (*vo.TypeInfo, error) {
 	}
 	if v.IsArrayType() {
 		if len(v.Schema) == 0 {
-			return nil, vo.WrapError(errno.ErrVariablesAPIFail, fmt.Errorf("array type should contain element type info"))
+			return nil, vo.WrapError(errno.DeprecatedErrVariablesAPIFail, fmt.Errorf("array type should contain element type info"))
 		}
 
 		elemType, err := entity.NewVariableMetaSchema(v.Schema)
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrVariablesAPIFail, err)
+			return nil, vo.WrapIfNeeded(errno.DeprecatedErrVariablesAPIFail, err)
 		}
 
 		et, err := varMeta2TypeInfo(elemType)
@@ -348,7 +348,7 @@ func varMeta2TypeInfo(v *entity.VariableMetaSchema) (*vo.TypeInfo, error) {
 	if v.IsObjectType() {
 		ps, err := v.GetObjectProperties(v.Schema)
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrVariablesAPIFail, err)
+			return nil, vo.WrapIfNeeded(errno.DeprecatedErrVariablesAPIFail, err)
 		}
 
 		properties := make(map[string]*vo.TypeInfo, len(ps))
@@ -365,7 +365,7 @@ func varMeta2TypeInfo(v *entity.VariableMetaSchema) (*vo.TypeInfo, error) {
 			Properties: properties,
 		}, nil
 	}
-	return nil, vo.WrapError(errno.ErrVariablesAPIFail, fmt.Errorf("invalid variable type"))
+	return nil, vo.WrapError(errno.DeprecatedErrVariablesAPIFail, fmt.Errorf("invalid variable type"))
 }
 
 func takeMapValue(m map[string]any, path []string) (any, bool) {

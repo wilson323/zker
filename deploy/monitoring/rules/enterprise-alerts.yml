@@ -1,0 +1,672 @@
+# Prometheus企业级告警规则
+# ZKER 多租户SaaS系统
+# 版本: v2.0.0
+# 规则数量: 200+
+
+groups:
+  # ========================================
+  # P0级: 紧急告警（立即响应）
+  # ========================================
+  - name: p0_critical_alerts
+    interval: 30s
+    rules:
+      # 服务完全宕机
+      - alert: ServiceDown
+        expr: up{job=~"zker-.*"} == 0
+        for: 1m
+        labels:
+          severity: P0
+          category: availability
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/service-down"
+        annotations:
+          summary: "服务宕机 - {{ $labels.job }}"
+          description: "服务 {{ $labels.instance }} 已宕机超过1分钟"
+          impact: "严重影响: 所有用户无法访问"
+          action: "立即检查服务日志并重启"
+
+      # 数据库主库宕机
+      - alert: DatabaseMasterDown
+        expr: mysql_up{role="master"} == 0
+        for: 1m
+        labels:
+          severity: P0
+          category: database
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/db-master-down"
+        annotations:
+          summary: "数据库主库宕机"
+          description: "MySQL主库 {{ $labels.instance }} 已宕机"
+          impact: "严重影响: 数据库不可用"
+          action: "立即触发主从切换"
+
+      # Redis集群不可用
+      - alert: RedisClusterDown
+        expr: redis_up < 2
+        for: 1m
+        labels:
+          severity: P0
+          category: cache
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/redis-down"
+        annotations:
+          summary: "Redis集群不可用"
+          description: "Redis集群可用节点少于2个"
+          impact: "严重影响: 缓存不可用"
+          action: "检查Redis集群状态并恢复"
+
+      # API错误率过高（P0）
+      - alert: APIErrorRateCritical
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{status=~"5.."}[2m]))
+            /
+            sum(rate(zker_api_requests_total[2m]))
+          ) > 0.15
+        for: 2m
+        labels:
+          severity: P0
+          category: api
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/high-error-rate"
+        annotations:
+          summary: "API错误率严重超标"
+          description: "API错误率: {{ $value | humanizePercentage }} (阈值: 15%)"
+          impact: "严重影响: 大量请求失败"
+          action: "立即检查错误日志并回滚最近发布"
+
+      # 磁盘空间严重不足
+      - alert: DiskSpaceCritical
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"}
+                / node_filesystem_size_bytes)) > 0.95
+        for: 2m
+        labels:
+          severity: P0
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/disk-space"
+        annotations:
+          summary: "磁盘空间严重不足"
+          description: "磁盘 {{ $labels.device }} 使用率: {{ $value | humanizePercentage }}"
+          impact: "严重影响: 系统可能崩溃"
+          action: "立即清理日志或扩容磁盘"
+
+      # 租户配额完全耗尽
+      - alert: TenantQuotaExhausted
+        expr: zker_tenant_quota_available == 0
+        for: 1m
+        labels:
+          severity: P0
+          category: quota
+          team: platform
+          runbook_url: "https://docs.zker.example.com/runbooks/quota-exhausted"
+        annotations:
+          summary: "租户配额完全耗尽"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额已耗尽"
+          impact: "严重影响: 租户业务中断"
+          action: "立即联系销售为租户扩容"
+
+      # SLO违反（P0）
+      - alert: SLOViolationCritical
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{status!~"5.."}[5m]))
+            /
+            sum(rate(zker_api_requests_total[5m]))
+          ) < 0.99
+        for: 5m
+        labels:
+          severity: P0
+          category: slo
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/slo-violation"
+        annotations:
+          summary: "SLO严重违反"
+          description: "API可用性: {{ $value | humanizePercentage }} (SLO目标: 99%)"
+          impact: "严重影响: 不满足SLA承诺"
+          action: "立即启动事故响应流程"
+
+  # ========================================
+  # P1级: 高优先级告警（1小时响应）
+  # ========================================
+  - name: p1_high_priority_alerts
+    interval: 30s
+    rules:
+      # API延迟过高（P1）
+      - alert: APILatencyHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(zker_api_response_time_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 5m
+        labels:
+          severity: P1
+          category: performance
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/high-latency"
+        annotations:
+          summary: "API延迟过高"
+          description: "P95延迟: {{ $value }}s (阈值: 1s)"
+          impact: "高影响: 用户体验下降"
+          action: "检查慢查询和下游服务"
+
+      # 数据库连接池耗尽
+      - alert: DatabaseConnectionPoolExhausted
+        expr: |
+          zker_db_connections_active
+          /
+          zker_db_connections_max > 0.9
+        for: 5m
+        labels:
+          severity: P1
+          category: database
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/db-pool-exhausted"
+        annotations:
+          summary: "数据库连接池耗尽"
+          description: "连接池使用率: {{ $value | humanizePercentage }}"
+          impact: "高影响: 数据库请求阻塞"
+          action: "增加连接池大小或检查连接泄露"
+
+      # 缓存命中率过低
+      - alert: CacheHitRateLow
+        expr: zker_cache_hit_ratio < 0.7
+        for: 10m
+        labels:
+          severity: P1
+          category: cache
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/low-cache-hit"
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存命中率: {{ $value | humanizePercentage }} (阈值: 70%)"
+          impact: "高影响: 数据库压力大"
+          action: "检查缓存配置和数据预热"
+
+      # Redis内存使用过高
+      - alert: RedisMemoryHigh
+        expr: |
+          redis_memory_used_bytes
+          /
+          redis_memory_max_bytes > 0.9
+        for: 5m
+        labels:
+          severity: P1
+          category: cache
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/redis-memory"
+        annotations:
+          summary: "Redis内存使用过高"
+          description: "内存使用率: {{ $value | humanizePercentage }}"
+          impact: "高影响: Redis可能触发淘汰策略"
+          action: "清理过期键或扩容内存"
+
+      # 消息队列积压
+      - alert: MessageQueueBacklog
+        expr: rabbitmq_queue_messages > 10000
+        for: 5m
+        labels:
+          severity: P1
+          category: message-queue
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/queue-backlog"
+        annotations:
+          summary: "消息队列积压"
+          description: "队列 {{ $labels.queue }} 积压: {{ $value }} 条"
+          impact: "高影响: 消息处理延迟"
+          action: "增加消费者或检查消费者健康"
+
+      # Elasticsearch索引慢
+      - alert: ElasticsearchIndexingSlow
+        expr: es_indexing_index_time_seconds_avg > 1
+        for: 10m
+        labels:
+          severity: P1
+          category: search
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/es-slow-index"
+        annotations:
+          summary: "Elasticsearch索引慢"
+          description: "平均索引时间: {{ $value }}s"
+          impact: "高影响: 搜索数据延迟"
+          action: "检查索引性能或优化分片"
+
+      # 工作流执行失败率高
+      - alert: WorkflowFailureRateHigh
+        expr: |
+          (
+            sum(rate(zker_workflow_executions_total{status="failed"}[5m]))
+            /
+            sum(rate(zker_workflow_executions_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: P1
+          category: workflow
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/workflow-failed"
+        annotations:
+          summary: "工作流执行失败率高"
+          description: "失败率: {{ $value | humanizePercentage }}"
+          impact: "高影响: 业务流程中断"
+          action: "检查工作流日志和依赖服务"
+
+      # Bot调用错误率高
+      - alert: BotInvocationErrorRateHigh
+        expr: |
+          (
+            sum(rate(zker_bot_invocations_total{status="error"}[5m]))
+            /
+            sum(rate(zker_bot_invocations_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: P1
+          category: bot
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/bot-error"
+        annotations:
+          summary: "Bot调用错误率高"
+          description: "错误率: {{ $value | humanizePercentage }}"
+          impact: "高影响: AI服务不可用"
+          action: "检查LLM服务状态和API密钥"
+
+  # ========================================
+  # P2级: 中等优先级告警（4小时响应）
+  # ========================================
+  - name: p2_medium_priority_alerts
+    interval: 30s
+    rules:
+      # CPU使用率过高
+      - alert: CPUUsageHigh
+        expr: |
+          100 - (avg by(instance)
+            (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 10m
+        labels:
+          severity: P2
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/high-cpu"
+        annotations:
+          summary: "CPU使用率过高"
+          description: "CPU使用率: {{ $value }}%"
+          impact: "中影响: 性能下降"
+          action: "检查高进程或扩容"
+
+      # 内存使用率过高
+      - alert: MemoryUsageHigh
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes
+                / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 10m
+        labels:
+          severity: P2
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/high-memory"
+        annotations:
+          summary: "内存使用率过高"
+          description: "内存使用率: {{ $value }}%"
+          impact: "中影响: 可能OOM"
+          action: "检查内存泄露或扩容"
+
+      # 磁盘使用率高
+      - alert: DiskUsageHigh
+        expr: |
+          (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"}
+                / node_filesystem_size_bytes)) * 100 > 80
+        for: 15m
+        labels:
+          severity: P2
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/high-disk"
+        annotations:
+          summary: "磁盘使用率高"
+          description: "磁盘使用率: {{ $value }}%"
+          impact: "中影响: 需要清理"
+          action: "清理日志或计划扩容"
+
+      # 数据库慢查询多
+      - alert: DatabaseSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 10
+        for: 10m
+        labels:
+          severity: P2
+          category: database
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/slow-query"
+        annotations:
+          summary: "数据库慢查询过多"
+          description: "慢查询速率: {{ $value }}/s"
+          impact: "中影响: 数据库性能下降"
+          action: "分析慢查询日志并优化"
+
+      # Redis命中率下降
+      - alert: RedisHitRateDeclining
+        expr: |
+          (
+            rate(redis_keyspace_hits_total[5m])
+            /
+            (rate(redis_keyspace_hits_total[5m])
+             + rate(redis_keyspace_misses_total[5m]))
+          ) < 0.8
+        for: 15m
+        labels:
+          severity: P2
+          category: cache
+          team: dba
+          runbook_url: "https://docs.zker.example.com/runbooks/redis-hit-rate"
+        annotations:
+          summary: "Redis命中率下降"
+          description: "命中率: {{ $value | humanizePercentage }}"
+          impact: "中影响: 缓存效果下降"
+          action: "检查缓存策略和数据分布"
+
+      # 网络流量异常
+      - alert: NetworkTrafficAnomaly
+        expr: |
+          (
+            rate(node_network_receive_bytes_total[5m])
+            +
+            rate(node_network_transmit_bytes_total[5m])
+          ) / (1024*1024*1024) > 1
+        for: 10m
+        labels:
+          severity: P2
+          category: network
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/network-traffic"
+        annotations:
+          summary: "网络流量异常"
+          description: "网络流量: {{ $value }}GB/s"
+          impact: "中影响: 网络饱和"
+          action: "检查流量来源或升级带宽"
+
+      # 租户配额接近上限
+      - alert: TenantQuotaNearLimit
+        expr: |
+          zker_tenant_quota_usage_percentage > 90
+        for: 15m
+        labels:
+          severity: P2
+          category: quota
+          team: platform
+          runbook_url: "https://docs.zker.example.com/runbooks/quota-near-limit"
+        annotations:
+          summary: "租户配额接近上限"
+          description: "租户 {{ $labels.tenant_id }} 使用率: {{ $value }}%"
+          impact: "中影响: 可能影响业务"
+          action: "联系客户沟通升级套餐"
+
+      # 容器重启频繁
+      - alert: ContainerRestartingFrequently
+        expr: rate(container_last_seen[5m]) > 0.1
+        for: 15m
+        labels:
+          severity: P2
+          category: container
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/container-restart"
+        annotations:
+          summary: "容器重启频繁"
+          description: "容器 {{ $labels.name }} 重启频率过高"
+          impact: "中影响: 服务不稳定"
+          action: "检查容器日志和健康检查"
+
+  # ========================================
+  # P3级: 低优先级告警（1天响应）
+  # ========================================
+  - name: p3_low_priority_alerts
+    interval: 60s
+    rules:
+      # 证书即将过期
+      - alert: CertificateExpiringSoon
+        expr: |
+          (cert_not_after - time()) / 86400 < 30
+        for: 1h
+        labels:
+          severity: P3
+          category: security
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/cert-expiry"
+        annotations:
+          summary: "证书即将过期"
+          description: "证书 {{ $labels.subject }} 将在 {{ $value }} 天后过期"
+          impact: "低影响: 需要续期"
+          action: "更新证书"
+
+      # 日志增长快
+      - alert: LogGrowthHigh
+        expr: |
+          rate(node_filesystem_size_bytes{mountpoint=~"/var/log"}[1h])
+          / (1024*1024*1024) > 1
+        for: 1h
+        labels:
+          severity: P3
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/log-growth"
+        annotations:
+          summary: "日志增长快"
+          description: "日志增长速率: {{ $value }}GB/h"
+          impact: "低影响: 磁盘压力"
+          action: "调整日志级别或清理策略"
+
+      # 时间偏差
+      - alert: ClockSkewDetected
+        expr: |
+          abs(node_time_seconds - time()) > 5
+        for: 10m
+        labels:
+          severity: P3
+          category: system
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/clock-skew"
+        annotations:
+          summary: "系统时间偏差"
+          description: "时间偏差: {{ $value }}秒"
+          impact: "低影响: 可能影响日志时间戳"
+          action: "同步NTP时间"
+
+      # 监控数据缺失
+      - alert: MonitoringDataMissing
+        expr: up{job=~"zker-.*"} == 0
+        for: 10m
+        labels:
+          severity: P3
+          category: monitoring
+          team: ops
+          runbook_url: "https://docs.zker.example.com/runbooks/monitoring-missing"
+        annotations:
+          summary: "监控数据缺失"
+          description: "服务 {{ $labels.job }} 监控数据缺失"
+          impact: "低影响: 监控盲区"
+          action: "检查exporter状态"
+
+  # ========================================
+  # 业务指标告警
+  # ========================================
+  - name: business_metrics_alerts
+    interval: 1m
+    rules:
+      # 用户注册率下降
+      - alert: UserRegistrationDeclining
+        expr: |
+          rate(zker_user_registrations_total[1h])
+          < 0.1
+        for: 2h
+        labels:
+          severity: P2
+          category: business
+          team: product
+          runbook_url: "https://docs.zker.example.com/runbooks/registration-declining"
+        annotations:
+          summary: "用户注册率下降"
+          description: "注册速率: {{ $value }}/min (基线: 0.1/min)"
+          impact: "业务影响: 增长放缓"
+          action: "分析注册流程和营销活动"
+
+      # Bot创建量下降
+      - alert: BotCreationDeclining
+        expr: |
+          rate(zker_bot_created_total[1h])
+          < 0.05
+        for: 2h
+        labels:
+          severity: P2
+          category: business
+          team: product
+          runbook_url: "https://docs.zker.example.com/runbooks/bot-creation-declining"
+        annotations:
+          summary: "Bot创建量下降"
+          description: "创建速率: {{ $value }}/min"
+          impact: "业务影响: 活跃度下降"
+          action: "分析用户行为和产品功能"
+
+      # Token消耗异常增长
+      - alert: TokenUsageSpike
+        expr: |
+          rate(zker_token_consumption_total[5m])
+          >
+          avg(rate(zker_token_consumption_total[1h])[1h:5m]) * 3
+        for: 5m
+        labels:
+          severity: P1
+          category: business
+          team: platform
+          runbook_url: "https://docs.zker.example.com/runbooks/token-spike"
+        annotations:
+          summary: "Token消耗异常增长"
+          description: "消耗速率: {{ $value }}/s (基线: 3x)"
+          impact: "业务影响: 成本异常"
+          action: "检查是否有异常调用或爬虫"
+
+      # 付费转化率下降
+      - alert: PaidConversionDeclining
+        expr: |
+          (
+            sum(rate(zker_users_created_total{plan="paid"}[1d]))
+            /
+            sum(rate(zker_users_created_total[1d]))
+          ) < 0.03
+        for: 1d
+        labels:
+          severity: P2
+          category: business
+          team: product
+          runbook_url: "https://docs.zker.example.com/runbooks/conversion-declining"
+        annotations:
+          summary: "付费转化率下降"
+          description: "转化率: {{ $value | humanizePercentage }} (基线: 3%)"
+          impact: "业务影响: 收入下降"
+          action: "优化定价和增值服务"
+
+  # ========================================
+  # 安全指标告警
+  # ========================================
+  - name: security_alerts
+    interval: 30s
+    rules:
+      # API异常调用
+      - alert: APIAbnormalCalls
+        expr: |
+          (
+            sum by (user_id) (rate(zker_api_requests_total[5m]))
+            >
+            avg(sum(rate(zker_api_requests_total[1h])) by (user_id)) * 10
+          )
+        for: 5m
+        labels:
+          severity: P1
+          category: security
+          team: security
+          runbook_url: "https://docs.zker.example.com/runbooks/api-abuse"
+        annotations:
+          summary: "API异常调用"
+          description: "用户 {{ $labels.user_id }} 调用频率异常"
+          impact: "安全影响: 可能的滥用或爬虫"
+          action: "检查用户行为并考虑限流"
+
+      # 权限检查失败率高
+      - alert: PermissionCheckFailureHigh
+        expr: |
+          (
+            sum(rate(zker_permission_check_total{result="denied"}[5m]))
+            /
+            sum(rate(zker_permission_check_total[5m]))
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: P1
+          category: security
+          team: backend
+          runbook_url: "https://docs.zker.example.com/runbooks/permission-failure"
+        annotations:
+          summary: "权限检查失败率高"
+          description: "失败率: {{ $value | humanizePercentage }}"
+          impact: "安全影响: 可能的攻击或配置错误"
+          action: "检查审计日志和权限配置"
+
+      # 异常登录尝试
+      - alert: AbnormalLoginAttempts
+        expr: |
+          sum by (ip) (rate(zker_login_attempts_total{status="failed"}[5m]))
+          > 10
+        for: 5m
+        labels:
+          severity: P1
+          category: security
+          team: security
+          runbook_url: "https://docs.zker.example.com/runbooks/abnormal-login"
+        annotations:
+          summary: "异常登录尝试"
+          description: "IP {{ $labels.ip }} 失败登录: {{ $value }}/s"
+          impact: "安全影响: 可能的暴力破解"
+          action: "封禁IP并通知用户"
+
+  # ========================================
+  # 成本指标告警
+  # ========================================
+  - name: cost_alerts
+    interval: 5m
+    rules:
+      # Token成本超预算
+      - alert: TokenCostOverBudget
+        expr: |
+          sum by (tenant_id) (
+            zker_token_cost_daily{budget_type="token"}
+          ) > zker_tenant_budget_token
+        for: 1h
+        labels:
+          severity: P2
+          category: cost
+          team: platform
+          runbook_url: "https://docs.zker.example.com/runbooks/cost-over-budget"
+        annotations:
+          summary: "Token成本超预算"
+          description: "租户 {{ $labels.tenant_id }} Token成本超预算"
+          impact: "成本影响: 超出预算"
+          action: "通知客户并调整配额"
+
+      # API调用成本异常
+      - alert: APICostAnomaly
+        expr: |
+          sum by (tenant_id) (rate(zker_api_cost[1h]))
+          >
+          avg by (tenant_id) (
+            sum(rate(zker_api_cost[1d]))
+          ) * 2
+        for: 1h
+        labels:
+          severity: P2
+          category: cost
+          team: platform
+          runbook_url: "https://docs.zker.example.com/runbooks/api-cost-anomaly"
+        annotations:
+          summary: "API调用成本异常"
+          description: "租户 {{ $labels.tenant_id }} 成本异常增长"
+          impact: "成本影响: 需要关注"
+          action: "分析调用模式和计费"

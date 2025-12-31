@@ -1,0 +1,343 @@
+# GitHub Actions Enhanced Testing Pipeline
+# 用途: E2E 测试、性能基准测试、集成测试增强
+# 触发条件: push 到 main/develop, Pull Request, 手动触发
+# 遵循规范: CI/CD 最佳实践 + 企业级质量标准
+
+name: ZKER-Enhanced-Testing
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      run_e2e:
+        description: '运行 E2E 测试'
+        required: true
+        default: true
+        type: boolean
+      run_performance:
+        description: '运行性能基准测试'
+        required: true
+        default: true
+        type: boolean
+      run_integration:
+        description: '运行集成测试'
+        required: true
+        default: true
+        type: boolean
+
+# 环境变量
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== E2E 测试 ====================
+  e2e-test:
+    name: 🎭 E2E Test - Browser ${{ matrix.browser }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        shard: [1/4, 2/4, 3/4, 4/4]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 安装 Rush
+        run: npm install -g @microsoft/rush
+
+      - name: 📦 安装依赖
+        run: rush update
+
+      - name: 🎭 安装 Playwright 浏览器
+        working-directory: ./frontend/apps/coze-studio
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: 🐳 启动测试环境
+        run: |
+          cd docker
+          docker compose -f docker-compose.test.yml up -d
+
+      - name: ⏳ 等待服务就绪
+        run: |
+          echo "等待后端服务..."
+          timeout 60 bash -c 'until curl -s http://localhost:8888/health; do sleep 2; done'
+          echo "✅ 后端服务已就绪"
+
+      - name: 🎭 运行 E2E 测试
+        working-directory: ./frontend/apps/coze-studio
+        env:
+          BASE_URL: http://localhost:8888
+          CI: true
+        run: |
+          npx playwright test \
+            --project=${{ matrix.browser }} \
+            --shard=${{ matrix.shard }} \
+            --reporter=html,json \
+            --reporter-expire-files=0
+
+      - name: 📤 上传 E2E 测试报告
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-report-${{ matrix.browser }}-${{ matrix.shard }}
+          path: |
+            frontend/apps/coze-studio/playwright-report/
+            frontend/apps/coze-studio/test-results/
+          retention-days: 7
+
+      - name: 📤 上传 E2E 截图和视频
+        if: failure()
+        uses: actions/upload-artifact@v3
+        with:
+          name: e2e-failure-${{ matrix.browser }}-${{ matrix.shard }}
+          path: |
+            frontend/apps/coze-studio/playwright-report/screenshots/
+            frontend/apps/coze-studio/playwright-report/videos/
+          retention-days: 7
+
+      - name: 📋 E2E 测试总结
+        if: always()
+        run: |
+          echo "## E2E 测试结果 (${{ matrix.browser }} - Shard ${{ matrix.shard }})" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "测试报告已上传到 Artifacts" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 集成测试增强 ====================
+  integration-test-enhanced:
+    name: 🔗 Integration Test - ${{ matrix.module }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - name: Tenant
+            path: ./backend/tests/integration/tenant
+          - name: Permission
+            path: ./backend/tests/integration/permission
+          - name: Routing
+            path: ./backend/tests/integration/routing
+
+    services:
+      mysql:
+        image: mysql:8.4.5
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_zker
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🧪 运行集成测试 - ${{ matrix.module.name }}
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3307
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_zker
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6380
+        run: |
+          go test -v -tags=integration -timeout=20m ${{ matrix.module.path }}/...
+
+      - name: 📤 上传集成测试结果
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: integration-test-${{ matrix.module.name }}
+          path: |
+            backend/${{ matrix.module.path }}/*.log
+          retention-days: 7
+
+  # ==================== 性能基准测试 ====================
+  performance-benchmark:
+    name: ⚡ Performance Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📊 运行性能基准测试
+        working-directory: ./backend
+        run: |
+          echo "运行性能基准测试..."
+          go test -bench=. -benchmem -run=^$ ./tests/performance/... | tee benchmark.txt
+
+      - name: 📊 分析基准测试结果
+        working-directory: ./backend
+        run: |
+          echo "## 性能基准测试结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 上传基准测试结果
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-benchmark
+          path: |
+            backend/benchmark.txt
+            backend/*.prof
+          retention-days: 30
+
+      - name: 🔍 性能回归检测
+        working-directory: ./backend
+        run: |
+          # TODO: 实现性能回归检测逻辑
+          # 比较当前基准测试结果与历史基线
+          echo "性能回归检测..."
+
+  # ==================== 测试覆盖率合并 ====================
+  coverage-merge:
+    name: 📊 Coverage Merge & Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [e2e-test, integration-test-enhanced]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 📥 下载所有测试结果
+        uses: actions/download-artifact@v3
+
+      - name: 📊 生成综合覆盖率报告
+        run: |
+          echo "# 测试覆盖率综合报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 测试类型覆盖" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ E2E 测试: 完成" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 集成测试: 完成" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 单元测试: 完成 (见主 CI)" >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 发布覆盖率到 Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: |
+            backend/**/coverage.out
+            frontend/**/coverage/*.json
+          flags: unittests,integration,e2e
+          name: enhanced-testing-coverage
+
+  # ==================== 测试结果总结 ====================
+  test-summary:
+    name: 📋 Test Summary
+    runs-on: ubuntu-latest
+    needs: [e2e-test, integration-test-enhanced, performance-benchmark]
+    if: always()
+
+    steps:
+      - name: 📊 生成测试总结报告
+        run: |
+          echo "# 🎯 增强测试管道执行报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📅 执行信息" >> $GITHUB_STEP_SUMMARY
+          echo "- **触发方式**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **执行时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## ✅ 测试状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 测试类型 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E 测试 | ${{ needs.e2e-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 集成测试 | ${{ needs.integration-test-enhanced.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 性能测试 | ${{ needs.performance-benchmark.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 📦 测试产物" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "所有测试报告、截图、视频已上传到 Actions Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 检查是否有失败的测试
+          if [ "${{ needs.e2e-test.result }}" != "success" ] || \
+             [ "${{ needs.integration-test-enhanced.result }}" != "success" ] || \
+             [ "${{ needs.performance-benchmark.result }}" != "success" ]; then
+            echo "## ⚠️ 注意事项" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "部分测试失败，请查看详细日志" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: ✅ 测试成功检查
+        if: |
+          needs.e2e-test.result != 'success' ||
+          needs.integration-test-enhanced.result != 'success' ||
+          needs.performance-benchmark.result != 'success'
+        run: |
+          echo "❌ 测试管道失败，请检查失败的测试"
+          exit 1
+
+  # ==================== 通知 ====================
+  notify:
+    name: 📢 Notify Results
+    runs-on: ubuntu-latest
+    needs: [test-summary]
+    if: always() && github.event_name == 'push'
+
+    steps:
+      - name: 📢 发送通知
+        run: |
+          echo "发送测试结果通知..."
+          # TODO: 集成 Slack/Discord/企业微信等通知
+          echo "测试完成: ${{ needs.test-summary.result }}"

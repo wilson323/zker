@@ -17,9 +17,9 @@
 package entity
 
 import (
+	"errors"
+	"fmt"
 	"time"
-
-	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // BotStoreItemStatus 商店项目状态
@@ -65,10 +65,10 @@ func (BotStoreItem) TableName() string {
 // CanBePublished 检查是否可以发布
 func (b *BotStoreItem) CanBePublished() error {
 	if b.Status == BotStoreItemStatusPublished {
-		return errno.ErrAlreadyPublished
+		return errors.New("bot already published")
 	}
 	if b.Status == BotStoreItemStatusPending {
-		return errno.ErrPendingReview
+		return errors.New("bot is pending review")
 	}
 	return nil
 }
@@ -81,7 +81,7 @@ func (b *BotStoreItem) IsPublished() bool {
 // CanBeReviewed 检查是否可以审核
 func (b *BotStoreItem) CanBeReviewed() error {
 	if b.Status != BotStoreItemStatusPending {
-		return errno.ErrInvalidStatus
+		return fmt.Errorf("invalid status for review: %s", b.Status)
 	}
 	return nil
 }

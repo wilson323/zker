@@ -830,7 +830,7 @@ func (r *nodeRunner[O]) onError(ctx context.Context, err error) (map[string]any,
 		} else if errors.Is(err, context.Canceled) {
 			sErr = vo.CancelErr
 		} else {
-			sErr = vo.WrapError(errno.ErrWorkflowExecuteFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			sErr = vo.WrapError(errno.DeprecatedErrWorkflowExecuteFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 	}
 

@@ -125,6 +125,17 @@ var (
 	ErrAgentRunFailed             = errorx.New(ErrAgentRunFailedCode)
 	ErrAgentRunTimeout            = errorx.New(ErrAgentRunTimeoutCode)
 	ErrStreamConnectionLost       = errorx.New(ErrStreamConnectionLostCode)
+
+	// 已弃用错误码的便捷别名（向后兼容）
+	// TODO: 逐步迁移到新的202段错误码，移除这些别名
+	ErrConversationJsonMarshal      = errorx.New(DeprecatedErrConversationJsonMarshal)
+	ErrAgentNotExists               = errorx.New(DeprecatedErrAgentNotExists)
+	ErrReplyUnknowEventType         = errorx.New(DeprecatedErrReplyUnknowEventType)
+	ErrUnknowInterruptType          = errorx.New(DeprecatedErrUnknowInterruptType)
+	ErrInterruptDataEmpty           = errorx.New(DeprecatedErrInterruptDataEmpty)
+	ErrConversationAgentRunError    = errorx.New(DeprecatedErrConversationAgentRunError)
+	ErrAgentRun                     = errorx.New(DeprecatedErrAgentRun)
+	ErrAgentRunWorkflowNotFound     = errorx.New(DeprecatedErrAgentRunWorkflowNotFound)
 )
 
 func init() {

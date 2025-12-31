@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	knowEntity "github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/entity"
 	convEntity "github.com/coze-dev/coze-studio/backend/domain/memory/conversation/entity"
 	convService "github.com/coze-dev/coze-studio/backend/domain/memory/conversation/service"
 	knowService "github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/service"

@@ -17,13 +17,19 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"math/rand/v2"
 	"net/http"
 	"time"
 
@@ -65,27 +71,30 @@ type WebhookService interface {
 
 	// GetWebhookStats 获取Webhook统计信息
 	GetWebhookStats(ctx context.Context, webhookID string) (*WebhookDetailedStats, error)
+
+	// RetryDeadLetterQueue 重试死信队列条目
+	RetryDeadLetterQueue(ctx context.Context) error
 }
 
 // CreateWebhookRequest 创建Webhook请求
 type CreateWebhookRequest struct {
-	TenantID    string                    `json:"tenant_id" validate:"required"`
-	ProjectID   string                    `json:"project_id" validate:"required"`
-	WebhookURL  string                    `json:"webhook_url" validate:"required,url,max=500"`
-	Events      entity.WebhookEvents      `json:"events" validate:"required"`
+	TenantID   string                    `json:"tenant_id" validate:"required"`
+	ProjectID  string                    `json:"project_id" validate:"required"`
+	WebhookURL string                    `json:"webhook_url" validate:"required,url,max=500"`
+	Events     entity.WebhookEvents      `json:"events" validate:"required"`
 }
 
 // UpdateWebhookRequest 更新Webhook请求
 type UpdateWebhookRequest struct {
-	WebhookID   string                `json:"webhook_id" validate:"required"`
-	WebhookURL  *string               `json:"webhook_url" validate:"omitempty,url,max=500"`
-	Events      *entity.WebhookEvents `json:"events"`
-	Status      *entity.WebhookStatus `json:"status"`
+	WebhookID  string                `json:"webhook_id" validate:"required"`
+	WebhookURL *string               `json:"webhook_url" validate:"omitempty,url,max=500"`
+	Events     *entity.WebhookEvents `json:"events"`
+	Status     *entity.WebhookStatus `json:"status"`
 }
 
 // WebhookListFilter Webhook列表过滤器
 type WebhookListFilter struct {
-	TenantID  string                 `validate:"required"`
+	TenantID  string
 	ProjectID string
 	Status    entity.WebhookStatus
 	PageToken string
@@ -94,39 +103,48 @@ type WebhookListFilter struct {
 
 // WebhookDetailedStats Webhook详细统计信息
 type WebhookDetailedStats struct {
-	WebhookID      string    `json:"webhook_id"`
-	TotalCalls     int64     `json:"total_calls"`
-	SuccessCalls   int64     `json:"success_calls"`
-	FailureCalls   int64     `json:"failure_calls"`
-	SuccessRate    float64   `json:"success_rate"`
-	AvgDuration    float64   `json:"avg_duration"`
-	LastTriggeredAt *int64   `json:"last_triggered_at,omitempty"`
-	LastStatusCode int       `json:"last_status_code"`
+	WebhookID       string  `json:"webhook_id"`
+	TotalCalls      int64   `json:"total_calls"`
+	SuccessCalls    int64   `json:"success_calls"`
+	FailureCalls    int64   `json:"failure_calls"`
+	SuccessRate     float64 `json:"success_rate"`
+	AvgDuration     float64 `json:"avg_duration"`
+	LastTriggeredAt *int64  `json:"last_triggered_at,omitempty"`
+	LastStatusCode  int     `json:"last_status_code"`
 }
 
 // webhookService Webhook服务实现
 type webhookService struct {
 	webhookRepo repository.WebhookRepository
 	logRepo     repository.WebhookLogRepository
+	dlqRepo     repository.WebhookDLQRepository
 	httpClient  *http.Client
+	config      *entity.WebhookRetryConfig
 }
 
 // NewWebhookService 创建Webhook服务实例
 func NewWebhookService(
 	webhookRepo repository.WebhookRepository,
 	logRepo repository.WebhookLogRepository,
+	dlqRepo repository.WebhookDLQRepository,
 ) WebhookService {
 	return &webhookService{
 		webhookRepo: webhookRepo,
 		logRepo:     logRepo,
+		dlqRepo:     dlqRepo,
 		httpClient:  &http.Client{Timeout: 30 * time.Second},
+		config:      entity.DefaultWebhookRetryConfig(),
 	}
+}
+
+// SetRetryConfig 设置重试配置
+func (s *webhookService) SetRetryConfig(config *entity.WebhookRetryConfig) {
+	s.config = config
+	s.httpClient.Timeout = config.RequestTimeout
 }
 
 // CreateWebhook 创建Webhook
 func (s *webhookService) CreateWebhook(ctx context.Context, req *CreateWebhookRequest) (*entity.Webhook, string, error) {
-	// TODO: 验证项目是否存在且属于该租户
-
 	// 生成Webhook密钥（用于签名验证）
 	secret := generateWebhookSecret()
 
@@ -202,106 +220,234 @@ func (s *webhookService) TriggerWebhook(ctx context.Context, eventType entity.We
 		return err
 	}
 
-	// 异步触发所有匹配的Webhook
+	// 异步触发所有匹配的Webhook（带重试机制）
 	for _, webhook := range webhooks {
 		if webhook.ShouldTrigger(eventType) {
-			go s.triggerWebhookAsync(context.Background(), webhook, eventType, payload)
+			go s.triggerWebhookWithRetry(context.Background(), webhook, eventType, payload)
 		}
 	}
 
 	return nil
 }
 
-// triggerWebhookAsync 异步触发Webhook
-func (s *webhookService) triggerWebhookAsync(ctx context.Context, webhook *entity.Webhook, eventType entity.WebhookEventType, payload *entity.WebhookPayload) {
-	startTime := time.Now()
-	eventID := generateID("event")
+// triggerWebhookWithRetry 带重试机制的Webhook触发
+func (s *webhookService) triggerWebhookWithRetry(ctx context.Context, webhook *entity.Webhook, eventType entity.WebhookEventType, payload *entity.WebhookPayload) {
+	var lastErr error
 
-	// 更新payload
-	payload.EventID = eventID
-	payload.EventType = eventType
-	payload.Timestamp = time.Now().UnixMilli()
+	// 指数退避重试
+	for attempt := 0; attempt <= s.config.MaxRetries; attempt++ {
+		// 克隆payload避免修改原始数据
+		payloadCopy := *payload
+		payloadCopy.EventID = generateID("event")
+		payloadCopy.EventType = eventType
+		payloadCopy.Timestamp = time.Now().UnixMilli()
+
+		// 执行HTTP请求
+		err := s.doTrigger(ctx, webhook, &payloadCopy, attempt)
+		if err == nil {
+			// 成功，更新统计
+			s.updateSuccessStats(ctx, webhook.WebhookID)
+			return
+		}
+
+		lastErr = err
+
+		// 如果是最后一次尝试，不再重试
+		if attempt == s.config.MaxRetries {
+			break
+		}
+
+		// 计算退避时间
+		delay := s.calculateBackoff(attempt)
+
+		// 记录重试日志
+		s.logWebhookRetry(ctx, webhook.WebhookID, eventType, attempt+1, delay, err)
+
+		// 等待后重试
+		select {
+		case <-time.After(delay):
+		case <-ctx.Done():
+			s.updateFailureStats(ctx, webhook.WebhookID)
+			return
+		}
+	}
+
+	// 所有重试都失败，移动到死信队列
+	s.updateFailureStats(ctx, webhook.WebhookID)
+	if err := s.moveToDLQ(ctx, webhook, payload, lastErr); err != nil {
+		// 记录日志但不中断流程
+		fmt.Printf("⚠️  Failed to move to DLQ: %v\n", err)
+	}
+}
+
+// doTrigger 实际执行HTTP请求
+func (s *webhookService) doTrigger(ctx context.Context, webhook *entity.Webhook, payload *entity.WebhookPayload, attempt int) error {
+	startTime := time.Now()
 
 	// 序列化payload
 	body, err := json.Marshal(payload)
 	if err != nil {
-		s.logWebhookFailure(ctx, webhook.WebhookID, eventType, err, 0)
-		return
+		return fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// 创建HTTP请求
-	req, err := http.NewRequestWithContext(ctx, "POST", webhook.WebhookURL, nil)
+	// 创建请求
+	req, err := http.NewRequestWithContext(ctx, "POST", webhook.WebhookURL, bytes.NewReader(body))
 	if err != nil {
-		s.logWebhookFailure(ctx, webhook.WebhookID, eventType, err, 0)
-		return
+		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "Coze-Webhook/1.0")
+	req.Header.Set("User-Agent", "ZKER-Webhook/1.0")
 
-	// 生成签名
-	signature := s.generateSignature(body, webhook.WebhookSecret)
-	req.Header.Set("X-Coze-Signature", signature)
-	req.Header.Set("X-Coze-Event-ID", eventID)
-	req.Header.Set("X-Coze-Event-Type", string(eventType))
-	req.Header.Set("X-Coze-Timestamp", fmt.Sprintf("%d", payload.Timestamp))
+	// 计算签名
+	signature := s.calculateSignature(body, webhook.WebhookSecret)
+	req.Header.Set("X-ZKER-Signature", signature)
+	req.Header.Set("X-ZKER-Event-ID", payload.EventID)
+	req.Header.Set("X-ZKER-Event-Type", string(payload.EventType))
+	req.Header.Set("X-ZKER-Timestamp", fmt.Sprintf("%d", payload.Timestamp))
+
+	if attempt > 0 {
+		req.Header.Set("X-ZKER-Retry-Count", fmt.Sprintf("%d", attempt))
+	}
 
 	// 发送请求
 	resp, err := s.httpClient.Do(req)
-	duration := time.Since(startTime)
-
 	if err != nil {
-		s.logWebhookFailure(ctx, webhook.WebhookID, eventType, err, duration.Milliseconds())
-		s.webhookRepo.UpdateStats(context.Background(), webhook.WebhookID, false)
-		return
+		return fmt.Errorf("HTTP request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
+	duration := time.Since(startTime)
+
 	// 记录日志
-	log := &entity.WebhookLog{
-		LogID:      generateID("log"),
-		WebhookID:  webhook.WebhookID,
-		EventType:  string(eventType),
-		StatusCode: resp.StatusCode,
-		DurationMs: duration.Milliseconds(),
-		Success:    resp.StatusCode >= 200 && resp.StatusCode < 300,
-		RetryCount: 0,
+	s.logWebhookAttempt(ctx, webhook.WebhookID, payload.EventType, resp.StatusCode, duration, attempt)
+
+	// 检查响应状态码
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		responseBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("webhook returned error status: %d, body: %s", resp.StatusCode, string(responseBody))
 	}
 
-	_ = s.logRepo.Create(context.Background(), log)
-
-	// 更新统计
-	s.webhookRepo.UpdateStats(context.Background(), webhook.WebhookID, log.Success)
-	s.webhookRepo.UpdateLastTriggerAt(context.Background(), webhook.WebhookID)
+	return nil
 }
 
-// logWebhookFailure 记录Webhook失败日志
-func (s *webhookService) logWebhookFailure(ctx context.Context, webhookID string, eventType entity.WebhookEventType, err error, duration int64) {
+// calculateBackoff 计算指数退避时间
+func (s *webhookService) calculateBackoff(attempt int) time.Duration {
+	// 指数退避: 2^attempt
+	delay := s.config.BaseDelay * time.Duration(math.Pow(2, float64(attempt)))
+
+	// 限制最大延迟
+	if delay > s.config.MaxDelay {
+		delay = s.config.MaxDelay
+	}
+
+	// 添加随机抖动（±20%）避免惊群效应
+	jitter := time.Duration(mathrand.IntN(int(delay) / 5))
+	delay += jitter - (jitter / 2)
+
+	return delay
+}
+
+// calculateSignature 计算HMAC-SHA256签名
+func (s *webhookService) calculateSignature(body []byte, secret string) string {
+	h := hmac.New(sha256.New, []byte(secret))
+	h.Write(body)
+	return "sha256=" + hex.EncodeToString(h.Sum(nil))
+}
+
+// moveToDLQ 移动到死信队列
+func (s *webhookService) moveToDLQ(ctx context.Context, webhook *entity.Webhook, payload *entity.WebhookPayload, lastErr error) error {
+	dlqEntry := &entity.WebhookDLQEntry{
+		DLQID:        generateID("dlq"),
+		WebhookID:    webhook.WebhookID,
+		EventType:    payload.EventType,
+		Payload:      payload,
+		ErrorMessage: lastErr.Error(),
+		RetryCount:   0,
+	}
+
+	return s.dlqRepo.Create(ctx, dlqEntry)
+}
+
+// logWebhookAttempt 记录Webhook尝试日志
+func (s *webhookService) logWebhookAttempt(ctx context.Context, webhookID string, eventType entity.WebhookEventType, statusCode int, duration time.Duration, retryCount int) {
 	log := &entity.WebhookLog{
 		LogID:      generateID("log"),
 		WebhookID:  webhookID,
 		EventType:  string(eventType),
-		StatusCode: 0,
-		Response:   err.Error(),
-		DurationMs: duration,
-		Success:    false,
-		RetryCount: 0,
+		StatusCode: statusCode,
+		DurationMs: duration.Milliseconds(),
+		Success:    statusCode >= 200 && statusCode < 300,
+		RetryCount: retryCount,
 	}
 
 	_ = s.logRepo.Create(ctx, log)
 }
 
-// VerifyWebhookSignature 验证Webhook签名
-func (s *webhookService) VerifyWebhookSignature(ctx context.Context, payload []byte, signature string, secret string) bool {
-	expectedSignature := s.generateSignature(payload, secret)
-	return hmac.Equal([]byte(signature), []byte(expectedSignature))
+// logWebhookRetry 记录Webhook重试日志
+func (s *webhookService) logWebhookRetry(ctx context.Context, webhookID string, eventType entity.WebhookEventType, attempt int, delay time.Duration, err error) {
+	log := &entity.WebhookLog{
+		LogID:      generateID("log"),
+		WebhookID:  webhookID,
+		EventType:  string(eventType),
+		StatusCode: 0,
+		Response:   fmt.Sprintf("Retry %d after %v: %v", attempt, delay, err.Error()),
+		DurationMs: 0,
+		Success:    false,
+		RetryCount: attempt,
+	}
+
+	_ = s.logRepo.Create(ctx, log)
 }
 
-// generateSignature 生成签名
-func (s *webhookService) generateSignature(payload []byte, secret string) string {
-	h := hmac.New(sha256.New, []byte(secret))
-	h.Write(payload)
-	return "sha256=" + hex.EncodeToString(h.Sum(nil))
+// updateSuccessStats 更新成功统计
+func (s *webhookService) updateSuccessStats(ctx context.Context, webhookID string) {
+	_ = s.webhookRepo.UpdateStats(ctx, webhookID, true)
+	_ = s.webhookRepo.UpdateLastTriggerAt(ctx, webhookID)
+}
+
+// updateFailureStats 更新失败统计
+func (s *webhookService) updateFailureStats(ctx context.Context, webhookID string) {
+	_ = s.webhookRepo.UpdateStats(ctx, webhookID, false)
+}
+
+// RetryDeadLetterQueue 重试死信队列条目
+func (s *webhookService) RetryDeadLetterQueue(ctx context.Context) error {
+	// 获取可重试的条目
+	entries, err := s.dlqRepo.GetRetryable(ctx, s.config.MaxRetries)
+	if err != nil {
+		return fmt.Errorf("failed to get retryable entries: %w", err)
+	}
+
+	// 逐个重试
+	for _, entry := range entries {
+		webhook, err := s.webhookRepo.GetByID(ctx, entry.WebhookID)
+		if err != nil || webhook == nil {
+			// Webhook不存在，跳过
+			continue
+		}
+
+		// 执行重试
+		err = s.doTrigger(ctx, webhook, entry.Payload, entry.RetryCount)
+		if err == nil {
+			// 成功，从死信队列删除
+			_ = s.dlqRepo.Delete(ctx, entry.DLQID)
+			s.updateSuccessStats(ctx, webhook.WebhookID)
+		} else {
+			// 失败，更新重试次数
+			entry.RetryCount++
+			_ = s.dlqRepo.UpdateRetryCount(ctx, entry.DLQID, entry.RetryCount)
+		}
+	}
+
+	return nil
+}
+
+// VerifyWebhookSignature 验证Webhook签名
+func (s *webhookService) VerifyWebhookSignature(ctx context.Context, payload []byte, signature string, secret string) bool {
+	expectedSignature := s.calculateSignature(payload, secret)
+	return hmac.Equal([]byte(signature), []byte(expectedSignature))
 }
 
 // PauseWebhook 暂停Webhook
@@ -350,6 +496,11 @@ func (s *webhookService) GetWebhookStats(ctx context.Context, webhookID string) 
 
 // generateWebhookSecret 生成Webhook密钥
 func generateWebhookSecret() string {
-	// TODO: 使用加密安全的随机数生成器
-	return "wh_secret_" + randomString(32)
+	// 生成32字节随机密钥
+	key := make([]byte, 32)
+	if _, err := cryptorand.Read(key); err != nil {
+		// 备用方案：使用时间戳
+		return fmt.Sprintf("whsec_%d_%s", time.Now().UnixNano(), randomString(16))
+	}
+	return "whsec_" + base64.StdEncoding.EncodeToString(key)
 }

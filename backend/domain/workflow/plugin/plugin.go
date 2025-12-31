@@ -51,6 +51,24 @@ func SetOSS(s storage.Storage) {
 	oss = s
 }
 
+// convertPluginFromBotCommonToVO 将 bot_common.PluginFrom 转换为 vo.PluginFrom
+func convertPluginFromBotCommonToVO(src *bot_common.PluginFrom) *vo.PluginFrom {
+	if src == nil {
+		return nil
+	}
+	v := vo.PluginFrom(*src)
+	return &v
+}
+
+// convertPluginFromVOToBotCommon 将 vo.PluginFrom 转换为 bot_common.PluginFrom
+func convertPluginFromVOToBotCommon(src *vo.PluginFrom) *bot_common.PluginFrom {
+	if src == nil {
+		return nil
+	}
+	v := bot_common.PluginFrom(*src)
+	return &v
+}
+
 type pluginInfo struct {
 	*model.PluginInfo
 	LatestVersion *string
@@ -62,7 +80,7 @@ func getSaasPluginWithTools(ctx context.Context, pluginEntity *vo.PluginEntity, 
 		return nil, nil, err
 	}
 	if len(tools) == 0 {
-		return nil, nil, vo.NewError(errno.ErrPluginIDNotFound, errorx.KV("id", strconv.FormatInt(pluginEntity.PluginID, 10)))
+		return nil, nil, vo.NewError(errno.DeprecatedErrPluginIDNotFound, errorx.KV("id", strconv.FormatInt(pluginEntity.PluginID, 10)))
 	}
 	toolsInfo := make([]*entity.ToolInfo, 0, len(toolIDs))
 	for _, t := range tools[pluginEntity.PluginID] {
@@ -77,7 +95,7 @@ func getPluginsWithTools(ctx context.Context, pluginEntity *vo.PluginEntity, too
 	_ *pluginInfo, toolsInfo []*entity.ToolInfo, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrPluginAPIErr, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrPluginAPIErr, err)
 		}
 	}()
 
@@ -85,7 +103,7 @@ func getPluginsWithTools(ctx context.Context, pluginEntity *vo.PluginEntity, too
 	var latestPluginInfo *model.PluginInfo
 	pluginID := pluginEntity.PluginID
 
-	if ptr.From(pluginEntity.PluginFrom) == bot_common.PluginFrom_FromSaas {
+	if ptr.From(pluginEntity.PluginFrom) == vo.PluginFrom_FromSaas {
 		return getSaasPluginWithTools(ctx, pluginEntity, toolIDs)
 	}
 
@@ -131,7 +149,7 @@ func getPluginsWithTools(ctx context.Context, pluginEntity *vo.PluginEntity, too
 		}
 	}
 	if pInfo == nil {
-		return nil, nil, vo.NewError(errno.ErrPluginIDNotFound, errorx.KV("id", strconv.FormatInt(pluginID, 10)))
+		return nil, nil, vo.NewError(errno.DeprecatedErrPluginIDNotFound, errorx.KV("id", strconv.FormatInt(pluginID, 10)))
 	}
 
 	if isDraft {
@@ -170,14 +188,14 @@ func getPluginsWithTools(ctx context.Context, pluginEntity *vo.PluginEntity, too
 func GetPluginToolsInfo(ctx context.Context, req *ToolsInfoRequest) (_ *ToolsInfoResponse, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrPluginAPIErr, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrPluginAPIErr, err)
 		}
 	}()
 
 	var toolsInfo []*entity.ToolInfo
 	var pInfo *pluginInfo
 	var url string
-	if ptr.From(req.PluginEntity.PluginFrom) == bot_common.PluginFrom_FromSaas {
+	if ptr.From(req.PluginEntity.PluginFrom) == vo.PluginFrom_FromSaas {
 		pInfo, toolsInfo, err = getSaasPluginWithTools(ctx, &vo.PluginEntity{PluginID: req.PluginEntity.PluginID, PluginVersion: req.PluginEntity.PluginVersion}, req.ToolIDs)
 		if err != nil {
 			return nil, err
@@ -195,12 +213,12 @@ func GetPluginToolsInfo(ctx context.Context, req *ToolsInfoRequest) (_ *ToolsInf
 		}
 
 		if oss == nil {
-			return nil, vo.NewError(errno.ErrTOSError, errorx.KV("msg", "oss is nil"))
+			return nil, vo.NewError(errno.DeprecatedErrTOSError, errorx.KV("msg", "oss is nil"))
 		}
 
 		url, err = oss.GetObjectUrl(ctx, pInfo.GetIconURI())
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrTOSError, err)
+			return nil, vo.WrapIfNeeded(errno.DeprecatedErrTOSError, err)
 		}
 	}
 
@@ -258,7 +276,7 @@ func GetPluginInvokableTools(ctx context.Context, req *ToolsInvokableRequest) (
 	_ map[int64]crossplugin.InvokableTool, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrPluginAPIErr, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrPluginAPIErr, err)
 		}
 	}()
 
@@ -279,7 +297,7 @@ func GetPluginInvokableTools(ctx context.Context, req *ToolsInvokableRequest) (
 			pluginEntity: vo.PluginEntity{
 				PluginID:      pInfo.ID,
 				PluginVersion: pInfo.Version,
-				PluginFrom:    pInfo.Source,
+				PluginFrom:    convertPluginFromBotCommonToVO(pInfo.Source),
 			},
 			toolInfo: tf,
 			IsDraft:  isDraft,
@@ -313,7 +331,7 @@ type pluginInvokeTool struct {
 func (p *pluginInvokeTool) Info(ctx context.Context) (_ *schema.ToolInfo, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrPluginAPIErr, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrPluginAPIErr, err)
 		}
 	}()
 
@@ -343,7 +361,7 @@ func (p *pluginInvokeTool) PluginInvoke(ctx context.Context, argumentsInJSON str
 		ExecScene:       consts.ExecSceneOfWorkflow,
 		ArgumentsInJson: argumentsInJSON,
 		ExecDraftTool:   p.IsDraft,
-		PluginFrom:      p.pluginEntity.PluginFrom,
+		PluginFrom:      convertPluginFromVOToBotCommon(p.pluginEntity.PluginFrom),
 	}
 	execOpts := []model.ExecuteToolOpt{
 		model.WithInvalidRespProcessStrategy(consts.InvalidResponseProcessStrategyOfReturnDefault),
@@ -362,7 +380,7 @@ func (p *pluginInvokeTool) PluginInvoke(ctx context.Context, argumentsInJSON str
 		if extra, ok := compose.IsInterruptRerunError(err); ok {
 			pluginTIE, ok := extra.(*model.ToolInterruptEvent)
 			if !ok {
-				return "", vo.WrapError(errno.ErrPluginAPIErr, fmt.Errorf("expects ToolInterruptEvent, got %T", extra))
+				return "", vo.WrapError(errno.DeprecatedErrPluginAPIErr, fmt.Errorf("expects ToolInterruptEvent, got %T", extra))
 			}
 
 			var eventType workflow3.EventType
@@ -370,13 +388,13 @@ func (p *pluginInvokeTool) PluginInvoke(ctx context.Context, argumentsInJSON str
 			case consts.InterruptEventTypeOfToolNeedOAuth:
 				eventType = workflow3.EventType_WorkflowOauthPlugin
 			default:
-				return "", vo.WrapError(errno.ErrPluginAPIErr,
+				return "", vo.WrapError(errno.DeprecatedErrPluginAPIErr,
 					fmt.Errorf("unsupported interrupt event type: %s", pluginTIE.Event))
 			}
 
 			id, eErr := workflow.GetRepository().GenID(ctx)
 			if eErr != nil {
-				return "", vo.WrapError(errno.ErrIDGenError, eErr)
+				return "", vo.WrapError(errno.DeprecatedErrIDGenError, eErr)
 			}
 
 			ie := &entity2.InterruptEvent{
@@ -394,7 +412,7 @@ func (p *pluginInvokeTool) PluginInvoke(ctx context.Context, argumentsInJSON str
 			// temporarily replace interrupt with real error, until frontend can handle plugin oauth interrupt
 			_ = tie
 			interruptData := ie.InterruptData
-			return "", vo.NewError(errno.ErrAuthorizationRequired, errorx.KV("extra", interruptData))
+			return "", vo.NewError(errno.DeprecatedErrAuthorizationRequired, errorx.KV("extra", interruptData))
 		}
 		return "", err
 	}

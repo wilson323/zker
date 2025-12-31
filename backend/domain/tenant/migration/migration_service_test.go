@@ -49,7 +49,7 @@ func TestMigrationService_DoubleWriteMode(t *testing.T) {
 	// 5. 检查迁移进度
 	progress, err := service.GetProgress(ctx, config.MigrationID)
 	assert.NoError(t, err)
-	assert.Equal(t, 100, progress.Percentage, "迁移应该100%完成")
+	assert.Equal(t, float64(100), progress.ProgressPercent, "迁移应该100%完成")
 }
 
 // TestMigrationService_Rollback 测试回滚机制
@@ -150,7 +150,7 @@ func TestMigrationService_ConcurrentMigrations(t *testing.T) {
 	for _, id := range migrationIDs {
 		progress, err := service.GetProgress(ctx, id)
 		assert.NoError(t, err)
-		assert.Equal(t, 100, progress.Percentage, fmt.Sprintf("迁移 %s 应该100%%完成", id))
+		assert.Equal(t, float64(100), progress.ProgressPercent, fmt.Sprintf("迁移 %s 应该100%%完成", id))
 	}
 }
 

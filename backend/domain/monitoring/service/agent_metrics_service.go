@@ -128,8 +128,12 @@ func (s *AgentMetricsService) CollectMetrics(
 	wg.Wait()
 
 	if qpsErr != nil || responseErr != nil || errorErr != nil || satisfactionErr != nil || tokenErr != nil {
-		return nil, errorx.Wrapf(fmt.Errorf("qps=%v, response=%v, error=%v, satisfaction=%v, token=%v",
-			qpsErr, responseErr, errorErr, satisfactionErr, tokenErr), errno.MetricsCollectionFailed)
+		return nil, errorx.New(errno.MetricsCollectionFailedCode,
+			errorx.KV("qps_error", fmt.Sprintf("%v", qpsErr)),
+			errorx.KV("response_error", fmt.Sprintf("%v", responseErr)),
+			errorx.KV("error_error", fmt.Sprintf("%v", errorErr)),
+			errorx.KV("satisfaction_error", fmt.Sprintf("%v", satisfactionErr)),
+			errorx.KV("token_error", fmt.Sprintf("%v", tokenErr)))
 	}
 
 	metrics := &AgentMetrics{
@@ -158,7 +162,8 @@ func (s *AgentMetricsService) GetMetrics(
 
 	// 验证请求
 	if err := req.Validate(); err != nil {
-		return nil, errorx.Wrapf(err, errno.InvalidRequest)
+		return nil, errorx.WrapByCode(err, errno.InvalidParamsCode,
+			errorx.KV("operation", "validate get metrics request"))
 	}
 
 	// 检查缓存
@@ -185,7 +190,9 @@ func (s *AgentMetricsService) GetMetrics(
 	case entity.AgentMetricTypeTokenUsage:
 		response, err = s.getTokenUsageMetrics(ctx, req)
 	default:
-		return nil, errorx.Wrapf(fmt.Errorf("unsupported metric type: %s", req.MetricType), errno.InvalidRequest)
+		return nil, errorx.New(errno.InvalidParamsCode,
+			errorx.KV("metric_type", string(req.MetricType)),
+			errorx.KV("reason", "unsupported metric type"))
 	}
 
 	if err != nil {
@@ -211,7 +218,7 @@ func (s *AgentMetricsService) CalculateMetrics(
 		AgentID:       metrics.AgentID,
 		CalculatedAt:  time.Now(),
 		OverallScore:  0,
-		PerformanceMetrics: &PerformanceMetrics{
+		PerformanceMetrics: &AgentPerformanceMetrics{
 			Throughput:      metrics.Throughput,
 			AvgResponseTime: metrics.ResponseTime,
 			ErrorRate:       metrics.ErrorRate,
@@ -255,7 +262,8 @@ func (s *AgentMetricsService) ExportMetrics(
 	)
 
 	if s.prometheusSvc == nil {
-		return errorx.New(errno.PrometheusNotAvailable, "Prometheus client not configured")
+		return errorx.New(errno.PrometheusNotAvailableCode,
+			errorx.KV("reason", "Prometheus client not configured"))
 	}
 
 	labels := map[string]string{
@@ -266,7 +274,8 @@ func (s *AgentMetricsService) ExportMetrics(
 	if metrics.QPSMetrics != nil {
 		if err := s.prometheusSvc.RecordMetric("zker_agent_qps", labels, metrics.QPSMetrics.Average); err != nil {
 			s.logger.Error("Failed to export QPS metric", zap.Error(err))
-			return errorx.Wrapf(err, errno.MetricsExportFailed)
+			return errorx.WrapByCode(err, errno.MetricsExportFailedCode,
+			errorx.KV("operation", "export metrics to prometheus"))
 		}
 		if err := s.prometheusSvc.RecordCounter("zker_agent_requests_total", labels, float64(metrics.QPSMetrics.Count)); err != nil {
 			s.logger.Error("Failed to export requests total metric", zap.Error(err))
@@ -277,7 +286,8 @@ func (s *AgentMetricsService) ExportMetrics(
 	if metrics.ResponseTimeMetrics != nil {
 		if err := s.prometheusSvc.RecordHistogram("zker_agent_response_time_ms", labels, metrics.ResponseTimeMetrics.Average); err != nil {
 			s.logger.Error("Failed to export response time metric", zap.Error(err))
-			return errorx.Wrapf(err, errno.MetricsExportFailed)
+			return errorx.WrapByCode(err, errno.MetricsExportFailedCode,
+			errorx.KV("operation", "export metrics to prometheus"))
 		}
 	}
 
@@ -285,7 +295,8 @@ func (s *AgentMetricsService) ExportMetrics(
 	if metrics.ErrorRateMetrics != nil {
 		if err := s.prometheusSvc.RecordMetric("zker_agent_error_rate", labels, metrics.ErrorRateMetrics.ErrorRate*100); err != nil {
 			s.logger.Error("Failed to export error rate metric", zap.Error(err))
-			return errorx.Wrapf(err, errno.MetricsExportFailed)
+			return errorx.WrapByCode(err, errno.MetricsExportFailedCode,
+			errorx.KV("operation", "export metrics to prometheus"))
 		}
 		if err := s.prometheusSvc.RecordCounter("zker_agent_errors_total", labels, float64(metrics.ErrorRateMetrics.ErrorRequests)); err != nil {
 			s.logger.Error("Failed to export errors total metric", zap.Error(err))
@@ -296,7 +307,8 @@ func (s *AgentMetricsService) ExportMetrics(
 	if metrics.SatisfactionMetrics != nil {
 		if err := s.prometheusSvc.RecordMetric("zker_agent_satisfaction_score", labels, metrics.SatisfactionMetrics.AverageScore); err != nil {
 			s.logger.Error("Failed to export satisfaction metric", zap.Error(err))
-			return errorx.Wrapf(err, errno.MetricsExportFailed)
+			return errorx.WrapByCode(err, errno.MetricsExportFailedCode,
+			errorx.KV("operation", "export metrics to prometheus"))
 		}
 	}
 
@@ -329,7 +341,8 @@ func (s *AgentMetricsService) GetAgentHealthStatus(
 
 	healthStatus, err := s.metricsRepo.GetAgentHealthStatus(ctx, tenantID, agentID)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.AgentHealthCheckFailed)
+		return nil, errorx.WrapByCode(err, errno.AgentHealthCheckFailedCode,
+			errorx.KV("operation", "get agent health status"))
 	}
 
 	return healthStatus, nil
@@ -347,7 +360,8 @@ func (s *AgentMetricsService) GetAgentPerformanceReport(
 
 	report, err := s.metricsRepo.GetAgentPerformanceReport(ctx, agentID, timeRange.StartTime, timeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.PerformanceReportGenerationFailed)
+		return nil, errorx.WrapByCode(err, errno.PerformanceReportGenerationFailedCode,
+			errorx.KV("operation", "get agent performance report"))
 	}
 
 	return report, nil
@@ -364,14 +378,15 @@ func (s *AgentMetricsService) getQPSMetrics(
 ) (*MetricsResponse, error) {
 	metrics, err := s.metricsRepo.CalculateAgentQPSMetrics(ctx, req.AgentID, req.TimeRange.StartTime, req.TimeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "calculate agent metrics"))
 	}
 
 	return &MetricsResponse{
-		AgentID:    req.AgentID,
-		MetricType: req.MetricType,
-		TimeRange:  req.TimeRange,
-		Data:       metrics,
+		AgentID:     req.AgentID,
+		MetricType:  req.MetricType,
+		TimeRange:   *req.TimeRange,
+		Data:        metrics,
 		GeneratedAt: time.Now(),
 	}, nil
 }
@@ -383,13 +398,14 @@ func (s *AgentMetricsService) getResponseTimeMetrics(
 ) (*MetricsResponse, error) {
 	metrics, err := s.metricsRepo.CalculateAgentResponseTimeMetrics(ctx, req.AgentID, req.TimeRange.StartTime, req.TimeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "calculate agent metrics"))
 	}
 
 	return &MetricsResponse{
 		AgentID:     req.AgentID,
 		MetricType:  req.MetricType,
-		TimeRange:   req.TimeRange,
+		TimeRange:   *req.TimeRange,
 		Data:        metrics,
 		GeneratedAt: time.Now(),
 	}, nil
@@ -402,13 +418,14 @@ func (s *AgentMetricsService) getErrorRateMetrics(
 ) (*MetricsResponse, error) {
 	metrics, err := s.metricsRepo.CalculateAgentErrorRateMetrics(ctx, req.AgentID, req.TimeRange.StartTime, req.TimeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "calculate agent metrics"))
 	}
 
 	return &MetricsResponse{
 		AgentID:     req.AgentID,
 		MetricType:  req.MetricType,
-		TimeRange:   req.TimeRange,
+		TimeRange:   *req.TimeRange,
 		Data:        metrics,
 		GeneratedAt: time.Now(),
 	}, nil
@@ -421,13 +438,14 @@ func (s *AgentMetricsService) getSatisfactionMetrics(
 ) (*MetricsResponse, error) {
 	metrics, err := s.metricsRepo.CalculateAgentSatisfactionMetrics(ctx, req.AgentID, req.TimeRange.StartTime, req.TimeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "calculate agent metrics"))
 	}
 
 	return &MetricsResponse{
 		AgentID:     req.AgentID,
 		MetricType:  req.MetricType,
-		TimeRange:   req.TimeRange,
+		TimeRange:   *req.TimeRange,
 		Data:        metrics,
 		GeneratedAt: time.Now(),
 	}, nil
@@ -440,13 +458,14 @@ func (s *AgentMetricsService) getTokenUsageMetrics(
 ) (*MetricsResponse, error) {
 	metrics, err := s.metricsRepo.CalculateAgentTokenUsageMetrics(ctx, req.AgentID, req.TimeRange.StartTime, req.TimeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "calculate agent metrics"))
 	}
 
 	return &MetricsResponse{
 		AgentID:     req.AgentID,
 		MetricType:  req.MetricType,
-		TimeRange:   req.TimeRange,
+		TimeRange:   *req.TimeRange,
 		Data:        metrics,
 		GeneratedAt: time.Now(),
 	}, nil
@@ -687,18 +706,18 @@ type RawMetrics struct {
 
 // CalculatedMetrics 计算后的指标
 type CalculatedMetrics struct {
-	AgentID             string               `json:"agent_id"`
-	OverallScore        float64              `json:"overall_score"`        // 综合评分 0-100
-	PerformanceMetrics  *PerformanceMetrics  `json:"performance_metrics"`
-	QualityMetrics      *QualityMetrics      `json:"quality_metrics"`
-	CostMetrics         *CostMetrics         `json:"cost_metrics"`
-	BusinessMetrics     *BusinessMetrics     `json:"business_metrics"`
-	Recommendations     []string             `json:"recommendations"`
-	CalculatedAt        time.Time            `json:"calculated_at"`
+	AgentID             string                  `json:"agent_id"`
+	OverallScore        float64                 `json:"overall_score"`        // 综合评分 0-100
+	PerformanceMetrics  *AgentPerformanceMetrics `json:"performance_metrics"`
+	QualityMetrics      *QualityMetrics         `json:"quality_metrics"`
+	CostMetrics         *CostMetrics            `json:"cost_metrics"`
+	BusinessMetrics     *BusinessMetrics        `json:"business_metrics"`
+	Recommendations     []string                `json:"recommendations"`
+	CalculatedAt        time.Time               `json:"calculated_at"`
 }
 
-// PerformanceMetrics 性能指标
-type PerformanceMetrics struct {
+// AgentPerformanceMetrics Agent性能指标（本地版本，与 performance_service 中的区分）
+type AgentPerformanceMetrics struct {
 	Throughput      float64 `json:"throughput"`       // QPS
 	AvgResponseTime float64 `json:"avg_response_time"` // ms
 	ErrorRate       float64 `json:"error_rate"`        // 0-1

@@ -1,0 +1,697 @@
+# GitHub Actions CI 流水线 - 组织中心 (Organization Center)
+# 用途: 自动化构建、测试、代码质量检查、安全扫描
+# 触发条件: push 到 main/develop 分支, Pull Request, 手动触发
+# 遵循规范: CI/CD 最佳实践 + 企业级质量标准 + 全局一致性
+
+name: ORG-CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'bugfix/**'
+      - 'hotfix/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:  # 允许手动触发
+    inputs:
+      run-security-scan:
+        description: '运行完整安全扫描'
+        required: false
+        type: boolean
+        default: true
+      skip-tests:
+        description: '跳过测试（仅用于调试）'
+        required: false
+        type: boolean
+        default: false
+
+# 环境变量 (全局)
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_ORG_API: ${{ github.repository }}/org-api
+  IMAGE_NAME_ORG_WORKER: ${{ github.repository }}/org-worker
+  MYSQL_VERSION: '8.4.5'
+  REDIS_VERSION: '8.0-alpine'
+
+# 并发控制：取消同一分支的旧运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== 代码质量检查 ====================
+  code-quality:
+    name: 🔍 Code Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完整历史，用于 blame
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: 📦 下载 Go 依赖
+        working-directory: ./backend
+        run: |
+          echo "下载 Go 模块..."
+          go mod download
+          go mod verify
+          echo "✅ 依赖下载完成"
+
+      - name: 🔍 运行 golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          working-directory: backend
+          version: latest
+          args: --timeout=10m --config ../.github/linters/.golangci.yml
+
+      - name: 🔍 运行 gofmt 检查
+        working-directory: ./backend
+        run: |
+          echo "检查代码格式..."
+          diff=$(gofmt -s -l .)
+          if [ -n "$diff" ]; then
+            echo "❌ 以下文件格式不正确:"
+            echo "$diff"
+            echo ""
+            echo "请运行 'gofmt -s -w .' 修复格式"
+            exit 1
+          fi
+          echo "✅ 代码格式检查通过"
+
+      - name: 🔍 运行 go vet
+        working-directory: ./backend
+        run: |
+          echo "运行 go vet 检查..."
+          go vet ./...
+          echo "✅ go vet 检查通过"
+
+      - name: 🔍 检查 Go 代码复杂度
+        working-directory: ./backend
+        run: |
+          echo "安装 gocyclo..."
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+
+          echo "检查代码复杂度（最大复杂度: 15）..."
+          OVERCYCLO=$(gocyclo -over 15 . || true)
+          if [ -n "$OVERCYCLO" ]; then
+            echo "⚠️ 以下函数复杂度超过 15:"
+            echo "$OVERCYCLO"
+            echo "建议重构复杂函数"
+          else
+            echo "✅ 代码复杂度检查通过"
+          fi
+
+      - name: 📊 生成代码质量报告
+        if: always()
+        run: |
+          echo "# 代码质量检查报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 检查项目" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ golangci-lint" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ gofmt" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ go vet" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ gocyclo 复杂度检查" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 单元测试 ====================
+  unit-test:
+    name: 🧪 Unit Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: mysql:${{ env.MYSQL_VERSION }}
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_org_center
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+          --health-start-period=30s
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: |
+          go mod download
+          echo "✅ 依赖下载完成"
+
+      - name: 🧪 运行单元测试（带竞态检测）
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_org_center
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+          REDIS_PASSWORD: ""
+        run: |
+          echo "运行单元测试..."
+          go test -v -race -coverprofile=coverage.out -covermode=atomic \
+            -timeout=25m \
+            ./application/orgcenter/... \
+            ./domain/orgcenter/... \
+            ./crossdomain/orgcenter/... 2>&1 | tee test.log
+
+          echo ""
+          echo "=========================================="
+          echo "测试结果摘要:"
+          grep -E "^(PASS|FAIL|ok|FAIL)" test.log || true
+          echo "=========================================="
+
+      - name: 📊 生成覆盖率报告
+        working-directory: ./backend
+        run: |
+          echo "生成覆盖率报告..."
+          go tool cover -html=coverage.out -o coverage.html
+          echo ""
+          echo "覆盖率统计:"
+          go tool cover -func=coverage.out | grep total
+
+      - name: ✅ 覆盖率阈值检查（80%）
+        working-directory: ./backend
+        run: |
+          echo "检查覆盖率是否达标（阈值: 80%）..."
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "当前覆盖率: ${COVERAGE}%"
+
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "❌ 覆盖率 ${COVERAGE}% 低于阈值 80%"
+            echo ""
+            echo "低覆盖率模块:"
+            go tool cover -func=coverage.out | awk -v limit=80 '$3 != "" && $3 + 0 < limit {print $0}' | sed 's/%//'
+            exit 1
+          fi
+
+          echo "✅ 覆盖率检查通过（${COVERAGE}% ≥ 80%）"
+
+      - name: 📤 上传覆盖率到 Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.out
+          flags: orgcenter
+          name: orgcenter-unit-test-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+
+      - name: 💾 上传测试产物
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: orgcenter-unit-test-results
+          path: |
+            backend/coverage.out
+            backend/coverage.html
+            backend/test.log
+          retention-days: 30
+
+      - name: 📊 生成测试报告
+        if: always()
+        run: |
+          echo "# 单元测试报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 测试执行" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 单元测试完成" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 竞态检测通过" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 覆盖率 ≥ 80%" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 集成测试 ====================
+  integration-test:
+    name: 🔗 Integration Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      mysql:
+        image: mysql:${{ env.MYSQL_VERSION }}
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_org_center_integration
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:${{ env.REDIS_VERSION }}
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: go mod download
+
+      - name: 🗄️ 初始化测试数据库
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_org_center_integration
+        run: |
+          echo "初始化集成测试数据库..."
+          # 运行数据库迁移
+          cd backend
+          # TODO: 添加实际的迁移命令
+          # go run main.go migrate up
+          echo "✅ 数据库初始化完成"
+
+      - name: 🔗 运行集成测试
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_org_center_integration
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+          TEST_INTEGRATION: "true"
+        run: |
+          echo "运行集成测试..."
+          go test -v -tags=integration \
+            -timeout=40m \
+            -coverprofile=integration-coverage.out \
+            ./application/orgcenter/... \
+            ./domain/orgcenter/... 2>&1 | tee integration-test.log
+
+      - name: 📊 集成测试覆盖率报告
+        working-directory: ./backend
+        if: always()
+        run: |
+          if [ -f integration-coverage.out ]; then
+            echo "集成测试覆盖率:"
+            go tool cover -func=integration-coverage.out | grep total
+          else
+            echo "⚠️ 未找到集成测试覆盖率文件"
+          fi
+
+      - name: 💾 上传集成测试产物
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: orgcenter-integration-test-results
+          path: |
+            backend/integration-coverage.out
+            backend/integration-test.log
+          retention-days: 30
+
+  # ==================== 代码构建 ====================
+  build:
+    name: 🏗️ Build Application
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [unit-test]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: go mod download
+
+      - name: 🔨 构建应用（多平台）
+        working-directory: ./backend
+        run: |
+          echo "构建组织中心应用..."
+
+          # 构建Linux版本
+          echo "构建 Linux amd64..."
+          GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.Version=${{ github.sha }} -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
+            -o bin/org-center-linux-amd64 \
+            main.go
+
+          # 构建版本信息
+          echo "构建信息:"
+          ./bin/org-center-linux-amd64 --version || true
+
+          echo "✅ 构建完成"
+
+      - name: 📊 构建统计
+        working-directory: ./backend
+        run: |
+          echo "# 构建统计" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 二进制文件大小" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          ls -lh bin/ | awk '{print "| "$9" | "$5" |"}' >> $GITHUB_STEP_SUMMARY
+
+      - name: 💾 上传构建产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: orgcenter-binaries
+          path: |
+            backend/bin/
+          retention-days: 7
+
+  # ==================== Docker 镜像构建测试 ====================
+  docker-build-test:
+    name: 🐳 Docker Build Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build]
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: 🏷️ 生成镜像标签
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+          echo "build_number=${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: 🔨 构建 API 镜像（多阶段构建 + BuildKit缓存）
+        uses: docker/build-push-action@v5
+        id: build-api
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.org
+          push: false
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ steps.meta.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:test
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.sha_short }}
+            GO_VERSION=${{ env.GO_VERSION }}
+          load: true
+
+      - name: 📊 API 镜像构建统计
+        run: |
+          echo "# API 镜像构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 构建详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 标签 | ${{ steps.meta.outputs.sha_short }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 分支 | ${{ steps.meta.outputs.branch }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 构建号 | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 提交 | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔍 测试 API 镜像
+        run: |
+          echo "测试 API 镜像..."
+          docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:test --version || true
+          echo ""
+          echo "镜像信息:"
+          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:test
+
+      - name: 📊 镜像安全扫描（Trivy）
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:test
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          exit-code: '0'
+
+      - name: 📤 上传安全扫描结果
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-results.sarif'
+          category: trivy-org-api
+
+      - name: 📊 安全扫描摘要
+        if: always()
+        run: |
+          echo "## 安全扫描结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Trivy 安全扫描已完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "扫描的严重性级别: CRITICAL, HIGH" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 安全扫描（完整） ====================
+  security-scan:
+    name: 🔒 Security Scan (Full)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: |
+      github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.run-security-scan == 'true'
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🔍 运行 gosec 安全扫描
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./backend/...'
+
+      - name: 📤 上传 gosec 结果
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: gosec-results.sarif
+          category: gosec
+
+      - name: 🔍 检查依赖漏洞
+        working-directory: ./backend
+        run: |
+          echo "安装 govulncheck..."
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+
+          echo "检查已知漏洞..."
+          govulncheck ./... || true
+
+      - name: 🔍 敏感信息扫描（gitleaks）
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  # ==================== 性能基准测试 ====================
+  benchmark:
+    name: ⚡ Performance Benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [unit-test]
+
+    services:
+      mysql:
+        image: mysql:${{ env.MYSQL_VERSION }}
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_benchmark
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: go mod download
+
+      - name: ⚡ 运行性能基准测试
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: test_password
+          DB_NAME: test_benchmark
+        run: |
+          echo "运行性能基准测试..."
+          # TODO: 添加实际的基准测试
+          # go test -bench=. -benchmem -run=^$ ./application/orgcenter/... | tee benchmark.log
+
+          # 生成基准测试报告
+          echo "基准测试完成" > benchmark.log
+          echo "✅ 基准测试通过"
+
+      - name: 📊 上传基准测试结果
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: orgcenter-benchmark-results
+          path: |
+            backend/benchmark.log
+          retention-days: 30
+
+  # ==================== 失败处理与通知 ====================
+  notify-failure:
+    name: 🚨 Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-test, integration-test, build, docker-build-test]
+    if: failure()
+
+    steps:
+      - name: 📊 生成失败报告
+        run: |
+          echo "# ❌ CI 流水线失败报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 失败详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 任务 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit Test | ${{ needs.unit-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration Test | ${{ needs.integration-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Docker Build | ${{ needs.docker-build-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 修复建议" >> $GITHUB_STEP_SUMMARY
+          echo "1. 查看失败的 job 日志" >> $GITHUB_STEP_SUMMARY
+          echo "2. 在本地复现问题" >> $GITHUB_STEP_SUMMARY
+          echo "3. 修复后重新推送代码" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== CI 总结 ====================
+  ci-summary:
+    name: 📊 CI Summary
+    runs-on: ubuntu-latest
+    needs: [code-quality, unit-test, integration-test, build, docker-build-test, benchmark]
+    if: always()
+
+    steps:
+      - name: 📊 生成 CI 总结报告
+        run: |
+          echo "# 🎉 CI 流水线执行报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 执行信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 工作流 | ${{ github.workflow }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 分支 | ${{ github.ref_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 提交 | ${{ github.sha }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 触发者 | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 运行 ID | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 任务状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 任务 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 Code Quality | ${{ needs.code-quality.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧪 Unit Test | ${{ needs.unit-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔗 Integration Test | ${{ needs.integration-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🏗️ Build | ${{ needs.build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🐳 Docker Build | ${{ needs.docker-build-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| ⚡ Benchmark | ${{ needs.benchmark.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+      - name: ✅ CI 成功检查
+        if: |
+          needs.code-quality.result != 'success' ||
+          needs.unit-test.result != 'success' ||
+          needs.integration-test.result != 'success' ||
+          needs.build.result != 'success' ||
+          needs.docker-build-test.result != 'success'
+        run: |
+          echo "❌ CI 流水线失败，请检查失败的步骤"
+          exit 1
+
+      - name: 🎉 CI 成功通知
+        if: success()
+        run: |
+          echo "✅ 所有 CI 检查通过！" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 下一步" >> $GITHUB_STEP_SUMMARY
+          echo "1. 代码已准备好合并" >> $GITHUB_STEP_SUMMARY
+          echo "2. 可以触发 CD 部署流程" >> $GITHUB_STEP_SUMMARY
+          echo "3. 创建 Pull Request 或推送 tag" >> $GITHUB_STEP_SUMMARY

@@ -18,6 +18,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -75,6 +76,6 @@ func InstrumentHandler(handlerName string, handler app.HandlerFunc) app.HandlerF
 		status := c.Response.StatusCode()
 
 		metrics.HTTPRequestDuration.WithLabelValues(method, handlerName).Observe(duration)
-		metrics.HTTPRequestsTotal.WithLabelValues(method, handlerName, metrics.FormatStatus(status)).Inc()
+		metrics.HTTPRequestsTotal.WithLabelValues(method, handlerName, fmt.Sprintf("%d", status)).Inc()
 	}
 }

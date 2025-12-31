@@ -1,0 +1,175 @@
+# Prometheus告警规则
+# Coze Studio 多租户SaaS系统
+
+groups:
+  - name: api_alerts
+    interval: 30s
+    rules:
+      # API可用性告警
+      - alert: APIDown
+        expr: up{job="coze-studio-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "API服务宕机"
+          description: "{{ $labels.instance }} API服务已宕机超过1分钟"
+
+      # 高错误率告警
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API错误率过高"
+          description: "{{ $labels.instance }} 错误率超过5% (当前值: {{ $value }}%)"
+
+      # 高延迟告警
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "API延迟过高"
+          description: "{{ $labels.instance }} P95延迟超过1秒 (当前值: {{ $value }}s)"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # 数据库连接告警
+      - alert: DatabaseConnectionPoolExhausted
+        expr: db_connections_active / db_connections_idle > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "数据库连接池耗尽"
+          description: "活跃连接数占比超过90% (当前值: {{ $value }}%)"
+
+      # 查询慢告警
+      - alert: SlowDatabaseQuery
+        expr: histogram_quantile(0.95, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "数据库查询过慢"
+          description: "{{ $labels.table }} P95查询延迟超过500ms (当前值: {{ $value }}s)"
+
+      # 数据库查询错误告警
+      - alert: DatabaseQueryErrors
+        expr: rate(db_query_errors_total[5m]) / rate(db_query_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+          team: backend
+        annotations:
+          summary: "数据库查询错误率过高"
+          description: "{{ $labels.table }} 错误率超过1% (当前值: {{ $value }}%)"
+
+  - name: cache_alerts
+    interval: 30s
+    rules:
+      # 缓存命中率低告警
+      - alert: LowCacheHitRate
+        expr: cache_hit_percentage < 80
+        for: 15m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "缓存命中率过低"
+          description: "{{ $labels.cache_type }} 缓存命中率低于80% (当前值: {{ $value }}%)"
+
+  - name: tenant_alerts
+    interval: 1m
+    rules:
+      # 配额超限告警
+      - alert: QuotaExceeded
+        expr: rate(quota_exceeded_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "租户配额超限"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额已超限"
+
+      # 配额使用率告警
+      - alert: HighQuotaUsage
+        expr: quota_usage_percentage > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "租户配额使用率过高"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 使用率超过80% (当前值: {{ $value }}%)"
+
+  - name: business_alerts
+    interval: 1m
+    rules:
+      # 注册量下降告警
+      - alert: LowRegistrationRate
+        expr: rate(registration_total[1h]) < 0.1
+        for: 1h
+        labels:
+          severity: warning
+          team: product
+        annotations:
+          summary: "租户注册量下降"
+          description: "最近1小时注册率低于0.1/分钟 (当前值: {{ $value }})"
+
+      # 隔离升级频繁告警
+      - alert: FrequentIsolationUpgrades
+        expr: rate(isolation_upgrade_total[1h]) > 0.1
+        for: 30m
+        labels:
+          severity: info
+          team: platform
+        annotations:
+          summary: "隔离策略升级频繁"
+          description: "隔离策略升级频率超过0.1/分钟 (可能需要扩容)"
+
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "CPU使用率过高"
+          description: "{{ $labels.instance }} CPU使用率超过80% (当前值: {{ $value }}%)"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes / node_memory_MemTotal_bytes * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          team: ops
+        annotations:
+          summary: "内存使用率过高"
+          description: "{{ $labels.instance }} 内存使用率超过80% (当前值: {{ $value }}%)"
+
+      # 磁盘空间告警
+      - alert: LowDiskSpace
+        expr: node_filesystem_avail_bytes / node_filesystem_size_bytes * 100 < 20
+        for: 10m
+        labels:
+          severity: critical
+          team: ops
+        annotations:
+          summary: "磁盘空间不足"
+          description: "{{ $labels.device }} 磁盘可用空间低于20% (当前值: {{ $value }}%)"

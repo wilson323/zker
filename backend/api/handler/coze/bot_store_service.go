@@ -22,6 +22,8 @@ import (
 	"time"
 
 	botstoreAPI "github.com/coze-dev/coze-studio/backend/api/model/botstore"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
+	"github.com/coze-dev/coze-studio/backend/application/base/ctxutil"
 	"github.com/coze-dev/coze-studio/backend/domain/botstore/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/botstore/service"
 
@@ -30,9 +32,10 @@ import (
 )
 
 var (
-	botStorePublisher service.BotStorePublisher
-	botStoreBrowser  service.BotStoreBrowser
-	botStoreReviewer service.BotStoreReviewer
+	botStorePublisher  service.BotStorePublisher
+	botStoreBrowser   service.BotStoreBrowser
+	botStoreReviewer  service.BotStoreReviewer
+	botStoreReviewSvc service.BotStoreReviewService
 )
 
 // InitBotStoreServices 初始化Bot商店服务
@@ -40,10 +43,12 @@ func InitBotStoreServices(
 	publisher service.BotStorePublisher,
 	browser service.BotStoreBrowser,
 	reviewer service.BotStoreReviewer,
+	reviewSvc service.BotStoreReviewService,
 ) {
 	botStorePublisher = publisher
 	botStoreBrowser = browser
 	botStoreReviewer = reviewer
+	botStoreReviewSvc = reviewSvc
 }
 
 // PublishBotToStore 发布Bot到商店
@@ -51,12 +56,14 @@ func InitBotStoreServices(
 func PublishBotToStore(ctx context.Context, c *app.RequestContext) {
 	var req botstoreAPI.PublishBotToStoreRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
 	// 获取用户ID和租户ID
-	userID := getUserIDFromContext(ctx)
+	userID := strconv.FormatInt(*ctxutil.GetUIDFromCtx(ctx), 10)
+
+	// 获取租户ID (需要从上下文中获取,暂时使用空字符串)
 	tenantID := getTenantIDFromContext(ctx)
 
 	// 调用发布服务
@@ -75,20 +82,14 @@ func PublishBotToStore(ctx context.Context, c *app.RequestContext) {
 
 	item, err := botStorePublisher.PublishBot(ctx, publishReq)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	// 转换为DTO
 	dto := entityToDTO(item)
 
-	c.JSON(consts.StatusOK, &botstoreAPI.PublishBotToStoreResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		Data: dto,
-	})
+	httputil.BuildSuccessResp(c, dto)
 }
 
 // UnpublishBot 下架Bot
@@ -96,23 +97,18 @@ func PublishBotToStore(ctx context.Context, c *app.RequestContext) {
 func UnpublishBot(ctx context.Context, c *app.RequestContext) {
 	itemID := c.Param("item_id")
 	if itemID == "" {
-		invalidParamRequestResponse(c, "item_id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
 		return
 	}
 
 	userID := getUserIDFromContext(ctx)
 
 	if err := botStorePublisher.UnpublishBot(ctx, itemID, userID); err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.UnpublishBotResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-	})
+	httputil.BuildSuccessResp(c, nil)
 }
 
 // UpdateBotStoreItem 更新商店项目
@@ -120,13 +116,13 @@ func UnpublishBot(ctx context.Context, c *app.RequestContext) {
 func UpdateBotStoreItem(ctx context.Context, c *app.RequestContext) {
 	itemID := c.Param("item_id")
 	if itemID == "" {
-		invalidParamRequestResponse(c, "item_id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
 		return
 	}
 
 	var req botstoreAPI.UpdateBotStoreItemRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
@@ -145,16 +141,11 @@ func UpdateBotStoreItem(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if err := botStorePublisher.UpdateBotStoreItem(ctx, updateReq, userID); err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.UpdateBotStoreItemResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-	})
+httputil.BuildSuccessResp(c, nil)
 }
 
 // ListBotStoreItems 列出商店项目
@@ -162,7 +153,7 @@ func UpdateBotStoreItem(ctx context.Context, c *app.RequestContext) {
 func ListBotStoreItems(ctx context.Context, c *app.RequestContext) {
 	var req botstoreAPI.ListBotStoreItemsRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
@@ -183,7 +174,7 @@ func ListBotStoreItems(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := botStoreBrowser.ListBots(ctx, listReq)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -193,18 +184,12 @@ func ListBotStoreItems(ctx context.Context, c *app.RequestContext) {
 		items = append(items, entityToDTO(item))
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.ListBotStoreItemsResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		Data: &botstoreAPI.BotStoreItemListData{
-			Items:      items,
-			Total:      resp.Total,
-			Page:       resp.Page,
-			PageSize:   resp.PageSize,
-			TotalPages: resp.TotalPages,
-		},
+httputil.BuildSuccessResp(c, &botstoreAPI.BotStoreItemListData{
+		Items:      items,
+		Total:      resp.Total,
+		Page:       resp.Page,
+		PageSize:   resp.PageSize,
+		TotalPages: resp.TotalPages,
 	})
 }
 
@@ -213,7 +198,7 @@ func ListBotStoreItems(ctx context.Context, c *app.RequestContext) {
 func SearchBotStoreItems(ctx context.Context, c *app.RequestContext) {
 	var req botstoreAPI.SearchBotStoreItemsRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
@@ -237,7 +222,7 @@ func SearchBotStoreItems(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := botStoreBrowser.SearchBots(ctx, searchReq)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -247,18 +232,12 @@ func SearchBotStoreItems(ctx context.Context, c *app.RequestContext) {
 		items = append(items, entityToDTO(item))
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.SearchBotStoreItemsResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		Data: &botstoreAPI.BotStoreItemListData{
-			Items:      items,
-			Total:      resp.Total,
-			Page:       resp.Page,
-			PageSize:   resp.PageSize,
-			TotalPages: resp.TotalPages,
-		},
+httputil.BuildSuccessResp(c, &botstoreAPI.BotStoreItemListData{
+		Items:      items,
+		Total:      resp.Total,
+		Page:       resp.Page,
+		PageSize:   resp.PageSize,
+		TotalPages: resp.TotalPages,
 	})
 }
 
@@ -267,26 +246,20 @@ func SearchBotStoreItems(ctx context.Context, c *app.RequestContext) {
 func GetBotStoreItem(ctx context.Context, c *app.RequestContext) {
 	itemID := c.Param("item_id")
 	if itemID == "" {
-		invalidParamRequestResponse(c, "item_id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
 		return
 	}
 
 	item, err := botStoreBrowser.GetBotStoreItem(ctx, itemID)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	// 记录浏览
 	_ = botStoreBrowser.RecordView(ctx, itemID)
 
-	c.JSON(consts.StatusOK, &botstoreAPI.GetBotStoreItemResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		Data: entityToDTO(item),
-	})
+httputil.BuildSuccessResp(c, entityToDTO(item))
 }
 
 // GetBotCategories 获取分类列表
@@ -294,7 +267,7 @@ func GetBotStoreItem(ctx context.Context, c *app.RequestContext) {
 func GetBotCategories(ctx context.Context, c *app.RequestContext) {
 	categories, err := botStoreBrowser.GetCategories(ctx)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -311,13 +284,7 @@ func GetBotCategories(ctx context.Context, c *app.RequestContext) {
 		})
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.GetBotCategoriesResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		data: dtos,
-	})
+httputil.BuildSuccessResp(c, dtos)
 }
 
 // GetPendingReviews 获取待审核列表（管理员）
@@ -325,7 +292,7 @@ func GetBotCategories(ctx context.Context, c *app.RequestContext) {
 func GetPendingReviews(ctx context.Context, c *app.RequestContext) {
 	var req botstoreAPI.GetPendingReviewsRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
@@ -339,7 +306,7 @@ func GetPendingReviews(ctx context.Context, c *app.RequestContext) {
 
 	items, total, err := botStoreReviewer.GetPendingReviews(ctx, req.Page, req.PageSize)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -354,18 +321,12 @@ func GetPendingReviews(ctx context.Context, c *app.RequestContext) {
 		totalPages++
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.GetPendingReviewsResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-		Data: &botstoreAPI.BotStoreItemListData{
-			Items:      dtos,
-			Total:      total,
-			Page:       req.Page,
-			PageSize:   req.PageSize,
-			TotalPages: totalPages,
-		},
+httputil.BuildSuccessResp(c, &botstoreAPI.BotStoreItemListData{
+		Items:      dtos,
+		Total:      total,
+		Page:       req.Page,
+		PageSize:   req.PageSize,
+		TotalPages: totalPages,
 	})
 }
 
@@ -374,13 +335,13 @@ func GetPendingReviews(ctx context.Context, c *app.RequestContext) {
 func ReviewBotStoreItem(ctx context.Context, c *app.RequestContext) {
 	itemID := c.Param("item_id")
 	if itemID == "" {
-		invalidParamRequestResponse(c, "item_id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
 		return
 	}
 
 	var req botstoreAPI.ReviewBotStoreItemRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
 		return
 	}
 
@@ -394,16 +355,11 @@ func ReviewBotStoreItem(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if err := botStoreReviewer.ReviewBot(ctx, reviewReq); err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, &botstoreAPI.ReviewBotStoreItemResponse{
-		BaseResponse: botstoreAPI.BaseResponse{
-			Code: 0,
-			Msg:  "success",
-		},
-	})
+httputil.BuildSuccessResp(c, nil)
 }
 
 // entityToDTO 实体转DTO
@@ -431,30 +387,209 @@ func entityToDTO(item *entity.BotStoreItem) *botstoreAPI.BotStoreItemDTO {
 
 // getUserIDFromContext 从上下文获取用户ID
 func getUserIDFromContext(ctx context.Context) string {
-	// TODO: 从实际的上下文中获取用户ID
-	// 这里需要根据实际的认证中间件实现来获取
-	return "user_id"
+	uid := ctxutil.GetUIDFromCtx(ctx)
+	if uid == nil {
+		return ""
+	}
+	return strconv.FormatInt(*uid, 10)
 }
 
 // getTenantIDFromContext 从上下文获取租户ID
 func getTenantIDFromContext(ctx context.Context) string {
-	// TODO: 从实际的上下文中获取租户ID
-	// 这里需要根据实际的租户中间件实现来获取
-	return "tenant_id"
+	// TODO: 实现从租户中间件获取租户ID
+	// 当前返回空字符串，待实现租户上下文管理器后完善
+	return ""
 }
 
-// invalidParamRequestResponse 无效参数响应
-func invalidParamRequestResponse(c *app.RequestContext, msg string) {
-	c.JSON(consts.StatusBadRequest, &botstoreAPI.BaseResponse{
-		Code: consts.StatusBadRequest,
-		Msg:  msg,
+
+// ========== Bot商店评论相关Handler ==========
+
+// CreateReview 创建评论
+// @router /api/v1/bot-store/:item_id/reviews [POST]
+func CreateReview(ctx context.Context, c *app.RequestContext) {
+	itemID := c.Param("item_id")
+	if itemID == "" {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
+		return
+	}
+
+	var req botstoreAPI.CreateReviewRequest
+	if err := c.BindAndValidate(&req); err != nil {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
+		return
+	}
+
+	req.ItemID = itemID
+
+	// 获取用户ID和租户ID
+	userID := getUserIDFromContext(ctx)
+	tenantID := getTenantIDFromContext(ctx)
+
+	// 调用服务
+	createReq := &service.CreateReviewRequest{
+		ItemID:  req.ItemID,
+		Rating:  req.Rating,
+		Comment: req.Comment,
+	}
+
+	review, err := botStoreReviewSvc.CreateReview(ctx, createReq, userID, tenantID)
+	if err != nil {
+		handleReviewError(ctx, c, err)
+		return
+	}
+
+httputil.BuildSuccessResp(c, reviewToDTO(review))
+}
+
+// GetReviews 获取评论列表
+// @router /api/v1/bot-store/:item_id/reviews [GET]
+func GetReviews(ctx context.Context, c *app.RequestContext) {
+	itemID := c.Param("item_id")
+	if itemID == "" {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
+		return
+	}
+
+	// 设置默认值
+	page, _ := strconv.Atoi(c.Query("page"))
+	if page <= 0 {
+		page = 1
+	}
+	pageSize, _ := strconv.Atoi(c.Query("page_size"))
+	if pageSize <= 0 {
+		pageSize = 20
+	}
+	if pageSize > 100 {
+		pageSize = 100
+	}
+	sortBy := c.Query("sort_by")
+	if sortBy == "" {
+		sortBy = "latest"
+	}
+
+	// 调用服务
+	req := &service.ListReviewsRequest{
+		ItemID:   itemID,
+		Page:     page,
+		PageSize: pageSize,
+		SortBy:   sortBy,
+	}
+
+	resp, err := botStoreReviewSvc.ListReviews(ctx, req)
+	if err != nil {
+		handleReviewError(ctx, c, err)
+		return
+	}
+
+	// 转换为DTO
+	reviews := make([]*botstoreAPI.BotStoreReviewDTO, 0, len(resp.Reviews))
+	for _, review := range resp.Reviews {
+		reviews = append(reviews, reviewToDTO(review))
+	}
+
+httputil.BuildSuccessResp(c, &botstoreAPI.ReviewListData{
+		Reviews:       reviews,
+		Total:         resp.Total,
+		Page:          resp.Page,
+		PageSize:      resp.PageSize,
+		TotalPages:    resp.TotalPages,
+		AverageRating: resp.AverageRating,
+		RatingCount:   resp.RatingCount,
 	})
 }
 
-// internalServerErrorResponse 内部服务器错误响应
-func internalServerErrorResponse(ctx context.Context, c *app.RequestContext, err error) {
-	c.JSON(consts.StatusInternalServerError, &botstoreAPI.BaseResponse{
-		Code: consts.StatusInternalServerError,
-		Msg:  err.Error(),
+// UpdateReview 更新评论
+// @router /api/v1/bot-store/:item_id/reviews/:review_id [PUT]
+func UpdateReview(ctx context.Context, c *app.RequestContext) {
+	reviewID := c.Param("review_id")
+	if reviewID == "" {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "review_id is required", "参数验证失败", nil)
+		return
+	}
+
+	var req botstoreAPI.UpdateReviewRequest
+	if err := c.BindAndValidate(&req); err != nil {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(), "参数验证失败", nil))
+		return
+	}
+
+	userID := getUserIDFromContext(ctx)
+
+	// 调用服务
+	updateReq := &service.UpdateReviewRequest{
+		Rating:  req.Rating,
+		Comment: req.Comment,
+	}
+
+	if err := botStoreReviewSvc.UpdateReview(ctx, reviewID, updateReq, userID); err != nil {
+		handleReviewError(ctx, c, err)
+		return
+	}
+
+httputil.BuildSuccessResp(c, nil)
+}
+
+// DeleteReview 删除评论
+// @router /api/v1/bot-store/:item_id/reviews/:review_id [DELETE]
+func DeleteReview(ctx context.Context, c *app.RequestContext) {
+	reviewID := c.Param("review_id")
+	if reviewID == "" {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "review_id is required", "参数验证失败", nil)
+		return
+	}
+
+	userID := getUserIDFromContext(ctx)
+
+	if err := botStoreReviewSvc.DeleteReview(ctx, reviewID, userID); err != nil {
+		handleReviewError(ctx, c, err)
+		return
+	}
+
+httputil.BuildSuccessResp(c, nil)
+}
+
+// GetReviewStatistics 获取评论统计
+// @router /api/v1/bot-store/:item_id/reviews/statistics [GET]
+func GetReviewStatistics(ctx context.Context, c *app.RequestContext) {
+	itemID := c.Param("item_id")
+	if itemID == "" {
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "item_id is required", "参数验证失败", nil)
+		return
+	}
+
+	stats, err := botStoreReviewSvc.GetReviewStatistics(ctx, itemID)
+	if err != nil {
+		handleReviewError(ctx, c, err)
+		return
+	}
+
+httputil.BuildSuccessResp(c, &botstoreAPI.ReviewStatisticsDTO{
+		AverageRating: stats.AverageRating,
+		RatingCount:   stats.RatingCount,
+		Rating1Count:  stats.Rating1Count,
+		Rating2Count:  stats.Rating2Count,
+		Rating3Count:  stats.Rating3Count,
+		Rating4Count:  stats.Rating4Count,
+		Rating5Count:  stats.Rating5Count,
 	})
+}
+
+// reviewToDTO 实体转DTO
+func reviewToDTO(review *entity.BotStoreReview) *botstoreAPI.BotStoreReviewDTO {
+	return &botstoreAPI.BotStoreReviewDTO{
+		ReviewID:  review.ReviewID,
+		ItemID:    review.ItemID,
+		UserID:    review.UserID,
+		Rating:    review.Rating,
+		Comment:   review.Comment,
+		CreatedAt: review.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: review.UpdatedAt.Format(time.RFC3339),
+	}
+}
+
+// handleReviewError 处理评论错误
+func handleReviewError(ctx context.Context, c *app.RequestContext, err error) {
+	// 根据错误类型返回不同的HTTP状态码
+	// 这里简化处理，实际应该根据errno返回对应的状态码
+	httputil.InternalError(ctx, c, err)
 }

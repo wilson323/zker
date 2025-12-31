@@ -1,3 +1,5 @@
+// +build ignore
+
 /*
  * Copyright 2025 coze-dev Authors
  *
@@ -14,6 +16,8 @@
  * limitations under the License.
  */
 
+// Deprecated: Use permission_check_enhanced.go instead.
+// This file is kept for reference only and is excluded from builds.
 package middleware
 
 import (

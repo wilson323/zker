@@ -99,7 +99,7 @@ func RecordTokenUsage(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 5. 返回响应
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // BatchRecordTokenUsage 批量记录Token使用
@@ -167,7 +167,7 @@ func BatchRecordTokenUsage(ctx context.Context, c *app.RequestContext) {
 		TotalCost:    svcResp.TotalCost,
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetUsageStats 获取使用统计
@@ -231,7 +231,7 @@ func GetUsageStats(ctx context.Context, c *app.RequestContext) {
 		EndDate:           svcResp.EndDate,
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDailyUsageStats 获取每日使用趋势
@@ -334,7 +334,7 @@ func GetDailyUsageStats(ctx context.Context, c *app.RequestContext) {
 		},
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetModelUsageStats 获取模型使用统计
@@ -435,7 +435,7 @@ func GetModelUsageStats(ctx context.Context, c *app.RequestContext) {
 		},
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ==================== 辅助函数 ====================

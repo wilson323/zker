@@ -55,14 +55,18 @@ func PassportWebEmailRegisterV2Post(ctx context.Context, c *app.RequestContext) 
 		return
 	}
 
+	// 设置Session Cookie
+	// - SameSite=Strict: 防止CSRF攻击(仅第一方Cookie)
+	// - HttpOnly=true: 防止XSS攻击窃取Cookie(禁止JavaScript访问)
+	// - Secure=false: 开发环境允许HTTP(生产环境应设置为true)
 	c.SetCookie(entity.SessionKey,
 		sessionKey,
 		consts.SessionMaxAgeSecond,
 		"/", domain.GetOriginHost(c),
-		protocol.CookieSameSiteDefaultMode,
-		false, true)
+		protocol.CookieSameSiteStrictMode, // ✅ 改为Strict模式,防止CSRF攻击
+		false, true)                       // Secure=false(开发环境), HttpOnly=true(防止XSS)
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PassportWebLogoutGet .
@@ -82,7 +86,7 @@ func PassportWebLogoutGet(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PassportWebEmailLoginPost .
@@ -104,13 +108,17 @@ func PassportWebEmailLoginPost(ctx context.Context, c *app.RequestContext) {
 
 	logs.Infof("[PassportWebEmailLoginPost] sessionKey: %s", sessionKey)
 
+	// 设置Session Cookie
+	// - SameSite=Strict: 防止CSRF攻击(仅第一方Cookie)
+	// - HttpOnly=true: 防止XSS攻击窃取Cookie(禁止JavaScript访问)
+	// - Secure=false: 开发环境允许HTTP(生产环境应设置为true)
 	c.SetCookie(entity.SessionKey,
 		sessionKey,
 		consts.SessionMaxAgeSecond,
 		"/", domain.GetOriginHost(c),
-		protocol.CookieSameSiteDefaultMode,
-		false, true)
-	c.JSON(http.StatusOK, resp)
+		protocol.CookieSameSiteStrictMode, // ✅ 改为Strict模式,防止CSRF攻击
+		false, true)                       // Secure=false(开发环境), HttpOnly=true(防止XSS)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PassportWebEmailPasswordResetGet .
@@ -130,7 +138,7 @@ func PassportWebEmailPasswordResetGet(ctx context.Context, c *app.RequestContext
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PassportAccountInfoV2 .
@@ -150,7 +158,7 @@ func PassportAccountInfoV2(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UserUpdateAvatar .
@@ -196,7 +204,7 @@ func UserUpdateAvatar(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UserUpdateProfile .
@@ -216,5 +224,5 @@ func UserUpdateProfile(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	c.JSON(http.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

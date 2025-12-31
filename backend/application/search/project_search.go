@@ -159,7 +159,7 @@ func (s *SearchApplicationService) favoriteProject(ctx context.Context, projectI
 			ID:        projectID,
 			IsFav:     ptr.Of(ternary.IFElse(isFav, 1, 0)),
 			FavTimeMS: ptr.Of(time.Now().UnixMilli()),
-			Type:      entityType,
+			Type:      ConvertIntelligenceTypeFromAPI(entityType),
 		},
 	})
 	if err != nil {
@@ -194,18 +194,18 @@ func (s *SearchApplicationService) PublicGetUserFavoriteList(ctx context.Context
 }
 
 func (s *SearchApplicationService) searchFavProjects(ctx context.Context, userID int64, req *product_public_api.GetUserFavoriteListV2Request) (*product_public_api.GetUserFavoriteListDataV2, error) {
-	var types []common.IntelligenceType
+	var apiTypes []common.IntelligenceType
 	if req.GetEntityType() == product_common.ProductEntityType_Common {
-		types = []common.IntelligenceType{common.IntelligenceType_Bot, common.IntelligenceType_Project}
+		apiTypes = []common.IntelligenceType{common.IntelligenceType_Bot, common.IntelligenceType_Project}
 	} else if req.GetEntityType() == product_common.ProductEntityType_Bot {
-		types = []common.IntelligenceType{common.IntelligenceType_Bot}
+		apiTypes = []common.IntelligenceType{common.IntelligenceType_Bot}
 	} else {
-		types = []common.IntelligenceType{common.IntelligenceType_Project}
+		apiTypes = []common.IntelligenceType{common.IntelligenceType_Project}
 	}
 
 	res, err := SearchSVC.DomainSVC.SearchProjects(ctx, &searchEntity.SearchProjectsRequest{
 		OwnerID:        userID,
-		Types:          types,
+		Types:          apiTypes,
 		IsFav:          true,
 		OrderFiledName: search2.FieldOfFavTime,
 		OrderAsc:       false,
@@ -245,14 +245,15 @@ func (s *SearchApplicationService) searchFavProjects(ctx context.Context, userID
 }
 
 func (s *SearchApplicationService) projectResourceToProductInfo(ctx context.Context, userID int64, doc *searchEntity.ProjectDocument) (favEntity *product_common.FavoriteEntity, err error) {
+	apiType := ConvertIntelligenceTypeToAPI(doc.Type)
 	typ := func() product_common.ProductEntityType {
-		if doc.Type == common.IntelligenceType_Bot {
+		if apiType == common.IntelligenceType_Bot {
 			return product_common.ProductEntityType_Bot
 		}
 		return product_common.ProductEntityType_Project
 	}()
 
-	packer, err := NewPackProject(userID, doc.ID, doc.Type, s)
+	packer, err := NewPackProject(userID, doc.ID, apiType, s)
 	if err != nil {
 		return nil, err
 	}
@@ -331,14 +332,17 @@ func (s *SearchApplicationService) GetUserRecentlyEditIntelligence(ctx context.C
 }
 
 func (s *SearchApplicationService) packIntelligenceData(ctx context.Context, doc *searchEntity.ProjectDocument) (*intelligence.IntelligenceData, error) {
+	apiType := ConvertIntelligenceTypeToAPI(doc.Type)
+	apiStatus := ConvertIntelligenceStatusToAPI(doc.Status)
+
 	intelligenceData := &intelligence.IntelligenceData{
-		Type: doc.Type,
+		Type: apiType,
 		BasicInfo: &common.IntelligenceBasicInfo{
 			ID:          doc.ID,
 			Name:        doc.GetName(),
 			SpaceID:     doc.GetSpaceID(),
 			OwnerID:     doc.GetOwnerID(),
-			Status:      doc.Status,
+			Status:      apiStatus,
 			CreateTime:  doc.GetCreateTime() / 1000,
 			UpdateTime:  doc.GetUpdateTime() / 1000,
 			PublishTime: doc.GetPublishTime() / 1000,
@@ -347,19 +351,19 @@ func (s *SearchApplicationService) packIntelligenceData(ctx context.Context, doc
 
 	uid := ctxutil.MustGetUIDFromCtx(ctx)
 
-	packer, err := NewPackProject(uid, doc.ID, doc.Type, s)
+	packer, err := NewPackProject(uid, doc.ID, apiType, s)
 	if err != nil {
 		return nil, err
 	}
 
 	projInfo, err := packer.GetProjectInfo(ctx)
 	if err != nil {
-		return nil, errorx.Wrapf(err, "GetProjectInfo failed, id: %v, type: %v", doc.ID, doc.Type)
+		return nil, errorx.Wrapf(err, "GetProjectInfo failed, id: %v, type: %v", doc.ID, apiType)
 	}
 
 	intelligenceData.BasicInfo.Description = projInfo.desc
 	intelligenceData.BasicInfo.IconURI = projInfo.iconURI
-	intelligenceData.BasicInfo.IconURL = s.getProjectIconURL(ctx, projInfo.iconURI, doc.Type)
+	intelligenceData.BasicInfo.IconURL = s.getProjectIconURL(ctx, projInfo.iconURI, apiType)
 	intelligenceData.PermissionInfo = packer.GetPermissionInfo()
 
 	publishedInf := packer.GetPublishedInfo(ctx)
@@ -394,7 +398,8 @@ func (s *SearchApplicationService) buildProjectOtherInfo(doc *searchEntity.Proje
 		BotMode:          intelligence.BotMode_SingleMode,
 		RecentlyOpenTime: conv.Int64ToStr(doc.GetRecentlyOpenTime() / 1000),
 	}
-	if doc.Type == common.IntelligenceType_Project {
+	apiType := ConvertIntelligenceTypeToAPI(doc.Type)
+	if apiType == common.IntelligenceType_Project {
 		otherInfo.BotMode = intelligence.BotMode_WorkflowMode
 	}
 

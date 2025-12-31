@@ -66,7 +66,7 @@ func (u *UserApplicationService) PassportWebEmailRegisterV2(ctx context.Context,
 
 	// Allow Register Checker
 	if !u.allowRegisterChecker(req.GetEmail(), baseConf) {
-		return nil, "", errorx.New(errno.ErrNotAllowedRegisterCode)
+		return nil, "", errorx.New(errno.ErrUserPermissionCode)
 	}
 
 	_, err = u.DomainSVC.Create(ctx, &user.CreateUserRequest{

@@ -17,7 +17,6 @@
 package monitoring
 
 import (
-	"context"
 	"net/http"
 	"strconv"
 	"time"

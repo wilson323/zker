@@ -35,7 +35,7 @@ func validateWorkflowTree(ctx context.Context, config vo.ValidateTreeConfig) ([]
 	c := &vo.Canvas{}
 	err := sonic.UnmarshalString(config.CanvasSchema, &c)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail,
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 			fmt.Errorf("failed to unmarshal canvas schema: %w", err))
 	}
 
@@ -150,7 +150,7 @@ type version struct {
 func parseVersion(versionString string) (_ version, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapError(errno.ErrInvalidVersionName, err)
+			err = vo.WrapError(errno.DeprecatedErrInvalidVersionName, err)
 		}
 	}()
 	if !strings.HasPrefix(versionString, "v") {

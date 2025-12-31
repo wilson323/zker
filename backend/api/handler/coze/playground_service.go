@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/playground"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	appApplication "github.com/coze-dev/coze-studio/backend/application/app"
 	"github.com/coze-dev/coze-studio/backend/application/prompt"
 	"github.com/coze-dev/coze-studio/backend/application/shortcutcmd"
@@ -39,27 +40,27 @@ func UpdateDraftBotInfoAgw(ctx context.Context, c *app.RequestContext) {
 	var req playground.UpdateDraftBotInfoAgwRequest
 	err := c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.BotInfo == nil {
-		invalidParamRequestResponse(c, "bot info is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot info is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.BotInfo.BotId == nil {
-		invalidParamRequestResponse(c, "bot id is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot id is nil", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.UpdateSingleAgentDraft(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDraftBotInfoAgw .
@@ -69,22 +70,22 @@ func GetDraftBotInfoAgw(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetDraftBotInfoAgwRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.BotID == 0 {
-		invalidParamRequestResponse(c, "bot id is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot id is nil", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.GetAgentBotInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOfficialPromptResourceList .
@@ -94,17 +95,17 @@ func GetOfficialPromptResourceList(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetOfficialPromptResourceListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := prompt.PromptSVC.GetOfficialPromptResourceList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPromptResourceInfo .
@@ -114,17 +115,17 @@ func GetPromptResourceInfo(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetPromptResourceInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := prompt.PromptSVC.GetPromptResourceInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpsertPromptResource .
@@ -134,32 +135,32 @@ func UpsertPromptResource(ctx context.Context, c *app.RequestContext) {
 	var req playground.UpsertPromptResourceRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.Prompt == nil {
-		invalidParamRequestResponse(c, "prompt is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "prompt is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.Prompt.GetSpaceID() <= 0 {
-		invalidParamRequestResponse(c, "space id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "space id is invalid", "参数验证失败", nil)
 		return
 	}
 
 	if len(req.Prompt.GetName()) <= 0 {
-		invalidParamRequestResponse(c, "name is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "name is empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := prompt.PromptSVC.UpsertPromptResource(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeletePromptResource .
@@ -169,17 +170,17 @@ func DeletePromptResource(ctx context.Context, c *app.RequestContext) {
 	var req playground.DeletePromptResourceRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := prompt.PromptSVC.DeletePromptResource(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetSpaceListV2 .
@@ -189,17 +190,17 @@ func GetSpaceListV2(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetSpaceListV2Request
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := user.UserApplicationSVC.GetSpaceListV2(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetImagexShortUrl .
@@ -209,22 +210,22 @@ func GetImagexShortUrl(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetImagexShortUrlRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if len(req.Uris) == 0 {
-		invalidParamRequestResponse(c, "uris is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "uris is empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.GetImagexShortUrl(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // MGetUserBasicInfo .
@@ -234,17 +235,17 @@ func MGetUserBasicInfo(ctx context.Context, c *app.RequestContext) {
 	var req playground.MGetUserBasicInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := user.UserApplicationSVC.MGetUserBasicInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetBotPopupInfo .
@@ -254,22 +255,22 @@ func GetBotPopupInfo(ctx context.Context, c *app.RequestContext) {
 	var req playground.GetBotPopupInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if len(req.BotPopupTypes) == 0 {
-		invalidParamRequestResponse(c, "bot popup types is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot popup types is empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.GetAgentPopupInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateBotPopupInfo .
@@ -279,17 +280,17 @@ func UpdateBotPopupInfo(ctx context.Context, c *app.RequestContext) {
 	var req playground.UpdateBotPopupInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.UpdateAgentPopupInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateUpdateShortcutCommand .
@@ -305,14 +306,14 @@ func CreateUpdateShortcutCommand(ctx context.Context, c *app.RequestContext) {
 
 	shortCuts, err := shortcutcmd.ShortcutCmdSVC.Handler(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 	resp := new(playground.CreateUpdateShortcutCommandResponse)
 	resp.Shortcuts = shortCuts
 	resp.Code = 0
 	resp.Msg = ""
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ReportUserBehavior .
@@ -322,12 +323,12 @@ func ReportUserBehavior(ctx context.Context, c *app.RequestContext) {
 	var req playground.ReportUserBehaviorRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ResourceID <= 0 {
-		invalidParamRequestResponse(c, "resource id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "resource id is invalid", "参数验证失败", nil)
 		return
 	}
 
@@ -336,18 +337,18 @@ func ReportUserBehavior(ctx context.Context, c *app.RequestContext) {
 	if req.ResourceType == playground.SpaceResourceType_DraftBot {
 		resp, err = singleagent.SingleAgentSVC.ReportUserBehavior(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	} else if req.ResourceType == playground.SpaceResourceType_Project {
 		resp, err = appApplication.APPApplicationSVC.ReportUserBehavior(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetFileUrls .
@@ -362,12 +363,12 @@ func GetFileUrls(ctx context.Context, c *app.RequestContext) {
 	}
 	iconList, err := upload.SVC.GetShortcutIcons(ctx)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 	resp := new(playground.GetFileUrlsResponse)
 	resp.FileList = iconList
 	resp.Code = 0
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

@@ -397,7 +397,7 @@ func (cv *CanvasValidator) CheckSubWorkFlowTerminatePlanType(ctx context.Context
 				return nil, err
 			}
 			if !existed {
-				return nil, vo.WrapError(errno.ErrWorkflowNotFound, fmt.Errorf("workflow version %s not found for ID %d: %w", version, id, err), errorx.KV("id", strconv.FormatInt(id, 10)))
+				return nil, vo.WrapError(errno.DeprecatedErrWorkflowNotFound, fmt.Errorf("workflow version %s not found for ID %d: %w", version, id, err), errorx.KV("id", strconv.FormatInt(id, 10)))
 			}
 
 			var canvas vo.Canvas
@@ -736,12 +736,12 @@ func parseBlockInputRef(content any) (*vo.BlockInputReference, error) {
 
 	marshaled, err := sonic.Marshal(m)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 
 	p := &vo.BlockInputReference{}
 	if err = sonic.Unmarshal(marshaled, p); err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 
 	return p, nil

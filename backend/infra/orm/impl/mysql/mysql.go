@@ -40,11 +40,11 @@ func New() (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// 连接池配置
-	sqlDB.SetMaxIdleConns(envkey.GetIntD("MYSQL_MAX_IDLE_CONNS", 10))
-	sqlDB.SetMaxOpenConns(envkey.GetIntD("MYSQL_MAX_OPEN_CONNS", 100))
-	sqlDB.SetConnMaxLifetime(time.Duration(envkey.GetIntD("MYSQL_CONN_MAX_LIFETIME", 3600)) * time.Second)
-	sqlDB.SetConnMaxIdleTime(time.Duration(envkey.GetIntD("MYSQL_CONN_MAX_IDLE_TIME", 600)) * time.Second)
+	// 连接池配置 (优化后配置 - 支持QPS 10000+)
+	sqlDB.SetMaxIdleConns(envkey.GetIntD("MYSQL_MAX_IDLE_CONNS", 50))     // 10 -> 50: 增加空闲连接池
+	sqlDB.SetMaxOpenConns(envkey.GetIntD("MYSQL_MAX_OPEN_CONNS", 200))    // 100 -> 200: 增加最大连接数
+	sqlDB.SetConnMaxLifetime(time.Duration(envkey.GetIntD("MYSQL_CONN_MAX_LIFETIME", 600)) * time.Second)  // 3600s -> 600s: 缩短连接生命周期
+	sqlDB.SetConnMaxIdleTime(time.Duration(envkey.GetIntD("MYSQL_CONN_MAX_IDLE_TIME", 300)) * time.Second) // 600s -> 300s: 缩短空闲时间
 
 	return db, nil
 }

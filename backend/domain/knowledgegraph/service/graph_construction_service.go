@@ -21,11 +21,11 @@ import (
 	"fmt"
 
 	"github.com/bytedance/sonic"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 
 	"github.com/coze-dev/coze-studio/backend/domain/knowledgegraph/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/knowledgegraph/repository"
-	"github.com/coze-dev/coze-studio/backend/infra/idgen"
 	"github.com/coze-dev/coze-studio/backend/pkg/llmclient"
 )
 
@@ -61,7 +61,6 @@ type GraphConstructionService struct {
 	relationshipRepo repository.GraphRelationshipRepository
 	llmClient        LLMClient
 	vectorStore      VectorStore
-	idgen            idgen.IDGenerator
 	logger           *zap.Logger
 }
 
@@ -71,7 +70,6 @@ type GraphConstructionServiceConfig struct {
 	RelationshipRepo repository.GraphRelationshipRepository
 	LLMClient        LLMClient
 	VectorStore      VectorStore
-	IDGen            idgen.IDGenerator
 	Logger           *zap.Logger
 }
 
@@ -82,7 +80,6 @@ func NewGraphConstructionService(config *GraphConstructionServiceConfig) *GraphC
 		relationshipRepo: config.RelationshipRepo,
 		llmClient:        config.LLMClient,
 		vectorStore:      config.VectorStore,
-		idgen:            config.IDGen,
 		logger:           config.Logger,
 	}
 }
@@ -204,7 +201,7 @@ func (s *GraphConstructionService) BuildGraphFromText(ctx context.Context, tenan
 // AddEntity 添加单个实体
 func (s *GraphConstructionService) AddEntity(ctx context.Context, ent *entity.GraphEntity) error {
 	if ent.ID == "" {
-		ent.ID = s.idgen.GenerateID()
+		ent.ID = uuid.New().String()
 	}
 
 	if err := s.entityRepo.Create(ctx, ent); err != nil {
@@ -228,7 +225,7 @@ func (s *GraphConstructionService) AddEntities(ctx context.Context, entities []*
 	// 为没有ID的实体生成ID
 	for _, ent := range entities {
 		if ent.ID == "" {
-			ent.ID = s.idgen.GenerateID()
+			ent.ID = uuid.New().String()
 		}
 	}
 
@@ -243,7 +240,7 @@ func (s *GraphConstructionService) AddEntities(ctx context.Context, entities []*
 // AddRelationship 添加单个关系
 func (s *GraphConstructionService) AddRelationship(ctx context.Context, rel *entity.GraphRelationship) error {
 	if rel.ID == "" {
-		rel.ID = s.idgen.GenerateID()
+		rel.ID = uuid.New().String()
 	}
 
 	// 验证关系有效性
@@ -274,7 +271,7 @@ func (s *GraphConstructionService) AddRelationships(ctx context.Context, relatio
 	// 为没有ID的关系生成ID
 	for _, rel := range relationships {
 		if rel.ID == "" {
-			rel.ID = s.idgen.GenerateID()
+			rel.ID = uuid.New().String()
 		}
 	}
 
@@ -385,7 +382,7 @@ func (s *GraphConstructionService) parseEntityExtractionResponse(content string,
 		}
 
 		ent := &entity.GraphEntity{
-			ID:         s.idgen.GenerateID(),
+			ID:         uuid.New().String(),
 			TenantID:   tenantID,
 			EntityType: entType,
 			EntityName: extracted.EntityName,
@@ -437,7 +434,7 @@ func (s *GraphConstructionService) parseRelationshipExtractionResponse(content s
 		}
 
 		rel := &entity.GraphRelationship{
-			ID:             s.idgen.GenerateID(),
+			ID:             uuid.New().String(),
 			TenantID:       tenantID,
 			SourceEntityID: sourceID,
 			TargetEntityID: targetID,

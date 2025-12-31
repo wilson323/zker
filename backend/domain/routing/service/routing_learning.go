@@ -22,8 +22,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"go.uber.org/zap"
 )
@@ -108,11 +108,11 @@ func (s *RoutingLearningService) LearnFromRoutingLogs(ctx context.Context, tenan
 	// 1. 获取时间范围内的日志
 	logs, err := s.routingLogRepo.GetByTimeRange(ctx, tenantID, timeRange.StartTime, timeRange.EndTime)
 	if err != nil {
-		return nil, errno.ROUTING500001.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	if len(logs) == 0 {
-		return nil, errno.ROUTING404001.WithDetail("reason", "no logs found in time range")
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "no logs found in time range"))
 	}
 
 	// 2. 计算总体统计
@@ -183,7 +183,7 @@ func (s *RoutingLearningService) SuggestRoutingRules(ctx context.Context, tenant
 
 	logs, err := s.routingLogRepo.GetByTimeRange(ctx, tenantID, startTime, endTime)
 	if err != nil {
-		return nil, errno.ROUTING500001.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	if len(logs) == 0 {

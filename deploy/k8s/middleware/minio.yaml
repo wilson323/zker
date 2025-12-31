@@ -1,0 +1,153 @@
+# ================================================================================
+# Coze Studio - MinIO Deployment & Service
+# ================================================================================
+# 用途：对象存储，存储文件、图片、模型等
+# 架构：单实例（生产环境建议使用分布式模式）
+# 存储：PVC 持久化
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# MinIO Deployment
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: minio
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: minio
+    spec:
+      containers:
+      - name: minio
+        image: minio/minio:latest
+        args:
+        - server
+        - /data
+        - --console-address
+        - ":9001"
+        ports:
+        - name: api
+          containerPort: 9000
+        - name: console
+          containerPort: 9001
+        env:
+        - name: MINIO_ROOT_USER
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: minio-access-key
+        - name: MINIO_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: minio-secret-key
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2000m
+            memory: 4Gi
+        livenessProbe:
+          httpGet:
+            path: /minio/health/live
+            port: api
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /minio/health/ready
+            port: api
+          initialDelaySeconds: 10
+          periodSeconds: 5
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: minio-pvc
+
+---
+# ================================================================================
+# MinIO Service
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: coze-studio
+spec:
+  type: ClusterIP
+  selector:
+    app: coze-studio
+    component: minio
+  ports:
+  - name: api
+    port: 9000
+    targetPort: api
+  - name: console
+    port: 9001
+    targetPort: console
+
+---
+# ================================================================================
+# MinIO PVC
+# ================================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-pvc
+  namespace: coze-studio
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 1Ti
+
+---
+# ================================================================================
+# MinIO Console Ingress（可选，用于 Web 管理界面）
+# ================================================================================
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: minio-console
+#   namespace: coze-studio
+#   annotations:
+#     kubernetes.io/ingress.class: "nginx"
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"
+# spec:
+#   tls:
+#   - hosts:
+#     - minio.coze-studio.example.com
+#     secretName: minio-console-tls
+#   rules:
+#   - host: minio.coze-studio.example.com
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: minio
+#             port:
+#               number: 9001
+---

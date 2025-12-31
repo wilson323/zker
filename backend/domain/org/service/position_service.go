@@ -18,12 +18,12 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // PositionService 岗位管理服务
@@ -75,23 +75,27 @@ func (s *PositionService) CreatePosition(ctx context.Context, req *CreatePositio
 	if req.DeptID != nil && *req.DeptID != "" {
 		dept, err := s.deptRepo.GetByID(ctx, *req.DeptID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get department: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 		}
 		if dept == nil {
-			return nil, errno.ErrDeptNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 		}
 		if dept.TenantID != req.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 	}
 
 	// 2. 验证编码唯一性
 	exists, err := s.positionRepo.ExistsByCode(ctx, req.TenantID, req.PositionCode, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to check position code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check position code"),
+            )
 	}
 	if exists {
-		return nil, errno.ErrPositionCodeAlreadyExists
+		return nil, errorx.NewByErrorCode(errno.ErrPositionCodeAlreadyExists)
 	}
 
 	// 3. 生成岗位ID
@@ -116,7 +120,9 @@ func (s *PositionService) CreatePosition(ctx context.Context, req *CreatePositio
 
 	// 5. 创建岗位
 	if err := s.positionRepo.Create(ctx, position); err != nil {
-		return nil, fmt.Errorf("failed to create position: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create position"),
+            )
 	}
 
 	return position, nil
@@ -125,15 +131,17 @@ func (s *PositionService) CreatePosition(ctx context.Context, req *CreatePositio
 // GetPosition 获取岗位详情
 func (s *PositionService) GetPosition(ctx context.Context, positionID string) (*entity.Position, error) {
 	if positionID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	position, err := s.positionRepo.GetByID(ctx, positionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get position: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 	}
 	if position == nil {
-		return nil, errno.ErrPositionNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 	}
 
 	return position, nil
@@ -144,10 +152,12 @@ func (s *PositionService) UpdatePosition(ctx context.Context, req *UpdatePositio
 	// 1. 获取岗位
 	position, err := s.positionRepo.GetByID(ctx, req.PositionID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get position: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 	}
 	if position == nil {
-		return nil, errno.ErrPositionNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 	}
 
 	// 2. 更新字段
@@ -175,7 +185,9 @@ func (s *PositionService) UpdatePosition(ctx context.Context, req *UpdatePositio
 
 	// 3. 保存更新
 	if err := s.positionRepo.Update(ctx, position); err != nil {
-		return nil, fmt.Errorf("failed to update position: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update position"),
+            )
 	}
 
 	return position, nil
@@ -184,16 +196,22 @@ func (s *PositionService) UpdatePosition(ctx context.Context, req *UpdatePositio
 // DeletePosition 删除岗位
 func (s *PositionService) DeletePosition(ctx context.Context, positionID string) error {
 	if positionID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取岗位
 	position, err := s.positionRepo.GetByID(ctx, positionID)
 	if err != nil {
-		return fmt.Errorf("failed to get position: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 	}
 	if position == nil {
-		return errno.ErrPositionNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "PositionNotFound"),
+                )
 	}
 
 	// 2. TODO: 检查是否有员工使用此岗位
@@ -203,7 +221,9 @@ func (s *PositionService) DeletePosition(ctx context.Context, positionID string)
 
 	// 3. 软删除岗位
 	if err := s.positionRepo.Delete(ctx, positionID); err != nil {
-		return fmt.Errorf("failed to delete position: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete position"),
+            )
 	}
 
 	return nil
@@ -212,15 +232,17 @@ func (s *PositionService) DeletePosition(ctx context.Context, positionID string)
 // GetPositionByCode 根据编码获取岗位
 func (s *PositionService) GetPositionByCode(ctx context.Context, tenantID, code string) (*entity.Position, error) {
 	if tenantID == "" || code == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	position, err := s.positionRepo.GetByCode(ctx, tenantID, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get position by code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position by code"),
+            )
 	}
 	if position == nil {
-		return nil, errno.ErrPositionNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 	}
 
 	return position, nil
@@ -229,12 +251,14 @@ func (s *PositionService) GetPositionByCode(ctx context.Context, tenantID, code 
 // ListPositions 分页查询岗位列表
 func (s *PositionService) ListPositions(ctx context.Context, filter *repository.PositionFilter) ([]*entity.Position, int64, error) {
 	if filter.TenantID == "" {
-		return nil, 0, errno.ErrInvalidParam
+		return nil, 0, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	positions, total, err := s.positionRepo.List(ctx, filter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list positions: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list positions"),
+            )
 	}
 
 	return positions, total, nil
@@ -243,12 +267,14 @@ func (s *PositionService) ListPositions(ctx context.Context, filter *repository.
 // GetPositionsByDepartment 获取部门的所有岗位
 func (s *PositionService) GetPositionsByDepartment(ctx context.Context, deptID string) ([]*entity.Position, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	positions, err := s.positionRepo.GetByDepartmentID(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get positions by department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get positions by department"),
+            )
 	}
 
 	return positions, nil
@@ -257,12 +283,14 @@ func (s *PositionService) GetPositionsByDepartment(ctx context.Context, deptID s
 // GetPositionsByTenant 获取租户的所有岗位
 func (s *PositionService) GetPositionsByTenant(ctx context.Context, tenantID string) ([]*entity.Position, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	positions, err := s.positionRepo.GetByTenantID(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get positions by tenant: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get positions by tenant"),
+            )
 	}
 
 	return positions, nil
@@ -271,7 +299,7 @@ func (s *PositionService) GetPositionsByTenant(ctx context.Context, tenantID str
 // GetPositionsByLevel 按职级获取岗位
 func (s *PositionService) GetPositionsByLevel(ctx context.Context, tenantID string, level int) ([]*entity.Position, error) {
 	if tenantID == "" || level <= 0 {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	filter := &repository.PositionFilter{
@@ -281,7 +309,9 @@ func (s *PositionService) GetPositionsByLevel(ctx context.Context, tenantID stri
 
 	positions, _, err := s.positionRepo.List(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get positions by level: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get positions by level"),
+            )
 	}
 
 	return positions, nil
@@ -290,7 +320,7 @@ func (s *PositionService) GetPositionsByLevel(ctx context.Context, tenantID stri
 // GetPositionsByCategory 按类别获取岗位
 func (s *PositionService) GetPositionsByCategory(ctx context.Context, tenantID, category string) ([]*entity.Position, error) {
 	if tenantID == "" || category == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	filter := &repository.PositionFilter{
@@ -300,7 +330,9 @@ func (s *PositionService) GetPositionsByCategory(ctx context.Context, tenantID, 
 
 	positions, _, err := s.positionRepo.List(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get positions by category: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get positions by category"),
+            )
 	}
 
 	return positions, nil

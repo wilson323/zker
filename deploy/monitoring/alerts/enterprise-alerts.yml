@@ -1,0 +1,400 @@
+# ZKER 企业级告警规则配置
+# 版本: v1.0.0
+# 说明: 专门针对企业级多租户、RBAC、智能路由等特性的告警规则
+
+groups:
+  # ==================== 企业级API告警 ====================
+  - name: zker_enterprise_alerts
+    interval: 30s
+    rules:
+      # API 错误率告警
+      - alert: HighAPIErrorRate
+        expr: rate(zker_api_errors_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+          team: backend
+        annotations:
+          summary: "API 错误率过高"
+          description: "{{ $labels.tenant_id }} 的错误率超过 5%，当前值: {{ $value | humanizePercentage }}"
+          runbook_url: "https://docs.zker.com/runbooks/api/error_rate"
+
+      # 响应时间告警
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(zker_api_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+          team: backend
+        annotations:
+          summary: "API 响应时间过长"
+          description: "{{ $labels.endpoint }} P95 响应时间超过 1 秒，当前值: {{ $value }}s"
+
+      # 响应时间严重告警
+      - alert: CriticalResponseTime
+        expr: histogram_quantile(0.95, rate(zker_api_request_duration_seconds_bucket[5m])) > 3
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+          team: backend
+        annotations:
+          summary: "API 响应时间严重"
+          description: "{{ $labels.endpoint }} P95 响应时间超过 3 秒，当前值: {{ $value }}s"
+
+      # 配额使用告警
+      - alert: QuotaUsageHigh
+        expr: zker_quota_usage_percentage > 80
+        for: 10m
+        labels:
+          severity: warning
+          category: quota
+          team: backend
+        annotations:
+          summary: "配额使用率过高"
+          description: "{{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额使用率超过 80%，当前值: {{ $value }}%"
+
+      # 配额严重告警
+      - alert: QuotaUsageCritical
+        expr: zker_quota_usage_percentage > 95
+        for: 5m
+        labels:
+          severity: critical
+          category: quota
+          team: backend
+        annotations:
+          summary: "配额即将耗尽"
+          description: "{{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额使用率超过 95%，当前值: {{ $value }}%"
+
+  # ==================== 租户隔离告警 ====================
+  - name: zker_tenant_isolation_alerts
+    interval: 30s
+    rules:
+      # 跨租户访问检测（安全告警）
+      - alert: CrossTenantAccessDetected
+        expr: rate(zker_cross_tenant_access_total[1m]) > 0
+        labels:
+          severity: critical
+          category: security
+          team: security
+        annotations:
+          summary: "检测到跨租户访问"
+          description: "从租户 {{ $labels.source_tenant }} 到 {{ $labels.target_tenant }} 检测到跨租户访问，类型: {{ $labels.access_type }}"
+          runbook_url: "https://docs.zker.com/runbooks/security/cross_tenant"
+
+      # 租户隔离违规
+      - alert: TenantIsolationViolation
+        expr: rate(zker_tenant_isolation_violations_total[5m]) > 0.01
+        for: 1m
+        labels:
+          severity: critical
+          category: security
+          team: security
+        annotations:
+          summary: "租户隔离违规"
+          description: "检测到租户隔离违规，类型: {{ $labels.violation_type }}，严重程度: {{ $labels.severity }}"
+
+      # 租户数据泄漏风险
+      - alert: TenantDataLeakRisk
+        expr: rate(zker_tenant_isolation_violations_total{violation_type="data_leak"}[5m]) > 0
+        labels:
+          severity: critical
+          category: security
+          team: security
+        annotations:
+          summary: "租户数据泄漏风险"
+          description: "检测到潜在的数据泄漏风险，请立即检查"
+
+  # ==================== RBAC权限告警 ====================
+  - name: zker_rbac_alerts
+    interval: 30s
+    rules:
+      # 权限拒绝率过高
+      - alert: HighPermissionDenialRate
+        expr: rate(zker_permission_denied_total[5m]) / rate(zker_permission_checks_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: rbac
+          team: backend
+        annotations:
+          summary: "权限拒绝率过高"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.permission }} 权限拒绝率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      # 权限检查延迟过高
+      - alert: HighPermissionCheckLatency
+        expr: histogram_quantile(0.95, rate(zker_role_check_duration_seconds_bucket[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          category: rbac
+          team: backend
+        annotations:
+          summary: "权限检查延迟过高"
+          description: "租户 {{ $labels.tenant_id }} P95 权限检查延迟超过 50ms，当前值: {{ $value }}s"
+
+      # 角色检查严重延迟
+      - alert: CriticalPermissionCheckLatency
+        expr: histogram_quantile(0.95, rate(zker_role_check_duration_seconds_bucket[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          category: rbac
+          team: backend
+        annotations:
+          summary: "权限检查严重延迟"
+          description: "租户 {{ $labels.tenant_id }} P95 权限检查延迟超过 100ms，当前值: {{ $value }}s"
+
+  # ==================== Agent监控告警 ====================
+  - name: zker_agent_alerts
+    interval: 1m
+    rules:
+      # Agent QPS过低
+      - alert: AgentLowQPS
+        expr: zker_agent_qps < 1
+        for: 10m
+        labels:
+          severity: info
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent QPS 过低"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} QPS 低于 1，当前值: {{ $value }}"
+
+      # Agent 错误率过高
+      - alert: AgentHighErrorRate
+        expr: zker_agent_error_rate > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent 错误率过高"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} 错误率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      # Agent 错误率严重
+      - alert: AgentCriticalErrorRate
+        expr: zker_agent_error_rate > 0.3
+        for: 2m
+        labels:
+          severity: critical
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent 错误率严重"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} 错误率超过 30%，当前值: {{ $value | humanizePercentage }}"
+
+      # Agent 响应时间过长
+      - alert: AgentHighResponseTime
+        expr: zker_agent_response_time_ms > 5000
+        for: 5m
+        labels:
+          severity: warning
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent 响应时间过长"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} 响应时间超过 5 秒，当前值: {{ $value }}ms"
+
+      # Agent 响应时间严重
+      - alert: AgentCriticalResponseTime
+        expr: zker_agent_response_time_ms > 10000
+        for: 2m
+        labels:
+          severity: critical
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent 响应时间严重"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} 响应时间超过 10 秒，当前值: {{ $value }}ms"
+
+      # Agent 满意度过低
+      - alert: AgentLowSatisfaction
+        expr: zker_agent_satisfaction_score < 3.0
+        for: 10m
+        labels:
+          severity: warning
+          category: agent
+          team: backend
+        annotations:
+          summary: "Agent 用户满意度低"
+          description: "租户 {{ $labels.tenant_id }} 的 Agent {{ $labels.agent_id }} 平均满意度低于 3 分，当前值: {{ $value }}"
+
+  # ==================== 数据库告警增强 ====================
+  - name: zker_database_alerts
+    interval: 30s
+    rules:
+      # 数据库查询延迟过高
+      - alert: DatabaseSlowQuery
+        expr: histogram_quantile(0.95, rate(zker_db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: backend
+        annotations:
+          summary: "数据库查询延迟过高"
+          description: "数据库 {{ $labels.database }} 表 {{ $labels.table }} P95 查询延迟超过 500ms，当前值: {{ $value }}s"
+
+      # 数据库查询严重延迟
+      - alert: DatabaseCriticalSlowQuery
+        expr: histogram_quantile(0.95, rate(zker_db_query_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          team: backend
+        annotations:
+          summary: "数据库查询严重延迟"
+          description: "数据库 {{ $labels.database }} 表 {{ $labels.table }} P95 查询延迟超过 2 秒，当前值: {{ $value }}s"
+
+      # 数据库连接池耗尽
+      - alert: DatabaseConnectionPoolExhausted
+        expr: zker_db_connection_pool{state="in_use"} / zker_db_connection_pool{state="max"} > 0.9
+        for: 5m
+        labels:
+          severity: critical
+          category: database
+          team: devops
+        annotations:
+          summary: "数据库连接池接近耗尽"
+          description: "数据库 {{ $labels.database }} 连接池使用率超过 90%，当前值: {{ $value | humanizePercentage }}"
+
+  # ==================== 缓存告警 ====================
+  - name: zker_cache_alerts
+    interval: 1m
+    rules:
+      # 缓存命中率过低
+      - alert: LowCacheHitRate
+        expr: rate(zker_cache_hits_total[5m]) / (rate(zker_cache_hits_total[5m]) + rate(zker_cache_misses_total[5m])) < 0.6
+        for: 10m
+        labels:
+          severity: warning
+          category: cache
+          team: backend
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存 {{ $labels.cache_type }} 命中率低于 60%，当前值: {{ $value | humanizePercentage }}"
+
+      # 缓存延迟过高
+      - alert: HighCacheLatency
+        expr: histogram_quantile(0.95, rate(zker_cache_duration_seconds_bucket[5m])) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          category: cache
+          team: backend
+        annotations:
+          summary: "缓存操作延迟过高"
+          description: "缓存 {{ $labels.cache_type }} 操作 {{ $labels.operation }} P95 延迟超过 10ms，当前值: {{ $value }}s"
+
+  # ==================== 工作流告警 ====================
+  - name: zker_workflow_alerts
+    interval: 1m
+    rules:
+      # 工作流执行失败率过高
+      - alert: WorkflowHighFailureRate
+        expr: rate(zker_workflow_executions_total{status="failed"}[5m]) / rate(zker_workflow_executions_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: workflow
+          team: backend
+        annotations:
+          summary: "工作流失败率过高"
+          description: "租户 {{ $labels.tenant_id }} 的工作流 {{ $labels.workflow_id }} 失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      # 工作流执行时间过长
+      - alert: WorkflowLongExecution
+        expr: histogram_quantile(0.95, rate(zker_workflow_execution_duration_seconds_bucket[5m])) > 300
+        for: 5m
+        labels:
+          severity: warning
+          category: workflow
+          team: backend
+        annotations:
+          summary: "工作流执行时间过长"
+          description: "租户 {{ $labels.tenant_id }} 的工作流 {{ $labels.workflow_id }} P95 执行时间超过 5 分钟，当前值: {{ $value }}s"
+
+      # 工作流节点失败率过高
+      - alert: WorkflowNodeHighFailureRate
+        expr: rate(zker_workflow_node_executions_total{status="failed"}[5m]) / rate(zker_workflow_node_executions_total[5m]) > 0.15
+        for: 5m
+        labels:
+          severity: warning
+          category: workflow
+          team: backend
+        annotations:
+          summary: "工作流节点失败率过高"
+          description: "节点类型 {{ $labels.node_type }} 失败率超过 15%，当前值: {{ $value | humanizePercentage }}"
+
+  # ==================== 知识库告警 ====================
+  - name: zker_knowledge_alerts
+    interval: 1m
+    rules:
+      # 知识库查询失败率过高
+      - alert: KnowledgeHighFailureRate
+        expr: rate(zker_knowledge_queries_total{status="failed"}[5m]) / rate(zker_knowledge_queries_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: knowledge
+          team: backend
+        annotations:
+          summary: "知识库查询失败率过高"
+          description: "租户 {{ $labels.tenant_id }} 的知识库 {{ $labels.knowledge_id }} 查询失败率超过 10%，当前值: {{ $value | humanizePercentage }}"
+
+      # 知识库查询延迟过高
+      - alert: KnowledgeHighQueryLatency
+        expr: histogram_quantile(0.95, rate(zker_knowledge_query_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: knowledge
+          team: backend
+        annotations:
+          summary: "知识库查询延迟过高"
+          description: "租户 {{ $labels.tenant_id }} 的知识库 {{ $labels.knowledge_id }} P95 查询延迟超过 5 秒，当前值: {{ $value }}s"
+
+  # ==================== 业务指标告警 ====================
+  - name: zker_business_alerts
+    interval: 5m
+    rules:
+      # 活跃用户数异常下降
+      - alert: ActiveUsersDrop
+        expr: zker_active_users < offset(zker_active_users, 1h) * 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+          team: product
+        annotations:
+          summary: "活跃用户数异常下降"
+          description: "活跃用户数相比1小时前下降超过 50%，当前值: {{ $value }}"
+
+      # 对话数异常下降
+      - alert: ConversationDrop
+        expr: rate(zker_conversations_total[5m]) < offset(rate(zker_conversations_total[5m]), 1h) * 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: business
+          team: product
+        annotations:
+          summary: "对话数异常下降"
+          description: "对话速率相比1小时前下降超过 50%"
+
+      # Token使用量异常增长
+      - alert: HighTokenUsageGrowth
+        expr: rate(zker_token_usage[1h]) > 1000000
+        for: 10m
+        labels:
+          severity: warning
+          category: cost
+          team: backend
+        annotations:
+          summary: "Token 使用量异常增长"
+          description: "每小时 Token 使用量超过 100 万，当前值: {{ $value }}"

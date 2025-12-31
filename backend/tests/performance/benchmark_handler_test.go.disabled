@@ -1,0 +1,519 @@
+/*
+ * Copyright 2025 coze-dev Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package performance_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/cloudwego/hertz/pkg/app"
+	"github.com/cloudwego/hertz/pkg/app/server"
+	"github.com/cloudwego/hertz/pkg/protocol/consts"
+
+	tenanthandler "github.com/coze-dev/coze-studio/backend/api/handler/coze/tenant"
+)
+
+// =====================================================
+// Handler 层基准测试
+// =====================================================
+
+// setupTestServer 设置测试服务器
+func setupTestServer() *server.Server {
+	h := server.New(server.WithDisabledPrintRoute(true))
+
+	tenanthandler.RegisterTenantRoutes(h) // 假设存在此路由注册函数
+
+	return h
+}
+
+// BenchmarkTenantHandler_CreateTenant 测试创建租户 API 性能
+func BenchmarkTenantHandler_CreateTenant(b *testing.B) {
+	s := setupTestServer()
+
+	reqBody := map[string]interface{}{
+		"tenant_name": "benchmark_tenant",
+		"tenant_desc": "Performance test tenant",
+		"admin_email": "admin@benchmark.com",
+	}
+
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/api/tenant/create", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != consts.StatusOK && w.Code != consts.StatusCreated {
+			b.Fatalf("Expected status 200/201, got %d", w.Code)
+		}
+	}
+}
+
+// BenchmarkTenantHandler_GetTenantDetail 测试获取租户详情 API 性能
+func BenchmarkTenantHandler_GetTenantDetail(b *testing.B) {
+	s := setupTestServer()
+	tenantID := "test_tenant_for_benchmark"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/"+tenantID+"/detail", nil)
+		req.Header.Set("X-Tenant-ID", tenantID)
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != consts.StatusOK {
+			b.Fatalf("Expected status 200, got %d", w.Code)
+		}
+	}
+}
+
+// BenchmarkTenantHandler_ListTenants 测试租户列表 API 性能
+func BenchmarkTenantHandler_ListTenants(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/list?page=1&page_size=20", nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != consts.StatusOK {
+			b.Fatalf("Expected status 200, got %d", w.Code)
+		}
+	}
+}
+
+// BenchmarkTenantHandler_UpdateTenant 测试更新租户 API 性能
+func BenchmarkTenantHandler_UpdateTenant(b *testing.B) {
+	s := setupTestServer()
+	tenantID := "test_tenant_for_update"
+
+	reqBody := map[string]interface{}{
+		"tenant_id":   tenantID,
+		"tenant_desc": "Updated description",
+	}
+
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/api/tenant/update", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Tenant-ID", tenantID)
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != consts.StatusOK {
+			b.Fatalf("Expected status 200, got %d", w.Code)
+		}
+	}
+}
+
+// BenchmarkTenantHandler_DeleteTenant 测试删除租户 API 性能
+func BenchmarkTenantHandler_DeleteTenant(b *testing.B) {
+	s := setupTestServer()
+
+	// 为每次迭代创建新租户
+	tenantIDs := make([]string, b.N)
+	// ... (省略创建租户的代码)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("DELETE", "/api/tenant/"+tenantIDs[i], nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		if w.Code != consts.StatusOK && w.Code != consts.StatusNoContent {
+			b.Fatalf("Expected status 200/204, got %d", w.Code)
+		}
+	}
+}
+
+// =====================================================
+// HTTP 请求处理性能测试
+// =====================================================
+
+// BenchmarkHTTP_RequestParsing 测试请求解析性能
+func BenchmarkHTTP_RequestParsing(b *testing.B) {
+	s := setupTestServer()
+
+	reqBody := map[string]interface{}{
+		"tenant_name": "test_tenant",
+		"tenant_desc": "test description",
+		"admin_email": "admin@test.com",
+		"metadata": map[string]interface{}{
+			"key1": "value1",
+			"key2": "value2",
+			"key3": "value3",
+		},
+	}
+
+	bodyBytes, _ := json.Marshal(reqBody)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/api/tenant/create", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+
+		_ = req // 仅测试解析性能
+	}
+}
+
+// BenchmarkHTTP_ResponseSerialization 测试响应序列化性能
+func BenchmarkHTTP_ResponseSerialization(b *testing.B) {
+	responseData := map[string]interface{}{
+		"code":    0,
+		"message": "success",
+		"data": map[string]interface{}{
+			"tenant_id":   "test_tenant_123",
+			"tenant_name": "Test Tenant",
+			"tenant_desc": "Test Description",
+			"created_at":  "2025-01-01T00:00:00Z",
+			"updated_at":  "2025-01-01T00:00:00Z",
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := json.Marshal(responseData)
+		if err != nil {
+			b.Fatalf("Serialization failed: %v", err)
+		}
+	}
+}
+
+// BenchmarkHTTP_MultipartFormData 测试 Multipart 表单数据处理性能
+func BenchmarkHTTP_MultipartFormData(b *testing.B) {
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		body := &bytes.Buffer{}
+		writer := multipart.NewWriter(body)
+
+		writer.WriteField("tenant_name", "test_tenant")
+		writer.WriteField("tenant_desc", "test description")
+		writer.WriteField("admin_email", "admin@test.com")
+
+		// 添加文件上传
+		part, _ := writer.CreateFormFile("icon", "icon.png")
+		part.Write([]byte("fake image data"))
+
+		writer.Close()
+
+		req := httptest.NewRequest("POST", "/api/tenant/create_with_icon", body)
+		req.Header.Set("Content-Type", writer.FormDataContentType())
+
+		_ = req
+	}
+}
+
+// =====================================================
+// 中间件性能测试
+// =====================================================
+
+// BenchmarkMiddleware_TenantIsolation 测试租户隔离中间件性能
+func BenchmarkMiddleware_TenantIsolation(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/detail", nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkMiddleware_Authentication 测试认证中间件性能
+func BenchmarkMiddleware_Authentication(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/detail", nil)
+		req.Header.Set("Authorization", "Bearer fake_token")
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkMiddleware_RateLimiting 测试限流中间件性能
+func BenchmarkMiddleware_RateLimiting(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/detail", nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+		req.Header.Set("X-Forwarded-For", "192.168.1.1")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+	}
+}
+
+// =====================================================
+// 并发请求处理性能测试
+// =====================================================
+
+// BenchmarkHandler_ConcurrentRequests 测试并发请求处理性能
+func BenchmarkHandler_ConcurrentRequests(b *testing.B) {
+	s := setupTestServer()
+	tenantID := "test_tenant_concurrent"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			req := httptest.NewRequest("GET", "/api/tenant/"+tenantID+"/detail", nil)
+			req.Header.Set("X-Tenant-ID", tenantID)
+			req.Header.Set("X-User-ID", "test_user")
+
+			w := httptest.NewRecorder()
+			s.ServeHTTP(w, req)
+		}
+	})
+}
+
+// =====================================================
+// 错误处理性能测试
+// =====================================================
+
+// BenchmarkHandler_ErrorResponse 测试错误响应性能
+func BenchmarkHandler_ErrorResponse(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		// 故意请求不存在的租户
+		req := httptest.NewRequest("GET", "/api/tenant/non_existent_tenant/detail", nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		// 预期 404 或其他错误状态码
+		if w.Code == consts.StatusOK {
+			b.Fatal("Expected error status, got 200")
+		}
+	}
+}
+
+// BenchmarkHandler_ValidationErrors 测试验证错误处理性能
+func BenchmarkHandler_ValidationErrors(b *testing.B) {
+	s := setupTestServer()
+
+	invalidReqBodies := []map[string]interface{}{
+		{"tenant_name": ""}, // 空名称
+		{"admin_email": "invalid-email"}, // 无效邮箱
+		{"tenant_name": "a"}, // 名称太短
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		reqBody := invalidReqBodies[i%len(invalidReqBodies)]
+		bodyBytes, _ := json.Marshal(reqBody)
+
+		req := httptest.NewRequest("POST", "/api/tenant/create", bytes.NewReader(bodyBytes))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		// 预期验证错误
+		if w.Code == consts.StatusOK || w.Code == consts.StatusCreated {
+			b.Fatal("Expected validation error, got success")
+		}
+	}
+}
+
+// =====================================================
+// Context 处理性能测试
+// =====================================================
+
+// BenchmarkHandler_ContextExtraction 测试 Context 提取性能
+func BenchmarkHandler_ContextExtraction(b *testing.B) {
+	ctx := context.Background()
+	c := app.NewRequestContext()
+
+	// 模拟设置 context 数据
+	c.Set("tenant_id", "test_tenant")
+	c.Set("user_id", "test_user")
+	c.Set("session_id", "test_session")
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_ = c.GetString("tenant_id")
+		_ = c.GetString("user_id")
+		_ = c.GetString("session_id")
+	}
+}
+
+// =====================================================
+// JSON 处理性能对比
+// =====================================================
+
+// BenchmarkJSON_StandardLibrary vs BenchmarkJSON_ThirdParty
+// 对比标准库与第三方 JSON 库性能
+
+func BenchmarkJSON_StandardLibrary(b *testing.B) {
+	data := map[string]interface{}{
+		"tenant_id":   "test_tenant_123",
+		"tenant_name": "Test Tenant",
+		"metadata": map[string]interface{}{
+			"key1": "value1",
+			"key2": 12345,
+			"key3": true,
+		},
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := json.Marshal(data)
+		if err != nil {
+			b.Fatalf("JSON marshal failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkJSON_LargePayload 测试大JSON负载处理性能
+func BenchmarkJSON_LargePayload(b *testing.B) {
+	// 模拟大数据量的 JSON
+	largeData := make(map[string]interface{})
+	for i := 0; i < 100; i++ {
+		largeData["key"+string(rune(i))] = map[string]interface{}{
+			"field1": "value1",
+			"field2": i,
+			"field3": []int{1, 2, 3, 4, 5},
+		}
+	}
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_, err := json.Marshal(largeData)
+		if err != nil {
+			b.Fatalf("JSON marshal failed: %v", err)
+		}
+	}
+}
+
+// =====================================================
+// IO 操作性能测试
+// =====================================================
+
+// BenchmarkHandler_IOOperations 测试 IO 操作性能
+func BenchmarkHandler_IOOperations(b *testing.B) {
+	s := setupTestServer()
+
+	// 创建大文件上传请求
+	largeBody := make([]byte, 1024*1024) // 1MB
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("POST", "/api/tenant/upload_icon", bytes.NewReader(largeBody))
+		req.Header.Set("Content-Type", "application/octet-stream")
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+	}
+}
+
+// BenchmarkHandler_ResponseStreaming 测试响应流式传输性能
+func BenchmarkHandler_ResponseStreaming(b *testing.B) {
+	s := setupTestServer()
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		req := httptest.NewRequest("GET", "/api/tenant/export_data", nil)
+		req.Header.Set("X-Tenant-ID", "test_tenant")
+		req.Header.Set("X-User-ID", "test_user")
+
+		w := httptest.NewRecorder()
+		s.ServeHTTP(w, req)
+
+		// 读取响应体
+		if w.Code == consts.StatusOK {
+			_, _ = io.ReadAll(w.Body)
+		}
+	}
+}

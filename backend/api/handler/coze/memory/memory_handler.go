@@ -21,13 +21,12 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-
 	convEntity "github.com/coze-dev/coze-studio/backend/domain/memory/conversation/entity"
 	convService "github.com/coze-dev/coze-studio/backend/domain/memory/conversation/service"
 	knowEntity "github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/entity"
 	knowService "github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/service"
 	"github.com/coze-dev/coze-studio/backend/api/model/memory"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
@@ -53,11 +52,7 @@ func NewMemoryHandler(
 func (h *MemoryHandler) StoreConversationMemory(ctx context.Context, c *app.RequestContext) {
 	var req memory.StoreConversationMemoryRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		c.JSON(consts.StatusBadRequest, memory.StoreConversationMemoryResponse{
-			Code:      errno.ErrMemoryInvalidParamCode,
-			Message:   "Invalid request parameters",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryInvalidParamCode), err.Error(), "参数验证失败", nil)
 		return
 	}
 
@@ -74,25 +69,16 @@ func (h *MemoryHandler) StoreConversationMemory(ctx context.Context, c *app.Requ
 
 	// 存储记忆
 	if err := h.convService.StoreMemory(ctx, mem); err != nil {
-		c.JSON(consts.StatusInternalServerError, memory.StoreConversationMemoryResponse{
-			Code:      errno.ErrMemoryInternalErrorCode,
-			Message:   "Failed to store memory",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryIDGenFailCode), err.Error(), "存储记忆失败", nil)
 		return
 	}
 
 	// 返回成功响应
-	c.JSON(consts.StatusOK, memory.StoreConversationMemoryResponse{
-		Code:      0,
-		Message:   "Memory stored successfully",
-		Data: &memory.MemoryData{
-			MemoryID:  mem.MemoryID,
-			VectorID:  mem.MemoryID,
-			Type:      req.MemoryType,
-			CreatedAt: mem.CreatedAt.Format(time.RFC3339),
-		},
-		Timestamp: time.Now().Unix(),
+	httputil.BuildSuccessResp(c, &memory.MemoryData{
+		MemoryID:  mem.MemoryID,
+		VectorID:  mem.MemoryID,
+		Type:      req.MemoryType,
+		CreatedAt: mem.CreatedAt.Format(time.RFC3339),
 	})
 }
 
@@ -101,22 +87,14 @@ func (h *MemoryHandler) StoreConversationMemory(ctx context.Context, c *app.Requ
 func (h *MemoryHandler) RetrieveConversationMemories(ctx context.Context, c *app.RequestContext) {
 	var req memory.RetrieveMemoriesRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		c.JSON(consts.StatusBadRequest, memory.RetrieveMemoriesResponse{
-			Code:      errno.ErrMemoryInvalidParamCode,
-			Message:   "Invalid request parameters",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryInvalidParamCode), err.Error(), "参数验证失败", nil)
 		return
 	}
 
 	// 检索记忆
 	memories, err := h.convService.RetrieveMemories(ctx, req.UserID, req.Query, req.TopK)
 	if err != nil {
-		c.JSON(consts.StatusInternalServerError, memory.RetrieveMemoriesResponse{
-			Code:      errno.ErrMemoryInternalErrorCode,
-			Message:   "Failed to retrieve memories",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryIDGenFailCode), err.Error(), "检索记忆失败", nil)
 		return
 	}
 
@@ -132,14 +110,9 @@ func (h *MemoryHandler) RetrieveConversationMemories(ctx context.Context, c *app
 		}
 	}
 
-	c.JSON(consts.StatusOK, memory.RetrieveMemoriesResponse{
-		Code:    0,
-		Message: "Memories retrieved successfully",
-		Data: &memory.MemoriesResult{
-			Memories: items,
-			Total:    len(items),
-		},
-		Timestamp: time.Now().Unix(),
+	httputil.BuildSuccessResp(c, &memory.MemoriesResult{
+		Memories: items,
+		Total:    len(items),
 	})
 }
 
@@ -148,11 +121,7 @@ func (h *MemoryHandler) RetrieveConversationMemories(ctx context.Context, c *app
 func (h *MemoryHandler) StoreKnowledge(ctx context.Context, c *app.RequestContext) {
 	var req memory.StoreKnowledgeRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		c.JSON(consts.StatusBadRequest, memory.StoreKnowledgeResponse{
-			Code:      errno.ErrMemoryInvalidParamCode,
-			Message:   "Invalid request parameters",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryInvalidParamCode), err.Error(), "参数验证失败", nil)
 		return
 	}
 
@@ -170,25 +139,16 @@ func (h *MemoryHandler) StoreKnowledge(ctx context.Context, c *app.RequestContex
 
 	// 存储知识
 	if err := h.knowService.StoreKnowledge(ctx, know); err != nil {
-		c.JSON(consts.StatusInternalServerError, memory.StoreKnowledgeResponse{
-			Code:      errno.ErrMemoryInternalErrorCode,
-			Message:   "Failed to store knowledge",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryIDGenFailCode), err.Error(), "存储知识失败", nil)
 		return
 	}
 
 	// 返回成功响应
-	c.JSON(consts.StatusOK, memory.StoreKnowledgeResponse{
-		Code:    0,
-		Message: "Knowledge stored successfully",
-		Data: &memory.MemoryData{
-			MemoryID:  know.MemoryID,
-			VectorID:  know.MemoryID,
-			Type:      req.KnowledgeType,
-			CreatedAt: know.CreatedAt.Format(time.RFC3339),
-		},
-		Timestamp: time.Now().Unix(),
+	httputil.BuildSuccessResp(c, &memory.MemoryData{
+		MemoryID:  know.MemoryID,
+		VectorID:  know.MemoryID,
+		Type:      req.KnowledgeType,
+		CreatedAt: know.CreatedAt.Format(time.RFC3339),
 	})
 }
 
@@ -197,22 +157,14 @@ func (h *MemoryHandler) StoreKnowledge(ctx context.Context, c *app.RequestContex
 func (h *MemoryHandler) RetrieveKnowledge(ctx context.Context, c *app.RequestContext) {
 	var req memory.RetrieveKnowledgeRequest
 	if err := c.BindAndValidate(&req); err != nil {
-		c.JSON(consts.StatusBadRequest, memory.RetrieveKnowledgeResponse{
-			Code:      errno.ErrMemoryInvalidParamCode,
-			Message:   "Invalid request parameters",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryInvalidParamCode), err.Error(), "参数验证失败", nil)
 		return
 	}
 
 	// 检索知识
 	knowledges, err := h.knowService.RetrieveKnowledge(ctx, req.TenantID, req.Query, req.TopK)
 	if err != nil {
-		c.JSON(consts.StatusInternalServerError, memory.RetrieveKnowledgeResponse{
-			Code:      errno.ErrMemoryInternalErrorCode,
-			Message:   "Failed to retrieve knowledge",
-			Timestamp: time.Now().Unix(),
-		})
+		httputil.BuildErrorResp(c, int32(errno.ErrMemoryIDGenFailCode), err.Error(), "检索知识失败", nil)
 		return
 	}
 
@@ -230,13 +182,8 @@ func (h *MemoryHandler) RetrieveKnowledge(ctx context.Context, c *app.RequestCon
 		}
 	}
 
-	c.JSON(consts.StatusOK, memory.RetrieveKnowledgeResponse{
-		Code:    0,
-		Message: "Knowledge retrieved successfully",
-		Data: &memory.KnowledgeResult{
-			Knowledges: items,
-			Total:      len(items),
-		},
-		Timestamp: time.Now().Unix(),
+	httputil.BuildSuccessResp(c, &memory.KnowledgeResult{
+		Knowledges: items,
+		Total:      len(items),
 	})
 }

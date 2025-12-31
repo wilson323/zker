@@ -1,0 +1,345 @@
+# ZKER 增强型告警规则配置
+# 版本: v2.0.0
+# 说明: 支持高QPS、P99延迟、业务指标的完整告警体系
+
+groups:
+  # ==================== 高QPS告警 ====================
+  - name: high_qps_alerts
+    interval: 30s
+    rules:
+      # API QPS过高告警
+      - alert: APIQPSWarning
+        expr: rate(http_requests_total[5m]) > 5000
+        for: 3m
+        labels:
+          severity: warning
+          category: performance
+          team: backend
+        annotations:
+          summary: "API QPS过高预警"
+          description: "端点 {{ $labels.endpoint }} QPS为 {{ $value | humanize }}/s，超过5000阈值"
+          runbook_url: "https://docs.zker.com/runbooks/qps/warning"
+
+      # API QPS严重告警
+      - alert: APIQPSCritical
+        expr: rate(http_requests_total[5m]) > 10000
+        for: 2m
+        labels:
+          severity: critical
+          category: performance
+          team: backend
+        annotations:
+          summary: "API QPS严重过高"
+          description: "端点 {{ $labels.endpoint }} QPS为 {{ $value | humanize }}/s，超过10000阈值，需要扩容"
+          runbook_url: "https://docs.zker.com/runbooks/qps/critical"
+
+      # Bot调用QPS过高
+      - alert: BotQPSHigh
+        expr: rate(bot_invocation_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+          team: backend
+        annotations:
+          summary: "Bot调用QPS过高"
+          description: "租户 {{ $labels.tenant_id }} Bot {{ $labels.bot_id }} QPS为 {{ $value | humanize }}/s"
+
+  # ==================== P99延迟告警 ====================
+  - name: latency_alerts
+    interval: 30s
+    rules:
+      # API P99延迟告警
+      - alert: APIP99LatencyHigh
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+          category: performance
+          team: backend
+        annotations:
+          summary: "API P99延迟过高"
+          description: "端点 {{ $labels.endpoint }} P99延迟为 {{ $value }}s，超过1秒阈值"
+          runbook_url: "https://docs.zker.com/runbooks/latency/api"
+
+      # API P99延迟严重告警
+      - alert: APIP99LatencyCritical
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 3m
+        labels:
+          severity: critical
+          category: performance
+          team: backend
+        annotations:
+          summary: "API P99延迟严重"
+          description: "端点 {{ $labels.endpoint }} P99延迟为 {{ $value }}s，超过2秒阈值"
+
+      # 数据库P99延迟告警
+      - alert: DBP99LatencyHigh
+        expr: histogram_quantile(0.99, rate(db_query_duration_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: backend
+        annotations:
+          summary: "数据库P99延迟过高"
+          description: "数据库 {{ $labels.database }} P99延迟为 {{ $value }}s，超过500ms"
+
+      # Bot执行P99延迟告警
+      - alert: BotP99LatencyHigh
+        expr: histogram_quantile(0.99, rate(bot_invocation_duration_seconds_bucket[5m])) > 30
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+          team: backend
+        annotations:
+          summary: "Bot执行P99延迟过高"
+          description: "Bot {{ $labels.bot_id }} P99延迟为 {{ $value }}s，超过30秒"
+
+  # ==================== 高错误率告警 ====================
+  - name: error_rate_alerts
+    interval: 30s
+    rules:
+      # API 5xx错误率告警
+      - alert: API5xxErrorRateHigh
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 1
+        for: 3m
+        labels:
+          severity: warning
+          category: availability
+          team: backend
+        annotations:
+          summary: "API 5xx错误率过高"
+          description: "端点 {{ $labels.endpoint }} 5xx错误率为 {{ $value | humanize }}%，超过1%阈值"
+          runbook_url: "https://docs.zker.com/runbooks/errors/5xx"
+
+      # API 5xx错误率严重告警
+      - alert: API5xxErrorRateCritical
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 5
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+          team: backend
+        annotations:
+          summary: "API 5xx错误率严重"
+          description: "端点 {{ $labels.endpoint }} 5xx错误率为 {{ $value | humanize }}%，超过5%阈值"
+
+      # API 4xx错误率告警
+      - alert: API4xxErrorRateHigh
+        expr: (rate(http_requests_total{status=~"4.."}[5m]) / rate(http_requests_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: availability
+          team: backend
+        annotations:
+          summary: "API 4xx错误率过高"
+          description: "端点 {{ $labels.endpoint }} 4xx错误率为 {{ $value | humanize }}%，超过10%阈值"
+
+      # Bot失败率告警
+      - alert: BotFailureRateHigh
+        expr: (rate(bot_invocation_total{status="failed"}[5m]) / rate(bot_invocation_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+          team: backend
+        annotations:
+          summary: "Bot失败率过高"
+          description: "Bot {{ $labels.bot_id }} 失败率为 {{ $value | humanize }}%，超过5%阈值"
+
+  # ==================== 数据库连接池告警 ====================
+  - name: database_connection_alerts
+    interval: 30s
+    rules:
+      # MySQL连接池使用率告警
+      - alert: MySQLConnectionPoolHigh
+        expr: (mysql_global_status_threads_connected / mysql_global_variables_max_connections) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: backend
+        annotations:
+          summary: "MySQL连接池使用率过高"
+          description: "MySQL连接使用率为 {{ $value | humanize }}%，超过80%阈值"
+          runbook_url: "https://docs.zker.com/runbooks/db/connections"
+
+      # MySQL连接池严重告警
+      - alert: MySQLConnectionPoolCritical
+        expr: (mysql_global_status_threads_connected / mysql_global_variables_max_connections) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          team: backend
+        annotations:
+          summary: "MySQL连接池严重不足"
+          description: "MySQL连接使用率为 {{ $value | humanize }}%，超过90%阈值，需立即扩容"
+
+      # Redis连接池使用率告警
+      - alert: RedisConnectionPoolHigh
+        expr: (redis_connected_clients / redis_config_maxclients) * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: backend
+        annotations:
+          summary: "Redis连接池使用率过高"
+          description: "Redis连接使用率为 {{ $value | humanize }}%，超过80%阈值"
+
+  # ==================== 业务指标告警 ====================
+  - name: business_metrics_alerts
+    interval: 1m
+    rules:
+      # 配额使用率告警
+      - alert: QuotaUsageHigh
+        expr: quota_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: quota
+          team: backend
+        annotations:
+          summary: "租户配额使用率过高"
+          description: "租户 {{ $labels.tenant_id }} {{ $labels.resource_type }} 配额使用率为 {{ $value | humanize }}%"
+
+      # 配额超限告警
+      - alert: QuotaExceeded
+        expr: quota_usage_percent >= 100
+        for: 1m
+        labels:
+          severity: critical
+          category: quota
+          team: backend
+        annotations:
+          summary: "租户配额已超限"
+          description: "租户 {{ $labels.tenant_id }} {{ $labels.resource_type }} 配额已用尽"
+
+      # Bot健康度低告警
+      - alert: BotHealthLow
+        expr: bot_health_status < 0.8
+        for: 5m
+        labels:
+          severity: warning
+          category: bot
+          team: backend
+        annotations:
+          summary: "Bot健康度过低"
+          description: "Bot {{ $labels.bot_id }} 健康度为 {{ $value | humanize }}%，低于80%"
+
+  # ==================== 系统资源告警 ====================
+  - name: system_resources_alerts
+    interval: 30s
+    rules:
+      # CPU使用率告警
+      - alert: HighCPUUsage
+        expr: 100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+          team: devops
+        annotations:
+          summary: "CPU使用率过高"
+          description: "实例 {{ $labels.instance }} CPU使用率为 {{ $value | humanize }}%"
+
+      # 内存使用率告警
+      - alert: HighMemoryUsage
+        expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+          team: devops
+        annotations:
+          summary: "内存使用率过高"
+          description: "实例 {{ $labels.instance }} 内存使用率为 {{ $value | humanize }}%"
+
+      # 磁盘使用率告警
+      - alert: HighDiskUsage
+        expr: (1 - node_filesystem_avail_bytes{fstype!~"tmpfs|fuse.*"} / node_filesystem_size_bytes) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          category: system
+          team: devops
+        annotations:
+          summary: "磁盘使用率过高"
+          description: "实例 {{ $labels.instance }} 挂载点 {{ $labels.mountpoint }} 磁盘使用率为 {{ $value | humanize }}%"
+
+  # ==================== 缓存性能告警 ====================
+  - name: cache_performance_alerts
+    interval: 1m
+    rules:
+      # 缓存命中率低告警
+      - alert: CacheHitRateLow
+        expr: (rate(cache_hit_total[5m]) / (rate(cache_hit_total[5m]) + rate(cache_miss_total[5m]))) * 100 < 70
+        for: 10m
+        labels:
+          severity: warning
+          category: cache
+          team: backend
+        annotations:
+          summary: "缓存命中率过低"
+          description: "缓存 {{ $labels.cache_type }} 命中率为 {{ $value | humanize }}%，低于70%"
+
+  # ==================== 租户业务告警 ====================
+  - name: tenant_business_alerts
+    interval: 1m
+    rules:
+      # 暂停租户比例过高
+      - alert: SuspendedTenantRateHigh
+        expr: (tenant_suspended_count / (tenant_active_count + tenant_suspended_count)) * 100 > 10
+        for: 10m
+        labels:
+          severity: warning
+          category: tenant
+          team: sales
+        annotations:
+          summary: "暂停租户比例过高"
+          description: "暂停租户比例为 {{ $value | humanize }}%，超过10%"
+
+      # 订阅即将过期告警
+      - alert: SubscriptionExpiringSoon
+        expr: subscription_expiring_count{days="7"} > 0
+        for: 1m
+        labels:
+          severity: warning
+          category: subscription
+          team: sales
+        annotations:
+          summary: "订阅即将过期"
+          description: "有 {{ $value }} 个 {{ $labels.tier }} 级别订阅将在7天内过期"
+
+  # ==================== 路由性能告警 ====================
+  - name: routing_performance_alerts
+    interval: 1m
+    rules:
+      # 路由决策P99延迟告警
+      - alert: RoutingP99LatencyHigh
+        expr: histogram_quantile(0.99, rate(routing_decision_duration_seconds_bucket[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: routing
+          team: backend
+        annotations:
+          summary: "路由决策P99延迟过高"
+          description: "路由决策P99延迟为 {{ $value }}s，超过200ms"
+
+      # 意图识别置信度低告警
+      - alert: IntentConfidenceLow
+        expr: avg_over_time(routing_intent_confidence[5m]) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          category: routing
+          team: backend
+        annotations:
+          summary: "意图识别置信度过低"
+          description: "平均意图置信度为 {{ $value | humanize }}%，低于70%"

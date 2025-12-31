@@ -134,7 +134,7 @@ func (e *Exit) ToCallbackOutput(ctx context.Context, out map[string]any) (
 
 	m, err := sonic.ConfigStd.MarshalToString(out)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 
 	return &nodes.StructuredCallbackOutput{

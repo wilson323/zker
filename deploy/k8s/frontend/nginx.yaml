@@ -1,0 +1,328 @@
+# ================================================================================
+# Coze Studio - Frontend Nginx Deployment & Service
+# ================================================================================
+# 用途：前端静态资源服务器（React 应用）
+# 架构：无状态服务，通过 Nginx 提供静态文件和 API 反向代理
+# 资源配置：支持水平扩展
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# Frontend Deployment
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coze-studio-frontend
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: frontend
+    version: v1
+  annotations:
+    description: "Coze Studio 前端 Nginx 服务器"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: frontend
+        version: v1
+    spec:
+      containers:
+      - name: nginx
+        image: coze-studio/frontend:latest  # 替换为实际镜像地址
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+
+        # 环境变量（可选，用于动态配置）
+        env:
+        - name: API_SERVER_URL
+          value: "http://coze-studio-api.coze-studio.svc.cluster.local:8888"
+        - name: ENVIRONMENT
+          value: "production"
+
+        # 资源配置
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+        # 健康检查
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # 卷挂载（可选：自定义 Nginx 配置）
+        # volumeMounts:
+        # - name: nginx-config
+        #   mountPath: /etc/nginx/conf.d/default.conf
+        #   subPath: default.conf
+
+      # 卷定义
+      # volumes:
+      # - name: nginx-config
+      #   configMap:
+      #     name: nginx-config
+
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+
+---
+# ================================================================================
+# Frontend Service (LoadBalancer)
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: coze-studio-frontend
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: frontend
+  annotations:
+    description: "Coze Studio 前端服务（LoadBalancer）"
+    # 如果使用云厂商的 LoadBalancer，可以添加注解
+    # service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+    # service.beta.kubernetes.io/alibaba-cloud-loadbalancer-spec: "slb.s3.small"
+spec:
+  type: LoadBalancer  # 或 ClusterIP（如果使用 Ingress）
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800
+  selector:
+    app: coze-studio
+    component: frontend
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+    protocol: TCP
+    # 如果使用 LoadBalancer 且有外部 HTTPS，可以添加
+    # nodePort: 30080
+
+---
+# ================================================================================
+# Ingress (使用 Ingress Controller)
+# ================================================================================
+# 说明：如果使用 Ingress Controller（如 Nginx Ingress、Traefik），取消注释
+# 用途：提供 HTTPS、域名路由、负载均衡等功能
+#
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: coze-studio-ingress
+#   namespace: coze-studio
+#   labels:
+#     app: coze-studio
+#     component: frontend
+#   annotations:
+#     # Nginx Ingress 注解
+#     kubernetes.io/ingress.class: "nginx"
+#     cert-manager.io/cluster-issuer: "letsencrypt-prod"  # 自动 TLS
+#     nginx.ingress.kubernetes.io/ssl-redirect: "true"
+#     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+#     # CORS 配置
+#     nginx.ingress.kubernetes.io/enable-cors: "true"
+#     nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+#     # 请求大小限制
+#     nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+#     # 超时配置
+#     nginx.ingress.kubernetes.io/proxy-connect-timeout: "600"
+#     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+#     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+#     # 白名单 IP（如果需要）
+#     # nginx.ingress.kubernetes.io/whitelist-source-range: "1.2.3.4/32,5.6.7.0/24"
+# spec:
+#   ingressClassName: nginx
+#   # TLS 配置（使用 cert-manager 自动签发证书）
+#   tls:
+#   - hosts:
+#     - coze-studio.example.com
+#     - "*.coze-studio.example.com"  # 支持多租户子域名
+#     secretName: coze-studio-tls
+#
+#   rules:
+#   # 主域名
+#   - host: coze-studio.example.com
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: coze-studio-frontend
+#             port:
+#               number: 80
+#       # API 路由（反向代理到后端）
+#       - path: /api
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: coze-studio-api
+#             port:
+#               number: 8888
+#
+#   # 多租户子域名路由（*.tenant.coze-studio.example.com）
+#   - host: "*.tenant.coze-studio.example.com"
+#     http:
+#       paths:
+#       - path: /
+#         pathType: Prefix
+#         backend:
+#           service:
+#             name: coze-studio-frontend
+#             port:
+#               number: 80
+---
+
+---
+# ================================================================================
+# PodDisruptionBudget
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coze-studio-frontend-pdb
+  namespace: coze-studio
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: frontend
+
+---
+# ================================================================================
+# HorizontalPodAutoscaler
+# ================================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: coze-studio-frontend-hpa
+  namespace: coze-studio
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: coze-studio-frontend
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+
+---
+# ================================================================================
+# Nginx ConfigMap（自定义配置）
+# ================================================================================
+# 说明：如果需要自定义 Nginx 配置，取消注释并修改
+#
+# apiVersion: v1
+# kind: ConfigMap
+# metadata:
+#   name: nginx-config
+#   namespace: coze-studio
+# data:
+#   default.conf: |
+#     server {
+#         listen 80;
+#         server_name _;
+#
+#         root /usr/share/nginx/html;
+#         index index.html index.htm;
+#
+#         # Gzip 压缩
+#         gzip on;
+#         gzip_vary on;
+#         gzip_min_length 1024;
+#         gzip_types text/plain text/css text/xml text/javascript application/x-javascript application/xml+rss application/json;
+#
+#         # SPA 路由支持（所有路由返回 index.html）
+#         location / {
+#             try_files $uri $uri/ /index.html;
+#         }
+#
+#         # API 反向代理
+#         location /api {
+#             proxy_pass http://coze-studio-api.coze-studio.svc.cluster.local:8888;
+#             proxy_http_version 1.1;
+#             proxy_set_header Upgrade $http_upgrade;
+#             proxy_set_header Connection 'upgrade';
+#             proxy_set_header Host $host;
+#             proxy_cache_bypass $http_upgrade;
+#             proxy_set_header X-Real-IP $remote_addr;
+#             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+#             proxy_set_header X-Forwarded-Proto $scheme;
+#         }
+#
+#         # 健康检查
+#         location /health {
+#             access_log off;
+#             return 200 "healthy\n";
+#             add_header Content-Type text/plain;
+#         }
+#
+#         # 静态资源缓存
+#         location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+#             expires 1y;
+#             add_header Cache-Control "public, immutable";
+#         }
+#     }
+---

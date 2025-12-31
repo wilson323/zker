@@ -79,7 +79,7 @@ func Init(globalLogger *zap.Logger) {
 func LogTokenRecord(ctx context.Context, req *service.RecordTokenUsageRequest, resp *service.RecordTokenUsageResponse, duration time.Duration) {
 	logger.Info("Token usage recorded",
 		zap.String(LogKeyTenantID, req.TenantID),
-		zap.Stringer(LogKeyUserID, (*uint64Stringer)(req.UserID)),
+		zap.String(LogKeyUserID, formatUint64Ptr(req.UserID)),
 		zap.String(LogKeyBotID, derefString(req.BotID)),
 		zap.String(LogKeyConversationID, derefString(req.ConversationID)),
 		zap.String(LogKeyModelProvider, req.ModelProvider),
@@ -431,10 +431,8 @@ func derefString(s *string) string {
 	return *s
 }
 
-// uint64Stringer 实现 fmt.Stringer 接口，用于将 *uint64 转换为字符串
-type uint64Stringer *uint64
-
-func (u uint64Stringer) String() string {
+// formatUint64Ptr 安全地格式化 uint64 指针为字符串
+func formatUint64Ptr(u *uint64) string {
 	if u == nil {
 		return ""
 	}

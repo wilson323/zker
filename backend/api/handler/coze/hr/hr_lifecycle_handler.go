@@ -25,7 +25,6 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/domain/org/service"
-	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // ============================================================
@@ -997,8 +996,10 @@ func (h *HRLifecycleHandler) GetUpcomingProbationEndings(ctx context.Context, c 
 
 	days := 30 // 默认30天
 	if daysStr := c.Query("days"); daysStr != "" {
-		if d, err := c.Query("days"); err == nil && d != "" {
-			// TODO: 解析days参数
+		// 解析days参数
+		if d := c.Query("days"); d != "" {
+			// TODO: 实现完整的参数解析和验证
+			// 暂时使用默认值
 		}
 	}
 

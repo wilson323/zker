@@ -72,14 +72,14 @@ func (m *MessageList) getConversationIDByName(ctx context.Context, env vo.Env, a
 	})
 
 	if err != nil {
-		return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	var conversationID int64
 	if isExist {
 		sc, _, err := workflow.GetRepository().GetStaticConversationByTemplateID(ctx, env, userID, connectorID, template.TemplateID)
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		if sc != nil {
 			conversationID = sc.ConversationID
@@ -87,7 +87,7 @@ func (m *MessageList) getConversationIDByName(ctx context.Context, env vo.Env, a
 	} else {
 		dc, _, err := workflow.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		if dc != nil {
 			conversationID = dc.ConversationID
@@ -110,7 +110,7 @@ func (m *MessageList) Invoke(ctx context.Context, input map[string]any) (map[str
 
 	conversationName, ok := input["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrConversationNodeInvalidOperation, errors.New("ConversationName is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodeInvalidOperation, errors.New("ConversationName is required"))
 	}
 
 	var conversationID int64
@@ -118,7 +118,7 @@ func (m *MessageList) Invoke(ctx context.Context, input map[string]any) (map[str
 	var bizID int64
 	if appID == nil {
 		if conversationName != "Default" {
-			return nil, vo.WrapError(errno.ErrOnlyDefaultConversationAllowInAgentScenario, errors.New("conversation node only allow in application"))
+			return nil, vo.WrapError(errno.DeprecatedErrOnlyDefaultConversationAllowInAgentScenario, errors.New("conversation node only allow in application"))
 		}
 		if agentID == nil || execCtx.ExeCfg.ConversationID == nil {
 			return map[string]any{
@@ -175,7 +175,7 @@ func (m *MessageList) Invoke(ctx context.Context, input map[string]any) (map[str
 	}
 
 	if beforeID != "" && afterID != "" {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("BeforeID and AfterID cannot be set at the same time"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("BeforeID and AfterID cannot be set at the same time"))
 	}
 
 	ml, err := crossmessage.DefaultSVC().MessageList(ctx, req)

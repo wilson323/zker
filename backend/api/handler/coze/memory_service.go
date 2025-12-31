@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/data/variable/kvmemory"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/data/variable/project_memory"
 	appApplication "github.com/coze-dev/coze-studio/backend/application/app"
 	"github.com/coze-dev/coze-studio/backend/application/memory"
@@ -44,11 +45,11 @@ func GetSysVariableConf(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := memory.VariableApplicationSVC.GetSysVariableConf(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetProjectVariableList .
@@ -63,29 +64,29 @@ func GetProjectVariableList(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.ProjectID == "" {
-		invalidParamRequestResponse(c, "project_id is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "project_id is empty", "参数验证失败", nil)
 		return
 	}
 
 	pID, err := conv.StrToInt64(req.ProjectID)
 	if err != nil {
-		invalidParamRequestResponse(c, "project_id is not int")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "project_id is not int", "参数验证失败", nil)
 		return
 	}
 
 	pInfo, err := appApplication.APPApplicationSVC.DomainSVC.GetDraftAPP(ctx, pID)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	resp, err := memory.VariableApplicationSVC.GetProjectVariablesMeta(ctx, pInfo.OwnerID, &req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateProjectVariable .
@@ -100,19 +101,19 @@ func UpdateProjectVariable(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.ProjectID == "" {
-		invalidParamRequestResponse(c, "project_id is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "project_id is empty", "参数验证失败", nil)
 		return
 	}
 
 	key2Var := make(map[string]*project_memory.Variable)
 	for _, v := range req.VariableList {
 		if v.Keyword == "" {
-			invalidParamRequestResponse(c, "variable name is empty")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "variable name is empty", "参数验证失败", nil)
 			return
 		}
 
 		if key2Var[v.Keyword] != nil {
-			invalidParamRequestResponse(c, "variable keyword is duplicate")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "variable keyword is duplicate", "参数验证失败", nil)
 			return
 		}
 
@@ -121,11 +122,11 @@ func UpdateProjectVariable(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := memory.VariableApplicationSVC.UpdateProjectVariable(ctx, req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SetKvMemory .
@@ -140,22 +141,22 @@ func SetKvMemory(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 && req.GetProjectID() == "" {
-		invalidParamRequestResponse(c, "bot_id and project_id are both empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot_id and project_id are both empty", "参数验证失败", nil)
 		return
 	}
 
 	if len(req.Data) == 0 {
-		invalidParamRequestResponse(c, "data is empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "data is empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := memory.VariableApplicationSVC.SetVariableInstance(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetMemoryVariableMeta .
@@ -171,11 +172,11 @@ func GetMemoryVariableMeta(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := memory.VariableApplicationSVC.GetVariableMeta(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DelProfileMemory .
@@ -190,17 +191,17 @@ func DelProfileMemory(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 && req.GetProjectID() == "" {
-		invalidParamRequestResponse(c, "bot_id and project_id are both empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot_id and project_id are both empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := memory.VariableApplicationSVC.DeleteVariableInstance(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPlayGroundMemory .
@@ -215,15 +216,15 @@ func GetPlayGroundMemory(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 && req.GetProjectID() == "" {
-		invalidParamRequestResponse(c, "bot_id and project_id are both empty")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot_id and project_id are both empty", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := memory.VariableApplicationSVC.GetPlayGroundMemory(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

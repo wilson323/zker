@@ -1,0 +1,341 @@
+# GitHub Actions - Performance Testing Pipeline
+# 用途: 集成 K6 和 Go Benchmark 性能测试
+# 触发条件: push 到 main/develop, Pull Request, 定时任务, 手动触发
+# 遵循规范: CI/CD 最佳实践 + 企业级质量标准
+
+name: Performance-Testing
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  schedule:
+    # 每天凌晨 2 点运行
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      run_k6:
+        description: '运行 K6 测试'
+        required: true
+        default: true
+        type: boolean
+      run_benchmark:
+        description: '运行 Go Benchmark 测试'
+        required: true
+        default: true
+        type: boolean
+      concurrent_users:
+        description: 'K6 并发用户数'
+        required: false
+        default: '10000'
+        type: string
+
+# 环境变量
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '18'
+  K6_VERSION: '0.50.0'
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ==================== K6 性能测试 ====================
+  k6-performance-test:
+    name: 🚀 K6 Performance Test - ${{ matrix.test_suite }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    strategy:
+      fail-fast: false
+      matrix:
+        test_suite:
+          - { name: 'Bot API', file: 'bot-api-test.js', qps_threshold: 500 }
+          - { name: 'Conversation API', file: 'conversation-api-test.js', qps_threshold: 300 }
+          - { name: 'Workflow API', file: 'workflow-api-test.js', qps_threshold: 200 }
+
+    services:
+      mysql:
+        image: mysql:8.4.5
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_zker
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 安装 K6
+        run: |
+          sudo gpg -k
+          sudo gpg --no-default-keyring --keyring /usr/share/keyrings/k6-archive-keyring.gpg \
+            --keyserver hkp://keyserver.ubuntu.com:80 \
+            --recv-keys C5AD17C747E3415A3642D57D77C6C491D6AC1D69
+          echo "deb [signed-by=/usr/share/keyrings/k6-archive-keyring.gpg] https://dl.k6.io/deb stable main" | \
+            sudo tee /etc/apt/sources.list.d/k6.list
+          sudo apt-get update
+          sudo apt-get install k6
+
+      - name: 🧪 编译后端
+        working-directory: ./backend
+        run: |
+          go mod download
+          go build -o coze-studio ./cmd/coze-studio
+
+      - name: 🚀 启动后端服务
+        run: |
+          cd backend
+          ./coze-studio --config ../conf/config.yaml &
+          echo $! > backend.pid
+          sleep 10
+
+      - name: ⏳ 等待服务就绪
+        run: |
+          timeout 60 bash -c 'until curl -s http://localhost:8888/health; do sleep 2; done'
+          echo "✅ 后端服务已就绪"
+
+      - name: 🚀 运行 K6 测试 - ${{ matrix.test_suite.name }}
+        env:
+          API_URL: http://localhost:8888
+          TENANT_ID: test_tenant_001
+          USER_ID: test_user_001
+        run: |
+          cd tests/performance/k6
+          k6 run \
+            --out json=k6-results-${{ matrix.test_suite.name }}.json \
+            ${{ matrix.test_suite.file }} \
+            2>&1 | tee k6-output-${{ matrix.test_suite.name }}.txt
+
+      - name: 📊 分析 K6 测试结果 - ${{ matrix.test_suite.name }}
+        run: |
+          echo "## ${{ matrix.test_suite.name }} 测试结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat tests/performance/k6/k6-output-${{ matrix.test_suite.name }}.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: 📤 上传 K6 测试结果
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: k6-results-${{ matrix.test_suite.name }}
+          path: |
+            tests/performance/k6/k6-results-${{ matrix.test_suite.name }}.json
+            tests/performance/k6/k6-output-${{ matrix.test_suite.name }}.txt
+          retention-days: 30
+
+      - name: 🧹 清理后端服务
+        if: always()
+        run: |
+          if [ -f backend/backend.pid ]; then
+            kill $(cat backend/backend.pid) || true
+          fi
+
+  # ==================== Go Benchmark 测试 ====================
+  go-benchmark-test:
+    name: ⚡ Go Benchmark Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      mysql:
+        image: mysql:8.4.5
+        env:
+          MYSQL_ROOT_PASSWORD: test_password
+          MYSQL_DATABASE: test_zker
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+      redis:
+        image: redis:8.0-alpine
+        ports:
+          - 6380:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 安装依赖
+        working-directory: ./backend
+        run: go mod download
+
+      - name: ⚡ 运行 Benchmark 测试
+        working-directory: ./backend
+        run: |
+          echo "运行 Go Benchmark 测试..."
+          go test -bench=. -benchmem -run=^$ ./tests/performance/... \
+            -timeout=30m \
+            | tee benchmark-results.txt
+
+      - name: 📊 生成 Benchmark 摘要
+        working-directory: ./backend
+        run: |
+          echo "## Go Benchmark 测试结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat benchmark-results.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: 📊 生成 CPU Profile
+        working-directory: ./backend
+        run: |
+          go test -bench=. -cpuprofile=cpu.prof \
+            -run=^$ ./tests/performance/... > /dev/null 2>&1
+
+      - name: 📊 生成 Memory Profile
+        working-directory: ./backend
+        run: |
+          go test -bench=. -memprofile=mem.prof \
+            -run=^$ ./tests/performance/... > /dev/null 2>&1
+
+      - name: 📤 上传 Benchmark 结果
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: go-benchmark-results
+          path: |
+            backend/benchmark-results.txt
+            backend/cpu.prof
+            backend/mem.prof
+          retention-days: 30
+
+      - name: 🔍 性能回归检测
+        working-directory: ./backend
+        run: |
+          echo "## 性能回归检测" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "对比基准线..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # TODO: 实现自动对比基准线的逻辑
+          # if [ -f tests/performance/BASELINE.txt ]; then
+          #   # 对比逻辑
+          # fi
+
+  # ==================== 性能测试报告生成 ====================
+  generate-performance-report:
+    name: 📊 Performance Report
+    runs-on: ubuntu-latest
+    needs: [k6-performance-test, go-benchmark-test]
+    if: always()
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 📥 下载所有测试结果
+        uses: actions/download-artifact@v3
+        with:
+          path: test-results
+
+      - name: 📊 生成综合报告
+        run: |
+          echo "# 🎯 性能测试综合报告" > $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 📅 执行信息" >> $GITHUB_STEP_SUMMARY
+          echo "- **触发方式**: ${{ github.event_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **执行时间**: $(date -u +'%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## ✅ 测试状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 测试套件 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| K6 Bot API 测试 | ${{ needs.k6-performance-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| K6 对话 API 测试 | ${{ needs.k6-performance-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| K6 工作流 API 测试 | ${{ needs.k6-performance-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Go Benchmark 测试 | ${{ needs.go-benchmark-test.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 📦 测试产物" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "所有测试报告和原始数据已上传到 Actions Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 检查是否有失败的测试
+          if [ "${{ needs.k6-performance-test.result }}" != "success" ] || \
+             [ "${{ needs.go-benchmark-test.result }}" != "success" ]; then
+            echo "## ⚠️ 注意事项" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "部分性能测试失败或未达到目标，请查看详细日志" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: 📤 发布测试报告
+        uses: actions/upload-artifact@v3
+        with:
+          name: performance-test-report
+          path: |
+            test-results/
+            backend/benchmark-results.txt
+          retention-days: 90
+
+      - name: ✅ 测试成功检查
+        if: |
+          needs.k6-performance-test.result != 'success' ||
+          needs.go-benchmark-test.result != 'success'
+        run: |
+          echo "❌ 性能测试失败，请检查失败的测试"
+          exit 1
+
+  # ==================== 性能回归告警 ====================
+  performance-regression-alert:
+    name: 🚨 Performance Regression Alert
+    runs-on: ubuntu-latest
+    needs: [go-benchmark-test]
+    if: failure()
+
+    steps:
+      - name: 📢 发送告警通知
+        run: |
+          echo "检测到性能回归！"
+          echo "请查看 Benchmark 测试结果"
+          # TODO: 集成 Slack/Discord/企业微信等通知

@@ -49,7 +49,7 @@ func (s *QuotaAppServiceCached) CheckQuotaWithCache(ctx context.Context, req *Ch
 	cached, err := s.cache.Get(ctx, cacheKey)
 	if err == nil && cached != nil {
 		// 缓存命中
-		logger.CtxDebugf(ctx, "[QuotaApp] cache hit: tenant=%s resource=%s",
+		logs.CtxDebugf(ctx, "[QuotaApp] cache hit: tenant=%s resource=%s",
 			req.TenantID, req.ResourceType)
 		return cached.(*CheckQuotaResponse), nil
 	}
@@ -65,10 +65,10 @@ func (s *QuotaAppServiceCached) CheckQuotaWithCache(ctx context.Context, req *Ch
 		cacheCtx := context.Background()
 		if cacheErr := s.cache.Set(cacheCtx, cacheKey, resp, quotaCacheTTL); cacheErr != nil {
 			// 缓存写入失败不影响业务，仅记录日志
-			logger.CtxWarnf(ctx, "[QuotaApp] failed to cache quota: tenant=%s resource=%s error=%v",
+			logs.CtxWarnf(ctx, "[QuotaApp] failed to cache quota: tenant=%s resource=%s error=%v",
 				req.TenantID, req.ResourceType, cacheErr)
 		} else {
-			logger.CtxDebugf(ctx, "[QuotaApp] cached: tenant=%s resource=%s ttl=%s",
+			logs.CtxDebugf(ctx, "[QuotaApp] cached: tenant=%s resource=%s ttl=%s",
 				req.TenantID, req.ResourceType, quotaCacheTTL)
 		}
 	}()
@@ -82,11 +82,11 @@ func (s *QuotaAppServiceCached) InvalidateQuotaCache(ctx context.Context, tenant
 	cacheKey := fmt.Sprintf(quotaCacheKeyFormat, tenantID, resourceType)
 	err := s.cache.Delete(ctx, cacheKey)
 	if err != nil {
-		logger.CtxErrorf(ctx, "[QuotaApp] failed to invalidate cache: key=%s error=%v", cacheKey, err)
+		logs.CtxErrorf(ctx, "[QuotaApp] failed to invalidate cache: key=%s error=%v", cacheKey, err)
 		return err
 	}
 
-	logger.CtxInfof(ctx, "[QuotaApp] cache invalidated: tenant=%s resource=%s", tenantID, resourceType)
+	logs.CtxInfof(ctx, "[QuotaApp] cache invalidated: tenant=%s resource=%s", tenantID, resourceType)
 	return nil
 }
 
@@ -94,7 +94,7 @@ func (s *QuotaAppServiceCached) InvalidateQuotaCache(ctx context.Context, tenant
 func (s *QuotaAppServiceCached) InvalidateAllQuotaCache(ctx context.Context, tenantID string) error {
 	// 注意：此实现需要缓存支持模糊匹配或模式删除
 	// 对于Redis，可以使用 SCAN + DEL 命令
-	logger.CtxInfof(ctx, "[QuotaApp] invalidating all quota cache: tenant=%s", tenantID)
+	logs.CtxInfof(ctx, "[QuotaApp] invalidating all quota cache: tenant=%s", tenantID)
 
 	// TODO: 实现批量删除逻辑
 	// 示例：SCAN quota:tenant_123:* 并删除所有匹配的键
@@ -105,14 +105,14 @@ func (s *QuotaAppServiceCached) InvalidateAllQuotaCache(ctx context.Context, ten
 // WarmUpCache 预热缓存
 // 在服务启动时调用，加载热点数据到缓存
 func (s *QuotaAppServiceCached) WarmUpCache(ctx context.Context, tenantIDs []string) error {
-	logger.CtxInfof(ctx, "[QuotaApp] warming up cache for %d tenants", len(tenantIDs))
+	logs.CtxInfof(ctx, "[QuotaApp] warming up cache for %d tenants", len(tenantIDs))
 
 	successCount := 0
 	for _, tenantID := range tenantIDs {
 		// 获取所有资源类型的配额
 		quotas, err := s.QuotaAppService.GetAllQuotas(ctx, tenantID)
 		if err != nil {
-			logger.CtxWarnf(ctx, "[QuotaApp] failed to get quotas for warmup: tenant=%s error=%v",
+			logs.CtxWarnf(ctx, "[QuotaApp] failed to get quotas for warmup: tenant=%s error=%v",
 				tenantID, err)
 			continue
 		}
@@ -134,7 +134,7 @@ func (s *QuotaAppServiceCached) WarmUpCache(ctx context.Context, tenantIDs []str
 			}
 
 			if err := s.cache.Set(ctx, cacheKey, resp, quotaCacheTTL); err != nil {
-				logger.CtxWarnf(ctx, "[QuotaApp] failed to warm up cache: key=%s error=%v",
+				logs.CtxWarnf(ctx, "[QuotaApp] failed to warm up cache: key=%s error=%v",
 					cacheKey, err)
 			} else {
 				successCount++
@@ -142,7 +142,7 @@ func (s *QuotaAppServiceCached) WarmUpCache(ctx context.Context, tenantIDs []str
 		}
 	}
 
-	logger.CtxInfof(ctx, "[QuotaApp] cache warmup completed: %d/%d successful",
+	logs.CtxInfof(ctx, "[QuotaApp] cache warmup completed: %d/%d successful",
 		successCount, len(tenantIDs)*4) // 4是资源类型数量
 
 	return nil

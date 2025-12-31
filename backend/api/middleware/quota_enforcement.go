@@ -66,12 +66,13 @@ func QuotaEnforcementMiddleware(config QuotaEnforcementConfig) app.HandlerFunc {
 		}
 
 		// 2. 获取租户ID
-		tenantID := c.GetHeader(TenantIDHeader)
-		if tenantID == "" {
+		tenantIDBytes := c.GetHeader(TenantIDHeader)
+		if len(tenantIDBytes) == 0 {
 			// 如果没有租户ID，跳过检查（可能公开端点）
 			c.Next(ctx)
 			return
 		}
+		tenantID := string(tenantIDBytes)
 
 		// 3. 根据请求路径确定资源类型
 		resourceType, requiredCount := determineResourceRequirement(c)
@@ -213,12 +214,6 @@ func shouldResetQuota(quota *entity.Quota) bool {
 	case entity.ResetCycleDaily:
 		// 每日重置：检查是否是新的一天
 		return now.YearDay() != lastReset.YearDay() || now.Year() != lastReset.Year()
-
-	case entity.ResetCycleWeekly:
-		// 每周重置：检查是否是新的周
-		_, week := now.ISOWeek()
-		_, lastWeek := lastReset.ISOWeek()
-		return week != lastWeek
 
 	case entity.ResetCycleMonthly:
 		// 每月重置：检查是否是新月份

@@ -87,7 +87,7 @@ func GetBudget(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 4. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetResponse{
 		Code:    0,
 		Message: "success",
 		Data:    budgetData,
@@ -177,7 +177,7 @@ func UpdateBudget(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 4. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetResponse{
 		Code:    0,
 		Message: "Budget updated successfully",
 		Data:    budget,
@@ -213,7 +213,7 @@ func DeleteBudget(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 3. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetResponse{
 		Code:    0,
 		Message: "Budget deleted successfully",
 	})
@@ -248,7 +248,7 @@ func GetBudgetUsage(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 3. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetUsageResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetUsageResponse{
 		Code:    0,
 		Message: "success",
 		Data:    usage,
@@ -274,7 +274,7 @@ func CheckBudget(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 3. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetCheckResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetCheckResponse{
 		Code:    0,
 		Message: "success",
 		Data:    result,
@@ -349,7 +349,7 @@ func GetBudgetAlerts(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 4. 返回结果
-	c.JSON(http.StatusOK, &billing.BudgetAlertsResponse{
+	httputil.BuildSuccessResp(c, &billing.BudgetAlertsResponse{
 		Code:       0,
 		Message:    "success",
 		Data:       alerts,

@@ -1,0 +1,21 @@
+# ================================================================================
+# Coze Studio - Kubernetes Namespace 定义
+# ================================================================================
+# 用途：定义独立的应用命名空间，实现资源隔离
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coze-studio
+  labels:
+    app: coze-studio
+    environment: production
+    team: backend
+    # 启用 Istio 自动注入
+    istio-injection: enabled
+  annotations:
+    description: "Coze Studio 企业级多租户 SaaS 平台生产环境"
+    contact: "devops@coze-studio.com"

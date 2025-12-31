@@ -1,0 +1,396 @@
+# ================================================================================
+# Coze Studio - NetworkPolicy 网络策略
+# ================================================================================
+# 用途：定义 Pod 间网络访问规则，遵循最小权限原则
+# 策略：默认拒绝所有入站/出站流量，仅允许必要的通信
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# API Server NetworkPolicy
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-server-policy
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: api-server
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: api-server
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # 允许 Frontend 访问
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: frontend
+    ports:
+    - protocol: TCP
+      port: 8888
+  # 允许 Ingress Controller 访问
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx  # 或其他 Ingress Controller
+    ports:
+    - protocol: TCP
+      port: 8888
+  # 允许同组件 Pod 间通信（用于 gRPC）
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: api-server
+    ports:
+    - protocol: TCP
+      port: 9000
+  egress:
+  # 允许访问 MySQL
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
+  # 允许访问 Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # 允许访问 Elasticsearch
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: elasticsearch
+    ports:
+    - protocol: TCP
+      port: 9200
+  # 允许访问 Milvus（如果已部署）
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: milvus
+    ports:
+    - protocol: TCP
+      port: 19530
+  # 允许访问 MinIO
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: minio
+    ports:
+    - protocol: TCP
+      port: 9000
+  # 允许访问 NSQ
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: nsqd
+    ports:
+    - protocol: TCP
+      port: 4150
+    - protocol: TCP
+      port: 4151
+  # 允许访问 etcd
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: etcd
+    ports:
+    - protocol: TCP
+      port: 2379
+  # 允许 DNS 查询
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # 允许调用外部 API（如 AI 模型 API）
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 80
+
+---
+# ================================================================================
+# Frontend NetworkPolicy
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: frontend-policy
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: frontend
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: frontend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # 允许来自 Ingress Controller 的流量
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 80
+  # 允许来自外部 LoadBalancer 的流量
+  - ports:
+    - protocol: TCP
+      port: 80
+  egress:
+  # 允许访问 API Server
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: api-server
+    ports:
+    - protocol: TCP
+      port: 8888
+  # 允许 DNS 查询
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ================================================================================
+# Worker NetworkPolicy
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-policy
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: worker
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: worker
+  policyTypes:
+  - Egress
+  egress:
+  # 允许访问 MySQL（与 API Server 相同）
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: mysql
+    ports:
+    - protocol: TCP
+      port: 3306
+  # 允许访问 Redis
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: redis
+    ports:
+    - protocol: TCP
+      port: 6379
+  # 允许访问 Elasticsearch
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: elasticsearch
+    ports:
+    - protocol: TCP
+      port: 9200
+  # 允许访问 NSQ
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: nsqd
+    ports:
+    - protocol: TCP
+      port: 4150
+    - protocol: TCP
+      port: 4151
+  # 允许访问 NSQ Lookupd
+  - to:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: nsqlookupd
+    ports:
+    - protocol: TCP
+      port: 4160
+    - protocol: TCP
+      port: 4161
+  # 允许调用外部 API
+  - to:
+    - podSelector: {}
+    ports:
+    - protocol: TCP
+      port: 443
+  # 允许 DNS 查询
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ================================================================================
+# MySQL NetworkPolicy（仅允许应用层访问）
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mysql-policy
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: mysql
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: mysql
+  policyTypes:
+  - Ingress
+  ingress:
+  # 仅允许 API Server 和 Worker 访问
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+      matchExpressions:
+      - key: component
+        operator: In
+        values: ["api-server", "worker"]
+    ports:
+    - protocol: TCP
+      port: 3306
+
+---
+# ================================================================================
+# Redis NetworkPolicy
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis-policy
+  namespace: coze-studio
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: redis
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+      matchExpressions:
+      - key: component
+        operator: In
+        values: ["api-server", "worker", "redis"]
+    ports:
+    - protocol: TCP
+      port: 6379
+
+---
+# ================================================================================
+# Elasticsearch NetworkPolicy
+# ================================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: elasticsearch-policy
+  namespace: coze-studio
+spec:
+  podSelector:
+    matchLabels:
+      app: coze-studio
+      component: elasticsearch
+  policyTypes:
+  - Ingress
+  ingress:
+  # 允许应用层访问
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+      matchExpressions:
+      - key: component
+        operator: In
+        values: ["api-server", "worker"]
+    ports:
+    - protocol: TCP
+      port: 9200
+  # 允许 ES 节点间通信
+  - from:
+    - podSelector:
+        matchLabels:
+          app: coze-studio
+          component: elasticsearch
+    ports:
+    - protocol: TCP
+      port: 9200
+    - protocol: TCP
+      port: 9300
+
+---
+# ================================================================================
+# 默认拒绝所有入站/出站流量（Namespace 级别）
+# ================================================================================
+# 说明：作为最后的兜底策略，确保未明确允许的流量被拒绝
+# 注释掉此策略以允许所有流量（仅用于开发环境）
+#
+# apiVersion: networking.k8s.io/v1
+# kind: NetworkPolicy
+# metadata:
+#   name: default-deny-all
+#   namespace: coze-studio
+# spec:
+#   podSelector: {}
+#   policyTypes:
+#   - Ingress
+#   - Egress
+---

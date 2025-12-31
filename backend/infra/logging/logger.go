@@ -22,12 +22,11 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-
-	bizConf "github.com/coze-dev/coze-studio/backend/bizpkg/config"
 )
 
 var (
@@ -269,7 +268,12 @@ func WithContext(ctx context.Context) *zap.Logger {
 // WithContextSugar 从context中提取信息并创建sugar logger
 func WithContextSugar(ctx context.Context) *zap.SugaredLogger {
 	fields := extractContextFields(ctx)
-	return sugar.With(fields...)
+	// Sugar.With 需要 []interface{} 而不是 []zap.Field
+	ifaceFields := make([]interface{}, 0, len(fields)*2)
+	for _, f := range fields {
+		ifaceFields = append(ifaceFields, f.Key, f.Interface)
+	}
+	return sugar.With(ifaceFields...)
 }
 
 // DebugContext 记录带context的Debug日志
@@ -383,7 +387,27 @@ func Err(err error) zap.Field {
 
 // Duration 创建duration字段
 func Duration(key string, value interface{}) zap.Field {
-	return zap.Duration(key, value)
+	// 处理不同类型的 duration 输入
+	var d time.Duration
+	switch v := value.(type) {
+	case time.Duration:
+		d = v
+	case int64:
+		d = time.Duration(v)
+	case int:
+		d = time.Duration(v)
+	case float64:
+		d = time.Duration(v)
+	default:
+		// 如果是未知类型，尝试转换
+		if f, ok := value.(float64); ok {
+			d = time.Duration(f)
+		} else {
+			// 无法转换时返回 Any 字段
+			return zap.Any(key, value)
+		}
+	}
+	return zap.Duration(key, d)
 }
 
 // ========== HTTP日志辅助方法 ==========

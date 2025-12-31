@@ -126,4 +126,74 @@ var (
 		messageEN:  "Database error",
 		httpStatus: http.StatusInternalServerError,
 	}
+	IDGenError = &BaseErrorCode{
+		code:       "COMMON500003",
+		message:    "Failed to generate ID",
+		messageZH:  "ID生成失败",
+		messageEN:  "Failed to generate ID",
+		httpStatus: http.StatusInternalServerError,
+	}
+
+	// 缓存错误
+	CacheError = &BaseErrorCode{
+		code:       "COMMON500004",
+		message:    "Cache operation failed",
+		messageZH:  "缓存操作失败",
+		messageEN:  "Cache operation failed",
+		httpStatus: http.StatusInternalServerError,
+	}
+)
+
+// 通用错误码int32常量（用于errorx.New等需要int32的场景）
+const (
+	// 成功
+	SuccessCode = 200000000
+
+	// 客户端错误 (2xx)
+	InvalidParamsCode = 201000001
+	MissingParamCode  = 201000002
+	InvalidFormatCode = 201000003
+
+	// 认证错误 (4xx)
+	UnauthorizedCode = 401000001
+	TokenExpiredCode  = 401000002
+	InvalidTokenCode  = 401000003
+
+	// 权限错误 (4xx)
+	ForbiddenCode = 403000001
+
+	// 资源错误 (4xx)
+	NotFoundCode = 404000001
+
+	// 服务器错误 (5xx)
+	InternalErrorCode = 500000001
+	DatabaseErrorCode = 500000002
+	IDGenErrorCode    = 500000003
+	CacheErrorCode    = 500000004
+	ErrRateLimitExceededCode       = 429000001
+	ErrConcurrencyLimitExceededCode = 429000002
+)
+
+// 便捷别名（不带Err前缀，用于直接使用int32常量）
+const (
+	SuccessValue      = SuccessCode
+	InvalidParam      = InvalidParamsCode
+	ParamMissing      = MissingParamCode
+	FormatInvalid     = InvalidFormatCode
+	AuthRequired      = UnauthorizedCode
+	TokenExpiredValue = TokenExpiredCode
+	TokenInvalid      = InvalidTokenCode
+	AccessDenied      = ForbiddenCode
+	ResourceNotFound  = NotFoundCode
+	InternalErr       = InternalErrorCode
+	DatabaseErr       = DatabaseErrorCode
+)
+
+// Err前缀别名（用于中间件统一命名）
+const (
+	ErrUnauthorizedCode         = UnauthorizedCode
+	ErrForbiddenCode            = ForbiddenCode
+	ErrNotFoundCode             = NotFoundCode
+	ErrInvalidParamsCode        = InvalidParamsCode
+	ErrInternalErrorCode        = InternalErrorCode
 )

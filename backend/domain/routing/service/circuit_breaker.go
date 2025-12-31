@@ -30,7 +30,7 @@ type CircuitBreakerService struct {
 
 // CircuitBreaker 熔断器状态
 type CircuitBreaker struct {
-	mu              sync.Mutex
+	mu              sync.RWMutex
 	ServiceID       string
 	State           CircuitState // CLOSED, OPEN, HALF_OPEN
 	FailureCount    int

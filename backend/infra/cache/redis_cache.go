@@ -4,7 +4,6 @@ package cache
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"time"
 
@@ -52,6 +51,16 @@ func (c *RedisCache) Set(ctx context.Context, key string, value interface{}) err
 	}
 
 	return c.client.Set(ctx, c.buildKey(key), data, c.ttl).Err()
+}
+
+// SetWithTTL 设置缓存并指定TTL
+func (c *RedisCache) SetWithTTL(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+
+	return c.client.Set(ctx, c.buildKey(key), data, ttl).Err()
 }
 
 // Get 获取缓存
@@ -149,14 +158,6 @@ func (c *RedisCache) buildKey(key string) string {
 func (c *RedisCache) Close() error {
 	return c.client.Close()
 }
-
-// =====================================================================
-// 错误定义
-// =====================================================================
-
-var (
-	ErrCacheNotFound = errors.New("cache not found")
-)
 
 // =====================================================================
 // Bot缓存示例（临时类型定义，实际应从domain/entity导入）

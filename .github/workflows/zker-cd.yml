@@ -224,6 +224,8 @@ jobs:
     environment:
       name: production
       url: https://zker.example.com
+      # ⚠️ 生产环境部署需要手动批准
+      # 配置方法: Settings → Environments → production → Required reviewers
 
     steps:
       - name: 📥 Checkout 代码
@@ -300,14 +302,52 @@ jobs:
             --context=prod-check --namespace=zker-prod -- \
             wget -O- http://zker-api/health
 
-      - name: 🔔 发送部署通知
-        if: success()
-        run: |
-          echo "✅ 生产环境部署成功!"
-          # TODO: 发送 Slack/DingTalk 通知
-          # curl -X POST ${{ secrets.SLACK_WEBHOOK }} \
-          #   -H 'Content-Type: application/json' \
-          #   -d '{"text":"✅ ZKER v${{ needs.build-and-push.outputs.version }} 部署到生产环境成功"}'
+      - name: 🔔 发送部署通知（Slack）
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            ## 生产环境部署通知
+            *状态*: ${{ job.status }}
+            *版本*: ${{ needs.build-and-push.outputs.version }}
+            *环境*: Production
+            *时间*: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            *提交*: ${{ github.sha }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#deployments'
+          username: 'ZKER CD Bot'
+          icon_emoji: ':rocket:'
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                  "fields": [
+                    {
+                      "title": "版本",
+                      "value": "${{ needs.build-and-push.outputs.version }}",
+                      "short": true
+                    },
+                    {
+                      "title": "环境",
+                      "value": "Production",
+                      "short": true
+                    },
+                    {
+                      "title": "状态",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "提交",
+                      "value": "${{ github.sha }}",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
 
       - name: 📊 生成部署报告
         run: |
@@ -356,11 +396,43 @@ jobs:
 
           echo "✅ 回滚完成"
 
-      - name: 🔔 发送回滚通知
+      - name: 🔔 发送回滚通知（Slack）
         if: success()
-        run: |
-          echo "🔄 生产环境已回滚!"
-          # TODO: 发送紧急通知
-          # curl -X POST ${{ secrets.SLACK_WEBHOOK_URGENT }} \
-          #   -H 'Content-Type: application/json' \
-          #   -d '{"text":"🚨 ZKER 部署失败,已自动回滚"}'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: |
+            🚨 **生产环境自动回滚**
+
+            部署版本: ${{ needs.deploy-production.outputs.version }}
+            回滚时间: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            提交: ${{ github.sha }}
+
+            请立即检查生产环境状态！
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#alerts'
+          username: 'ZKER Alert Bot'
+          icon_emoji: ':rotating_light:'
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "danger",
+                  "title": "🚨 生产环境自动回滚",
+                  "fields": [
+                    {
+                      "title": "版本",
+                      "value": "${{ needs.deploy-production.outputs.version }}",
+                      "short": true
+                    },
+                    {
+                      "title": "时间",
+                      "value": "$(date -u '+%Y-%m-%d %H:%M:%S UTC')",
+                      "short": true
+                    }
+                  ],
+                  "footer": "请立即检查生产环境状态",
+                  "ts": ${{ github.event.head_commit.timestamp }}
+                }
+              ]
+            }

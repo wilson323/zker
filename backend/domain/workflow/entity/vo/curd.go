@@ -43,11 +43,11 @@ const (
 	HasPublished PublishStatus = "HasPublished"
 )
 
-type WorkFlowType string
-
+// 注意：WorkFlowType 已在 workflow_types.go 中定义为 int64 类型
+// 保留字符串常量别名用于向后兼容
 const (
-	User     WorkFlowType = "user"
-	Official WorkFlowType = "official"
+	WorkFlowTypeUserString     = "user"      // 对应 WorkFlowType_User
+	WorkFlowTypeOfficialString  = "official"  // 对应 WorkFlowType_GuanFang
 )
 
 type QueryToolInfoOption struct {

@@ -24,6 +24,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/conversation/conversation"
 	application "github.com/coze-dev/coze-studio/backend/application/conversation"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
@@ -37,21 +38,21 @@ func ClearConversationHistory(ctx context.Context, c *app.RequestContext) {
 	var req conversation.ClearConversationHistoryRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if checkErr := checkCCHParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.ClearHistory(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func checkCCHParams(_ context.Context, req *conversation.ClearConversationHistoryRequest) error {
@@ -74,24 +75,24 @@ func ClearConversationCtx(ctx context.Context, c *app.RequestContext) {
 	var req conversation.ClearConversationCtxRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if checkErr := checkCCCParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(, "参数验证失败", nil))
 		return
 	}
 
 	newSectionID, err := application.ConversationSVC.CreateSection(ctx, req.ConversationID)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	resp.NewSectionID = newSectionID
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func checkCCCParams(ctx context.Context, req *conversation.ClearConversationCtxRequest) error {
@@ -112,17 +113,17 @@ func CreateConversation(ctx context.Context, c *app.RequestContext) {
 	var req conversation.CreateConversationRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.CreateConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ClearConversationApi .
@@ -132,7 +133,7 @@ func ClearConversationApi(ctx context.Context, c *app.RequestContext) {
 	var req conversation.ClearConversationApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -140,7 +141,7 @@ func ClearConversationApi(ctx context.Context, c *app.RequestContext) {
 
 	sectionID, err := application.ConversationSVC.CreateSection(ctx, req.ConversationID)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 	resp.Data = &conversation.Section{
@@ -148,7 +149,7 @@ func ClearConversationApi(ctx context.Context, c *app.RequestContext) {
 		ConversationID: req.ConversationID,
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListConversationsApi .
@@ -158,17 +159,17 @@ func ListConversationsApi(ctx context.Context, c *app.RequestContext) {
 	var req conversation.ListConversationsApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.ListConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateConversationApi .
@@ -178,17 +179,17 @@ func UpdateConversationApi(ctx context.Context, c *app.RequestContext) {
 	var req conversation.UpdateConversationApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.UpdateConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteConversationApi .
@@ -198,16 +199,16 @@ func DeleteConversationApi(ctx context.Context, c *app.RequestContext) {
 	var req conversation.DeleteConversationApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := application.ConversationSVC.DeleteConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // RetrieveConversationApi .
@@ -217,15 +218,15 @@ func RetrieveConversationApi(ctx context.Context, c *app.RequestContext) {
 	var req conversation.RetrieveConversationApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.RetrieveConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

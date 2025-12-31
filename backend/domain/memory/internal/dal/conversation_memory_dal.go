@@ -106,6 +106,42 @@ func (dao *ConversationMemoryDAO) FindExpired(ctx context.Context, tenantID stri
 	return dao.batchToEntity(daoModels), nil
 }
 
+// FindByVectorIDs 根据向量ID列表查找记忆
+// 保持向量搜索结果的顺序返回
+func (dao *ConversationMemoryDAO) FindByVectorIDs(
+	ctx context.Context,
+	vectorIDs []string,
+) ([]*entity.ConversationMemory, error) {
+	if len(vectorIDs) == 0 {
+		return []*entity.ConversationMemory{}, nil
+	}
+
+	var daoModels []model.ConversationMemoryDAO
+	err := dao.db.WithContext(ctx).
+		Where("memory_id IN ?", vectorIDs).
+		Find(&daoModels).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建内存ID到实体的映射，用于保持vectorIDs的顺序
+	memoryMap := make(map[string]*entity.ConversationMemory, len(daoModels))
+	for i := range daoModels {
+		memory := dao.toEntity(&daoModels[i])
+		memoryMap[memory.MemoryID] = memory
+	}
+
+	// 按照vectorIDs的顺序返回结果
+	result := make([]*entity.ConversationMemory, 0, len(vectorIDs))
+	for _, vectorID := range vectorIDs {
+		if memory, exists := memoryMap[vectorID]; exists {
+			result = append(result, memory)
+		}
+	}
+
+	return result, nil
+}
+
 // Update 更新记忆
 func (dao *ConversationMemoryDAO) Update(ctx context.Context, memory *entity.ConversationMemory) error {
 	daoModel := dao.toModel(memory)

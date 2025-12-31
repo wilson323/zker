@@ -51,7 +51,7 @@ func (i *interruptEventStoreImpl) SaveInterruptEvents(ctx context.Context, wfExe
 
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrRedisError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrRedisError, err)
 		}
 	}()
 
@@ -92,7 +92,7 @@ func (i *interruptEventStoreImpl) SaveInterruptEvents(ctx context.Context, wfExe
 	if previousEventStr != "" {
 		err = sonic.UnmarshalString(previousEventStr, &previousEvent)
 		if err != nil {
-			return vo.WrapError(errno.ErrSerializationDeserializationFail,
+			return vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 				fmt.Errorf("failed to unmarshal previous resumed event (wfExeID %d) from JSON: %w", wfExeID, err))
 		}
 	}
@@ -114,7 +114,7 @@ func (i *interruptEventStoreImpl) SaveInterruptEvents(ctx context.Context, wfExe
 	for _, event := range events {
 		eventJSON, err := sonic.MarshalString(event)
 		if err != nil {
-			return vo.WrapError(errno.ErrSerializationDeserializationFail,
+			return vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 				fmt.Errorf("failed to marshal interrupt event %d to JSON: %w", event.ID, err))
 		}
 		eventJSONs = append(eventJSONs, eventJSON)
@@ -123,7 +123,7 @@ func (i *interruptEventStoreImpl) SaveInterruptEvents(ctx context.Context, wfExe
 	if topPriorityEvent != nil {
 		topPriorityEventJSON, err := sonic.MarshalString(topPriorityEvent)
 		if err != nil {
-			return vo.WrapError(errno.ErrSerializationDeserializationFail,
+			return vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 				fmt.Errorf("failed to marshal top priority interrupt event %d to JSON: %w", topPriorityEvent.ID, err))
 		}
 		pipe.LPush(ctx, listKey, topPriorityEventJSON)
@@ -148,7 +148,7 @@ func (i *interruptEventStoreImpl) GetFirstInterruptEvent(ctx context.Context, wf
 	_ *entity.InterruptEvent, _ bool, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrRedisError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrRedisError, err)
 		}
 	}()
 
@@ -165,7 +165,7 @@ func (i *interruptEventStoreImpl) GetFirstInterruptEvent(ctx context.Context, wf
 	var event entity.InterruptEvent
 	err = sonic.UnmarshalString(eventJSON, &event)
 	if err != nil {
-		return nil, false, vo.WrapError(errno.ErrSerializationDeserializationFail,
+		return nil, false, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 			fmt.Errorf("failed to unmarshal first interrupt event (wfExeID %d) from JSON: %w", wfExeID, err))
 	}
 
@@ -175,14 +175,14 @@ func (i *interruptEventStoreImpl) GetFirstInterruptEvent(ctx context.Context, wf
 func (i *interruptEventStoreImpl) UpdateFirstInterruptEvent(ctx context.Context, wfExeID int64, event *entity.InterruptEvent) (err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrRedisError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrRedisError, err)
 		}
 	}()
 
 	listKey := fmt.Sprintf(interruptEventListKeyPattern, wfExeID)
 	eventJSON, err := sonic.MarshalString(event)
 	if err != nil {
-		return vo.WrapError(errno.ErrSerializationDeserializationFail,
+		return vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 			fmt.Errorf("failed to marshal interrupt event %d to JSON: %w", event.ID, err))
 	}
 	err = i.redis.LSet(ctx, listKey, 0, eventJSON).Err()
@@ -208,7 +208,7 @@ func (i *interruptEventStoreImpl) PopFirstInterruptEvent(ctx context.Context, wf
 		if errors.Is(err, cache.Nil) {
 			return nil, false, nil // List is empty or key does not exist
 		}
-		return nil, false, vo.WrapError(errno.ErrRedisError,
+		return nil, false, vo.WrapError(errno.DeprecatedErrRedisError,
 			fmt.Errorf("failed to pop first interrupt event from Redis list for wfExeID %d: %w", wfExeID, err))
 	}
 
@@ -217,7 +217,7 @@ func (i *interruptEventStoreImpl) PopFirstInterruptEvent(ctx context.Context, wf
 	if err != nil {
 		// If unmarshalling fails, the event is already popped.
 		// Consider if you need to re-queue or handle this scenario.
-		return nil, true, vo.WrapError(errno.ErrSerializationDeserializationFail,
+		return nil, true, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 			fmt.Errorf("failed to unmarshal popped interrupt event (wfExeID %d) from JSON: %w", wfExeID, err))
 	}
 
@@ -232,7 +232,7 @@ func (i *interruptEventStoreImpl) ListInterruptEvents(ctx context.Context, wfExe
 		if errors.Is(err, cache.Nil) {
 			return nil, nil // List is empty or key does not exist
 		}
-		return nil, vo.WrapError(errno.ErrRedisError,
+		return nil, vo.WrapError(errno.DeprecatedErrRedisError,
 			fmt.Errorf("failed to get all interrupt events from Redis list for wfExeID %d: %w", wfExeID, err))
 	}
 
@@ -241,7 +241,7 @@ func (i *interruptEventStoreImpl) ListInterruptEvents(ctx context.Context, wfExe
 		var event entity.InterruptEvent
 		err = sonic.UnmarshalString(s, &event)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrSerializationDeserializationFail,
+			return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 				fmt.Errorf("failed to unmarshal first interrupt event (wfExeID %d) from JSON: %w", wfExeID, err))
 		}
 		events = append(events, &event)

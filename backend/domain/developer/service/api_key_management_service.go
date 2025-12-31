@@ -19,14 +19,15 @@ package service
 import (
 	"context"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/developer/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/developer/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/security"
 )
 
 // APIKeyManagementService API密钥管理服务接口
@@ -86,41 +87,7 @@ type APIKeyListFilter struct {
 type apiKeyManagementService struct {
 	apiKeyRepo  repository.APIKeyRepository
 	projectRepo repository.ProjectRepository
-	encryptor   APIKeyEncryptor
-}
-
-// APIKeyEncryptor API密钥加密器接口
-type APIKeyEncryptor interface {
-	// Encrypt 加密密钥
-	Encrypt(plaintext string) (string, error)
-
-	// Decrypt 解密密钥
-	Decrypt(ciphertext string) (string, error)
-}
-
-// aesAPIKeyEncryptor AES加密器实现
-type aesAPIKeyEncryptor struct {
-	secretKey string
-}
-
-// NewAESAPIKeyEncryptor 创建AES加密器
-func NewAESAPIKeyEncryptor(secretKey string) APIKeyEncryptor {
-	return &aesAPIKeyEncryptor{secretKey: secretKey}
-}
-
-// Encrypt 加密密钥
-func (e *aesAPIKeyEncryptor) Encrypt(plaintext string) (string, error) {
-	// TODO: 实现AES-256-GCM加密
-	// 简化实现：使用SHA256哈希
-	hash := sha256.Sum256([]byte(plaintext + e.secretKey))
-	return base64.StdEncoding.EncodeToString(hash[:]), nil
-}
-
-// Decrypt 解密密钥
-func (e *aesAPIKeyEncryptor) Decrypt(ciphertext string) (string, error) {
-	// TODO: 实现AES-256-GCM解密
-	// 简化实现：直接返回（实际使用时需要真实解密）
-	return "", errors.New("not implemented")
+	encryptor   security.EncryptionService
 }
 
 // NewAPIKeyManagementService 创建API密钥管理服务实例
@@ -129,10 +96,24 @@ func NewAPIKeyManagementService(
 	projectRepo repository.ProjectRepository,
 	secretKey string,
 ) APIKeyManagementService {
+	// 创建AES-256-GCM加密器
+	encryptor, err := security.NewAESGCMEncryptor(secretKey)
+	if err != nil {
+		// 如果加密器创建失败，使用环境变量中的密钥
+		envKey := os.Getenv("API_KEY_ENCRYPTION_KEY")
+		if envKey == "" {
+			// 如果环境变量也没有，生成新密钥
+			generatedKey, _ := security.GenerateEncryptionKey()
+			envKey = generatedKey
+			fmt.Printf("⚠️  Generated new encryption key: %s (please save it to environment variable API_KEY_ENCRYPTION_KEY)\n", envKey)
+		}
+		encryptor, _ = security.NewAESGCMEncryptor(envKey)
+	}
+
 	return &apiKeyManagementService{
 		apiKeyRepo:  apiKeyRepo,
 		projectRepo: projectRepo,
-		encryptor:   NewAESAPIKeyEncryptor(secretKey),
+		encryptor:   encryptor,
 	}
 }
 
@@ -155,7 +136,7 @@ func (s *apiKeyManagementService) CreateAPIKey(ctx context.Context, req *CreateA
 	// 生成API密钥
 	keySecret := s.generateKeySecret(req.KeyPrefix)
 
-	// 加密密钥
+	// 使用AES-256-GCM加密密钥
 	encryptedSecret, err := s.encryptor.Encrypt(keySecret)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to encrypt api key: %w", err)
@@ -222,28 +203,40 @@ func (s *apiKeyManagementService) DeleteAPIKey(ctx context.Context, keyID string
 
 // ValidateAPIKey 验证API密钥
 func (s *apiKeyManagementService) ValidateAPIKey(ctx context.Context, keySecret string) (*entity.APIKey, error) {
-	// TODO: 加密密钥后查询（这里简化处理）
-	apiKey, err := s.apiKeyRepo.GetByKeySecret(ctx, keySecret)
+	// 获取所有API密钥并逐个解密验证（性能优化：可添加哈希索引）
+	// 注意：这里简化处理，生产环境建议在KeySecret字段添加哈希索引
+	apiKeys, err := s.apiKeyRepo.GetAllActive(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if apiKey == nil {
-		return nil, errors.New("invalid api key")
+
+	for _, apiKey := range apiKeys {
+		// 解密存储的密钥
+		decryptedSecret, err := s.encryptor.Decrypt(apiKey.KeySecret)
+		if err != nil {
+			// 解密失败，跳过该密钥
+			continue
+		}
+
+		// 验证密钥是否匹配
+		if decryptedSecret == keySecret {
+			// 检查密钥是否激活
+			if !apiKey.IsActive() {
+				return nil, errors.New("api key is not active")
+			}
+
+			// 检查是否过期
+			if apiKey.IsExpired() {
+				// 自动标记为过期
+				_ = s.apiKeyRepo.Expire(ctx, apiKey.KeyID)
+				return nil, errors.New("api key has expired")
+			}
+
+			return apiKey, nil
+		}
 	}
 
-	// 检查密钥是否激活
-	if !apiKey.IsActive() {
-		return nil, errors.New("api key is not active")
-	}
-
-	// 检查是否过期
-	if apiKey.IsExpired() {
-		// 自动标记为过期
-		_ = s.apiKeyRepo.Expire(ctx, apiKey.KeyID)
-		return nil, errors.New("api key has expired")
-	}
-
-	return apiKey, nil
+	return nil, errors.New("invalid api key")
 }
 
 // RegenerateAPIKey 重新生成API密钥
@@ -260,7 +253,7 @@ func (s *apiKeyManagementService) RegenerateAPIKey(ctx context.Context, keyID st
 	// 生成新密钥
 	newKeySecret := s.generateKeySecret(apiKey.KeyPrefix)
 
-	// 加密新密钥
+	// 使用AES-256-GCM加密新密钥
 	encryptedSecret, err := s.encryptor.Encrypt(newKeySecret)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to encrypt api key: %w", err)

@@ -26,6 +26,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/plugin_develop"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	common "github.com/coze-dev/coze-studio/backend/api/model/plugin_develop/common"
 	"github.com/coze-dev/coze-studio/backend/application/plugin"
 	appworkflow "github.com/coze-dev/coze-studio/backend/application/workflow"
@@ -38,20 +39,20 @@ func GetPlaygroundPluginList(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetPlaygroundPluginListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetSpaceID() <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetPage() <= 0 {
-		invalidParamRequestResponse(c, "page is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "page is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetSize() >= 30 {
-		invalidParamRequestResponse(c, "size is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "size is invalid", "参数验证失败", nil)
 		return
 	}
 
@@ -60,20 +61,20 @@ func GetPlaygroundPluginList(ctx context.Context, c *app.RequestContext) {
 	if len(req.GetPluginTypes()) == 1 && req.GetPluginTypes()[0] == int32(common.PluginType_WORKFLOW) {
 		resp, err := appworkflow.SVC.GetPlaygroundPluginList(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
-		c.JSON(consts.StatusOK, resp)
+		httputil.BuildSuccessResp(c, resp)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetPlaygroundPluginList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // RegisterPluginMeta .
@@ -83,52 +84,52 @@ func RegisterPluginMeta(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.RegisterPluginMetaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetName() == "" {
-		invalidParamRequestResponse(c, "plugin name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin name is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetDesc() == "" {
-		invalidParamRequestResponse(c, "plugin desc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin desc is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.URL != nil && (*req.URL == "" || len(*req.URL) > 512) {
-		invalidParamRequestResponse(c, "plugin url is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin url is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Icon == nil || req.Icon.URI == "" || len(req.Icon.URI) > 512 {
-		invalidParamRequestResponse(c, "plugin icon is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin icon is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.AuthType == nil {
-		invalidParamRequestResponse(c, "plugin auth type is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin auth type is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.ProjectID != nil {
 		if *req.ProjectID <= 0 {
-			invalidParamRequestResponse(c, "projectID is invalid")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "projectID is invalid", "参数验证失败", nil)
 			return
 		}
 	}
 	if req.GetPluginType() != common.PluginType_PLUGIN {
-		invalidParamRequestResponse(c, "plugin type is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin type is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.RegisterPluginMeta(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPluginAPIs .
@@ -138,32 +139,32 @@ func GetPluginAPIs(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetPluginAPIsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if len(req.APIIds) == 0 {
 		if req.Page <= 0 {
-			invalidParamRequestResponse(c, "page is invalid")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "page is invalid", "参数验证失败", nil)
 			return
 		}
 		if req.Size >= 30 {
-			invalidParamRequestResponse(c, "size is invalid")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "size is invalid", "参数验证失败", nil)
 			return
 		}
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetPluginAPIs(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPluginInfo .
@@ -173,22 +174,22 @@ func GetPluginInfo(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetPluginInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetPluginInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetUpdatedAPIs .
@@ -198,22 +199,22 @@ func GetUpdatedAPIs(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetUpdatedAPIsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetUpdatedAPIs(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOAuthStatus .
@@ -223,22 +224,22 @@ func GetOAuthStatus(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetOAuthStatusRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetOAuthStatus(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CheckAndLockPluginEdit .
@@ -248,22 +249,22 @@ func CheckAndLockPluginEdit(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.CheckAndLockPluginEditRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.CheckAndLockPluginEdit(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdatePlugin .
@@ -273,30 +274,30 @@ func UpdatePlugin(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.UpdatePluginRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.AiPlugin == "" {
-		invalidParamRequestResponse(c, "plugin manifest is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin manifest is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Openapi == "" {
-		invalidParamRequestResponse(c, "plugin openapi doc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin openapi doc is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.UpdatePlugin(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteAPI .
@@ -306,26 +307,26 @@ func DeleteAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.DeleteAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.APIID <= 0 {
-		invalidParamRequestResponse(c, "apiID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "apiID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.DeleteAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DelPlugin .
@@ -335,22 +336,22 @@ func DelPlugin(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.DelPluginRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.DelPlugin(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublishPlugin .
@@ -360,37 +361,37 @@ func PublishPlugin(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.PublishPluginRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.VersionName == "" || len(req.VersionName) > 255 {
-		invalidParamRequestResponse(c, "version name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "version name is invalid", "参数验证失败", nil)
 		return
 	}
 
 	match, _ := regexp.MatchString(`^v\d+\.\d+\.\d+$`, req.VersionName)
 	if !match {
-		invalidParamRequestResponse(c, "version name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "version name is invalid", "参数验证失败", nil)
 		return
 	}
 
 	if req.VersionDesc == "" {
-		invalidParamRequestResponse(c, "version desc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "version desc is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.PublishPlugin(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdatePluginMeta .
@@ -400,34 +401,34 @@ func UpdatePluginMeta(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.UpdatePluginMetaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Name != nil && *req.Name == "" {
-		invalidParamRequestResponse(c, "plugin name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin name is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Desc != nil && *req.Desc == "" {
-		invalidParamRequestResponse(c, "plugin desc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin desc is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.URL != nil && (*req.URL == "" || len(*req.URL) > 512) {
-		invalidParamRequestResponse(c, "plugin server url is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin server url is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.UpdatePluginMeta(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetBotDefaultParams .
@@ -437,34 +438,34 @@ func GetBotDefaultParams(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetBotDefaultParamsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.BotID <= 0 {
-		invalidParamRequestResponse(c, "botID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "botID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.APIName == "" {
-		invalidParamRequestResponse(c, "apiName is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "apiName is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetBotDefaultParams(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateBotDefaultParams .
@@ -474,34 +475,34 @@ func UpdateBotDefaultParams(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.UpdateBotDefaultParamsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.BotID <= 0 {
-		invalidParamRequestResponse(c, "botID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "botID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.APIName == "" {
-		invalidParamRequestResponse(c, "apiName is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "apiName is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.UpdateBotDefaultParams(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateAPI .
@@ -511,34 +512,34 @@ func CreateAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.CreateAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Name == "" || len(req.Name) > 255 {
-		invalidParamRequestResponse(c, "api name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api name is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Desc == "" {
-		invalidParamRequestResponse(c, "api desc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api desc is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Path != nil && (*req.Path == "" || len(*req.Path) > 512) {
-		invalidParamRequestResponse(c, "api path is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api path is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.CreateAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateAPI .
@@ -548,38 +549,38 @@ func UpdateAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.UpdateAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.APIID <= 0 {
-		invalidParamRequestResponse(c, "apiID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "apiID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Name != nil && (*req.Name == "" || len(*req.Name) > 255) {
-		invalidParamRequestResponse(c, "api name is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api name is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Desc != nil && (*req.Desc == "" || len(*req.Desc) > 255) {
-		invalidParamRequestResponse(c, "api desc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api desc is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Path != nil && (*req.Path == "" || len(*req.Path) > 512) {
-		invalidParamRequestResponse(c, "api path is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "api path is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.UpdateAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetUserAuthority .
@@ -589,22 +590,22 @@ func GetUserAuthority(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetUserAuthorityRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetUserAuthority(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DebugAPI .
@@ -614,26 +615,26 @@ func DebugAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.DebugAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.APIID <= 0 {
-		invalidParamRequestResponse(c, "apiID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "apiID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.DebugAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UnlockPluginEdit .
@@ -643,17 +644,17 @@ func UnlockPluginEdit(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.UnlockPluginEditRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.UnlockPluginEdit(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPluginNextVersion .
@@ -663,17 +664,17 @@ func GetPluginNextVersion(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetPluginNextVersionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetPluginNextVersion(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // RegisterPlugin .
@@ -683,34 +684,34 @@ func RegisterPlugin(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.RegisterPluginRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetSpaceID() <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.ProjectID != nil && *req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "projectID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "projectID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.AiPlugin == "" {
-		invalidParamRequestResponse(c, "plugin manifest is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin manifest is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Openapi == "" {
-		invalidParamRequestResponse(c, "plugin openapi doc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin openapi doc is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.RegisterPlugin(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDevPluginList .
@@ -720,38 +721,38 @@ func GetDevPluginList(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetDevPluginListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "projectID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "projectID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetPage() <= 0 {
-		invalidParamRequestResponse(c, "page is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "page is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetSize() <= 0 {
-		invalidParamRequestResponse(c, "size is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "size is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetSize() > 50 {
-		invalidParamRequestResponse(c, "size is too large")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "size is too large", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetDevPluginList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // Convert2OpenAPI .
@@ -761,30 +762,30 @@ func Convert2OpenAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.Convert2OpenAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Data == "" {
-		invalidParamRequestResponse(c, "data is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "data is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.PluginURL != nil && *req.PluginURL == "" {
-		invalidParamRequestResponse(c, "pluginURL is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginURL is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.Convert2OpenAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOAuthSchemaAPI .
@@ -794,17 +795,17 @@ func GetOAuthSchemaAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetOAuthSchemaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetOAuthSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOAuthSchema .
@@ -814,17 +815,17 @@ func GetOAuthSchema(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetOAuthSchemaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetOAuthSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // BatchCreateAPI .
@@ -834,34 +835,34 @@ func BatchCreateAPI(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.BatchCreateAPIRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "spaceID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "spaceID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.AiPlugin == "" {
-		invalidParamRequestResponse(c, "plugin manifest is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin manifest is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.Openapi == "" {
-		invalidParamRequestResponse(c, "plugin openapi doc is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "plugin openapi doc is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.BatchCreateAPI(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // RevokeAuthToken .
@@ -871,22 +872,22 @@ func RevokeAuthToken(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.RevokeAuthTokenRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.PluginID <= 0 {
-		invalidParamRequestResponse(c, "pluginID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pluginID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.RevokeAuthToken(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetQueriedOAuthPluginList .
@@ -896,20 +897,20 @@ func GetQueriedOAuthPluginList(ctx context.Context, c *app.RequestContext) {
 	var req plugin_develop.GetQueriedOAuthPluginListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.BotID <= 0 {
-		invalidParamRequestResponse(c, "entityID is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "entityID is required", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetQueriedOAuthPluginList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

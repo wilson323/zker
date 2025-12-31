@@ -146,6 +146,9 @@ type APIKeyRepository interface {
 	CountByProjectID(ctx context.Context, projectID string) (int64, error)
 
 	// GetExpiringKeys 获取即将过期的密钥（7天内）
+	// GetAllActive 获取所有激活的API密钥（用于密钥验证）
+	GetAllActive(ctx context.Context) ([]*entity.APIKey, error)
+
 	GetExpiringKeys(ctx context.Context, tenantID string) ([]*entity.APIKey, error)
 }
 
@@ -269,4 +272,34 @@ type WebhookStats struct {
 	FailureCalls int64   `json:"failure_calls"`
 	SuccessRate  float64 `json:"success_rate"`
 	AvgDuration  float64 `json:"avg_duration"`
+}
+
+// WebhookDLQRepository Webhook死信队列仓储接口
+type WebhookDLQRepository interface {
+	// Create 创建死信队列条目
+	Create(ctx context.Context, entry *entity.WebhookDLQEntry) error
+
+	// GetByID 根据ID获取死信队列条目
+	GetByID(ctx context.Context, dlqID string) (*entity.WebhookDLQEntry, error)
+
+	// GetByWebhookID 根据Webhook ID获取死信队列条目列表
+	GetByWebhookID(ctx context.Context, webhookID string, limit, offset int) ([]*entity.WebhookDLQEntry, error)
+
+	// GetExpired 获取过期的死信队列条目（用于清理）
+	GetExpired(ctx context.Context) ([]*entity.WebhookDLQEntry, error)
+
+	// GetRetryable 获取可重试的条目
+	GetRetryable(ctx context.Context, maxRetries int) ([]*entity.WebhookDLQEntry, error)
+
+	// UpdateRetryCount 更新重试次数
+	UpdateRetryCount(ctx context.Context, dlqID string, retryCount int) error
+
+	// Delete 根据ID删除死信队列条目
+	Delete(ctx context.Context, dlqID string) error
+
+	// DeleteExpired 删除过期的死信队列条目
+	DeleteExpired(ctx context.Context) (int64, error)
+
+	// CountByWebhookID 统计Webhook的死信队列条目数量
+	CountByWebhookID(ctx context.Context, webhookID string) (int64, error)
 }

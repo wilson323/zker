@@ -64,7 +64,7 @@ func (a *OpenapiAgentRunApplication) OpenapiAgentRun(ctx context.Context, sseSen
 	}
 
 	if creatorID != agentInfo.CreatorID {
-		return errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "agent not match"))
+		return errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "agent not match"))
 	}
 
 	conversationData, ccErr := a.checkConversation(ctx, ar, creatorID, connectorID)
@@ -74,7 +74,7 @@ func (a *OpenapiAgentRunApplication) OpenapiAgentRun(ctx context.Context, sseSen
 	}
 
 	if conversationData.CreatorID != creatorID {
-		return errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	spaceID := agentInfo.SpaceID
@@ -114,7 +114,7 @@ func (a *OpenapiAgentRunApplication) checkConversation(ctx context.Context, ar *
 			return nil, err
 		}
 		if conData == nil {
-			return nil, errorx.New(errno.ErrConversationNotFound)
+			return nil, errno.ErrConversationNotFound
 		}
 		conversationData = conData
 
@@ -122,7 +122,7 @@ func (a *OpenapiAgentRunApplication) checkConversation(ctx context.Context, ar *
 	}
 
 	if conversationData.CreatorID != creatorID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	return conversationData, nil
@@ -139,7 +139,7 @@ func (a *OpenapiAgentRunApplication) checkAgent(ctx context.Context, ar *run.Cha
 	}
 
 	if agentInfo == nil {
-		return nil, errorx.New(errno.ErrAgentNotExists)
+		return nil, errno.ErrAgentNotExists
 	}
 	return agentInfo, nil
 }
@@ -361,7 +361,7 @@ func (a *OpenapiAgentRunApplication) pullStream(ctx context.Context, sseSender *
 			if errors.Is(recvErr, io.EOF) {
 				return
 			}
-			sseSender.Send(ctx, buildErrorEvent(errno.ErrConversationAgentRunError, recvErr.Error()))
+			sseSender.Send(ctx, buildErrorEvent(errno.ErrAgentRunFailed.Int32Code(), recvErr.Error()))
 			return
 		}
 
@@ -439,7 +439,7 @@ func (a *OpenapiAgentRunApplication) RetrieveRunRecord(ctx context.Context, req 
 		return nil, err
 	}
 	if runRecord == nil {
-		return nil, errorx.New(errno.ErrRecordNotFound)
+		return nil, errno.ErrAgentRunNotFound
 	}
 
 	// Get conversation data and check permissions
@@ -449,7 +449,7 @@ func (a *OpenapiAgentRunApplication) RetrieveRunRecord(ctx context.Context, req 
 	}
 
 	if userID != conversationData.CreatorID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	// Build response with chat detail
@@ -489,7 +489,7 @@ func (a *OpenapiAgentRunApplication) ListChatMessageApi(ctx context.Context, req
 	}
 
 	if userID != conversationData.CreatorID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	// Get messages by run IDs
@@ -589,7 +589,7 @@ func (a *OpenapiAgentRunApplication) OpenapiAgentRunSync(ctx context.Context, ar
 			if errors.Is(recvErr, io.EOF) {
 				break
 			}
-			return nil, errorx.New(errno.ErrConversationAgentRunError, errorx.KV("msg", recvErr.Error()))
+			return nil, errorx.Wrap(errno.ErrAgentRunFailed, errorx.KV("msg", recvErr.Error()))
 		}
 
 		switch chunk.Event {
@@ -624,7 +624,7 @@ func (a *OpenapiAgentRunApplication) OpenapiAgentRunSync(ctx context.Context, ar
 exitLoop:
 
 	if finalChatDetail == nil {
-		return nil, errorx.New(errno.ErrConversationAgentRunError, errorx.KV("msg", "no final result received"))
+		return nil, errorx.Wrap(errno.ErrAgentRunFailed, errorx.KV("msg", "no final result received"))
 	}
 
 	resp := &run.RetrieveChatOpenResponse{
@@ -644,7 +644,7 @@ func (a *OpenapiAgentRunApplication) CancelRun(ctx context.Context, req *run.Can
 		return nil, err
 	}
 	if runRecord == nil {
-		return nil, errorx.New(errno.ErrRecordNotFound)
+		return nil, errno.ErrAgentRunNotFound
 	}
 
 	conversationData, err := ConversationSVC.ConversationDomainSVC.GetByID(ctx, req.ConversationID)
@@ -653,15 +653,15 @@ func (a *OpenapiAgentRunApplication) CancelRun(ctx context.Context, req *run.Can
 	}
 
 	if req.ConversationID != runRecord.ConversationID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "conversation not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "conversation not match"))
 	}
 
 	if userID != conversationData.CreatorID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	if runRecord.Status != entity.RunStatusInProgress && runRecord.Status != entity.RunStatusCreated {
-		return nil, errorx.New(errno.ErrInProgressCanNotCancel)
+		return nil, errorx.New(errno.ErrAgentRunStatusInvalidCode)
 	}
 
 	runMeta, err := ConversationSVC.AgentRunDomainSVC.Cancel(ctx, &entity.CancelRunMeta{
@@ -672,7 +672,7 @@ func (a *OpenapiAgentRunApplication) CancelRun(ctx context.Context, req *run.Can
 		return nil, err
 	}
 	if runMeta == nil {
-		return nil, errorx.New(errno.ErrConversationAgentRunError)
+		return nil, errno.ErrAgentRunFailed
 	}
 
 	resp.ChatV3ChatDetail = &run.ChatV3ChatDetail{

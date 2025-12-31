@@ -27,6 +27,7 @@ import (
 	appApplication "github.com/coze-dev/coze-studio/backend/application/app"
 
 	resource "github.com/coze-dev/coze-studio/backend/api/model/resource"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/application/search"
 )
 
@@ -37,26 +38,26 @@ func LibraryResourceList(ctx context.Context, c *app.RequestContext) {
 	var req resource.LibraryResourceListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "space_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "space_id is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetSize() > 100 {
-		invalidParamRequestResponse(c, "size is too large")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "size is too large", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := search.SearchSVC.LibraryResourceList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ProjectResourceList .
@@ -66,26 +67,26 @@ func ProjectResourceList(ctx context.Context, c *app.RequestContext) {
 	var req resource.ProjectResourceListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "space_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "space_id is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "project_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "project_id is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := search.SearchSVC.ProjectResourceList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ResourceCopyDispatch .
@@ -95,30 +96,30 @@ func ResourceCopyDispatch(ctx context.Context, c *app.RequestContext) {
 	var req resource.ResourceCopyDispatchRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ResID <= 0 {
-		invalidParamRequestResponse(c, "res_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "res_id is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.ResType <= 0 {
-		invalidParamRequestResponse(c, "res_type is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "res_type is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetProjectID() <= 0 {
-		invalidParamRequestResponse(c, "project_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "project_id is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.ResourceCopyDispatch(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ResourceCopyDetail .
@@ -128,22 +129,22 @@ func ResourceCopyDetail(ctx context.Context, c *app.RequestContext) {
 	var req resource.ResourceCopyDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.TaskID == "" {
-		invalidParamRequestResponse(c, "task_id is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "task_id is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.ResourceCopyDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ResourceCopyRetry .
@@ -153,13 +154,13 @@ func ResourceCopyRetry(ctx context.Context, c *app.RequestContext) {
 	var req resource.ResourceCopyRetryRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(resource.ResourceCopyRetryResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ResourceCopyCancel .
@@ -175,5 +176,5 @@ func ResourceCopyCancel(ctx context.Context, c *app.RequestContext) {
 
 	resp := new(resource.ResourceCopyCancelResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

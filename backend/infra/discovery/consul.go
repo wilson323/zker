@@ -273,7 +273,7 @@ func (c *ConsulClient) ReleaseLock(ctx context.Context, key string, sessionID st
 		Session: sessionID,
 	}
 
-	_, err := c.client.KV().Release(kvPair, &api.WriteOptions{})
+	_, _, err := c.client.KV().Release(kvPair, &api.WriteOptions{})
 	return err
 }
 

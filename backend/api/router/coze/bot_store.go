@@ -35,6 +35,13 @@ func RegisterBotStoreRoutes(r *server.Hertz) {
 		botStoreGroup.GET("/search", SearchBotStoreItems)
 		botStoreGroup.GET("/categories", GetBotCategories)
 		botStoreGroup.GET("/:item_id", GetBotStoreItem)
+
+		// 评论相关（需要认证）
+		botStoreGroup.POST("/:item_id/reviews", CreateReview)               // 创建评论
+		botStoreGroup.GET("/:item_id/reviews", GetReviews)                  // 获取评论列表
+		botStoreGroup.GET("/:item_id/reviews/statistics", GetReviewStatistics) // 获取评论统计
+		botStoreGroup.PUT("/:item_id/reviews/:review_id", UpdateReview)     // 更新评论
+		botStoreGroup.DELETE("/:item_id/reviews/:review_id", DeleteReview)  // 删除评论
 	}
 
 	// Bot商店管理API组（需要管理员权限）

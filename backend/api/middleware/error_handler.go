@@ -25,7 +25,7 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	hertzconsts "github.com/cloudwego/hertz/pkg/protocol/consts"
 	"github.com/google/uuid"
 
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
@@ -45,7 +45,8 @@ import (
 func ErrorHandlerMW() app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// 生成请求ID(如果还没有)
-		requestID := c.GetHeader("X-Request-ID")
+		requestIDBytes := c.GetHeader("X-Request-ID")
+		requestID := string(requestIDBytes)
 		if requestID == "" {
 			requestID = uuid.New().String()
 			c.Header("X-Request-ID", requestID)
@@ -132,7 +133,7 @@ func convertToEnhancedError(ctx context.Context, c *app.RequestContext, err erro
 
 	// 通用错误
 	enhancedErr := &errno.EnhancedError{
-		Code:       consts.StatusInternalServerError,
+		Code:       hertzconsts.StatusInternalServerError,
 		Message:    "Internal server error",
 		MessageZH:  "服务器内部错误",
 		HTTPStatus: http.StatusInternalServerError,
@@ -213,12 +214,15 @@ func logError(ctx context.Context, c *app.RequestContext, enhancedErr *errno.Enh
 	switch {
 	case status >= http.StatusInternalServerError:
 		// 服务器错误 - Error级别
-		logs.CtxErrorf(ctx, append(logFields, "stack", enhancedErr.StackTrace)...)
+		if enhancedErr.StackTrace != "" {
+			logFields = append(logFields, "stack", enhancedErr.StackTrace)
+		}
+		logs.CtxErrorf(ctx, "HTTP error: %v", logFields...)
 	case status >= http.StatusBadRequest && status < http.StatusInternalServerError:
 		// 客户端错误 - Warn级别
-		logs.CtxWarnf(ctx, logFields...)
+		logs.CtxWarnf(ctx, "HTTP client error: %v", logFields...)
 	default:
-		logs.CtxInfof(ctx, logFields...)
+		logs.CtxInfof(ctx, "HTTP request: %v", logFields...)
 	}
 }
 
@@ -229,7 +233,7 @@ func handlePanic(ctx context.Context, c *app.RequestContext, requestID string, r
 
 	// 创建panic错误响应
 	enhancedErr := errno.NewEnhancedError(
-		consts.StatusInternalServerError,
+		hertzconsts.StatusInternalServerError,
 		"Internal server error",
 		"服务器内部错误",
 	)
@@ -281,7 +285,6 @@ func ErrorWithCode(c *app.RequestContext, code int32, message, messageZH string)
 // SuccessResponse 成功响应
 func SuccessResponse(c *app.RequestContext, data interface{}) {
 	response := errno.NewSuccessResponse(data)
-	response.WithTimestamp(time.Now().Format(time.RFC3339))
 
 	// 从context获取requestID
 	if requestID := c.Value("request_id"); requestID != nil {
@@ -290,7 +293,7 @@ func SuccessResponse(c *app.RequestContext, data interface{}) {
 		}
 	}
 
-	c.JSON(consts.StatusOK, response)
+	c.JSON(hertzconsts.StatusOK, response)
 }
 
 // CreatedResponse 创建成功响应(201)
@@ -298,7 +301,6 @@ func CreatedResponse(c *app.RequestContext, data interface{}) {
 	response := errno.NewSuccessResponse(data)
 	response.Message = "Resource created successfully"
 	response.MessageZH = "资源创建成功"
-	response.WithTimestamp(time.Now().Format(time.RFC3339))
 
 	// 从context获取requestID
 	if requestID := c.Value("request_id"); requestID != nil {
@@ -307,50 +309,50 @@ func CreatedResponse(c *app.RequestContext, data interface{}) {
 		}
 	}
 
-	c.JSON(consts.StatusCreated, response)
+	c.JSON(hertzconsts.StatusCreated, response)
 }
 
 // NoContentResponse 无内容响应(204)
 func NoContentResponse(c *app.RequestContext) {
-	c.Status(consts.StatusNoContent)
+	c.Status(hertzconsts.StatusNoContent)
 }
 
 // BadRequestResponse 错误请求响应(400)
 func BadRequestResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusBadRequest, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusBadRequest, message, messageZH)
 }
 
 // UnauthorizedResponse 未认证响应(401)
 func UnauthorizedResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusUnauthorized, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusUnauthorized, message, messageZH)
 }
 
 // ForbiddenResponse 禁止访问响应(403)
 func ForbiddenResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusForbidden, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusForbidden, message, messageZH)
 }
 
 // NotFoundResponse 未找到响应(404)
 func NotFoundResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusNotFound, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusNotFound, message, messageZH)
 }
 
 // ConflictResponse 冲突响应(409)
 func ConflictResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusConflict, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusConflict, message, messageZH)
 }
 
 // TooManyRequestsResponse 请求过多响应(429)
 func TooManyRequestsResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusTooManyRequests, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusTooManyRequests, message, messageZH)
 }
 
 // InternalServerErrorResponse 服务器错误响应(500)
 func InternalServerErrorResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusInternalServerError, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusInternalServerError, message, messageZH)
 }
 
 // ServiceUnavailableResponse 服务不可用响应(503)
 func ServiceUnavailableResponse(c *app.RequestContext, message, messageZH string) {
-	ErrorWithCode(c, consts.StatusServiceUnavailable, message, messageZH)
+	ErrorWithCode(c, hertzconsts.StatusServiceUnavailable, message, messageZH)
 }

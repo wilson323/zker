@@ -118,7 +118,7 @@ func (mh *MessageEventHandler) handlerErr(_ context.Context, err error) {
 	}
 
 	mh.messageEvent.SendErrEvent(entity.RunEventError, mh.sw, &entity.RunError{
-		Code: errno.ErrAgentRun,
+		Code: int64(errno.DeprecatedErrConversationAgentRunError),
 		Msg:  errMsg,
 	})
 }

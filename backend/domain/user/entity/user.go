@@ -17,21 +17,24 @@
 package entity
 
 type User struct {
-	UserID   int64
-	TenantID string // 租户ID（多租户隔离）
+	UserID       int64
+	TenantID     string // 租户ID（多租户隔离）
 
 	Name         string // nickname
 	UniqueName   string // unique name
 	Email        string // email
+	Password     string // password (encrypted)
 	Description  string // user description
 	IconURI      string // avatar URI
 	IconURL      string // avatar URL
 	UserVerified bool   // Is the user authenticated?
 	Locale       string
 	SessionKey   string // session key
+	IsEnabled    bool   // is user enabled (for RBAC)
 
 	CreatedAt int64 // creation time
 	UpdatedAt int64 // update time
+	DeletedAt *int64 // deletion time (soft delete)
 }
 
 // GetTenantID 获取租户ID

@@ -22,8 +22,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/coze-dev/coze-studio/backend/api/model/app/developer_api"
 	"github.com/coze-dev/coze-studio/backend/domain/agent/singleagent/entity"
+	agentvo "github.com/coze-dev/coze-studio/backend/domain/agent/singleagent/entity/vo"
 	"github.com/coze-dev/coze-studio/backend/infra/cache"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
@@ -53,32 +53,11 @@ func (sa *SingleAgentDraftDAO) GetDisplayInfo(ctx context.Context, userID, agent
 	key := makeAgentDisplayInfoKey(userID, agentID)
 	data, err := sa.cacheClient.Get(ctx, key).Result()
 	if errors.Is(err, cache.Nil) {
-		tabStatusDefault := developer_api.TabStatus_Default
+		// 返回默认的空 DisplayInfo
 		return &entity.AgentDraftDisplayInfo{
 			AgentID: agentID,
-			DisplayInfo: &developer_api.DraftBotDisplayInfoData{
-				TabDisplayInfo: &developer_api.TabDisplayItems{
-					PluginTabStatus:           &tabStatusDefault,
-					WorkflowTabStatus:         &tabStatusDefault,
-					KnowledgeTabStatus:        &tabStatusDefault,
-					DatabaseTabStatus:         &tabStatusDefault,
-					VariableTabStatus:         &tabStatusDefault,
-					OpeningDialogTabStatus:    &tabStatusDefault,
-					ScheduledTaskTabStatus:    &tabStatusDefault,
-					SuggestionTabStatus:       &tabStatusDefault,
-					TtsTabStatus:              &tabStatusDefault,
-					FileboxTabStatus:          &tabStatusDefault,
-					LongTermMemoryTabStatus:   &tabStatusDefault,
-					AnswerActionTabStatus:     &tabStatusDefault,
-					ImageflowTabStatus:        &tabStatusDefault,
-					BackgroundImageTabStatus:  &tabStatusDefault,
-					ShortcutTabStatus:         &tabStatusDefault,
-					KnowledgeTableTabStatus:   &tabStatusDefault,
-					KnowledgeTextTabStatus:    &tabStatusDefault,
-					KnowledgePhotoTabStatus:   &tabStatusDefault,
-					HookInfoTabStatus:         &tabStatusDefault,
-					DefaultUserInputTabStatus: &tabStatusDefault,
-				},
+			DisplayInfo: &agentvo.DraftBotDisplayInfoData{
+				TabDisplayInfo: &agentvo.TabDisplayItems{},
 			},
 		}, nil
 	}

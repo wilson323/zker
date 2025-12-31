@@ -91,7 +91,7 @@ func TenantEventHandler(message *nsq.Message) error {
 	var event TenantEvent
 	if err := json.Unmarshal(message.Body, &event); err != nil {
 		log.Printf("[TenantEventHandler] Failed to unmarshal message: %v", err)
-		message.Requeue(-1, false)
+		message.Requeue(time.Second * 5)
 		return err
 	}
 
@@ -147,7 +147,7 @@ func QuotaEventHandler(message *nsq.Message) error {
 	var event QuotaEvent
 	if err := json.Unmarshal(message.Body, &event); err != nil {
 		log.Printf("[QuotaEventHandler] Failed to unmarshal message: %v", err)
-		message.Requeue(-1, false)
+		message.Requeue(time.Second * 5)
 		return err
 	}
 
@@ -207,7 +207,7 @@ func SubscriptionEventHandler(message *nsq.Message) error {
 	var event SubscriptionEvent
 	if err := json.Unmarshal(message.Body, &event); err != nil {
 		log.Printf("[SubscriptionEventHandler] Failed to unmarshal message: %v", err)
-		message.Requeue(-1, false)
+		message.Requeue(time.Second * 5)
 		return err
 	}
 

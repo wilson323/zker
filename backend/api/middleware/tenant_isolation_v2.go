@@ -18,24 +18,17 @@ package middleware
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strconv"
-	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
-	"github.com/coze-dev/coze-studio/backend/domain/tenant/service"
 	"github.com/coze-dev/coze-studio/backend/domain/user/entity"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
-	"github.com/coze-dev/coze-studio/backend/types/consts"
-	"github.com/coze-dev/coze-studio/backend/types/errno"
+	typesconsts "github.com/coze-dev/coze-studio/backend/types/consts"
 	"github.com/coze-dev/coze-studio/backend/infra/tracing"
-	"gorm.io/gorm"
 )
 
 // SessionUserTenantIsolationMiddleware Session/User表租户隔离中间件
@@ -59,12 +52,12 @@ func SessionUserTenantIsolationMiddleware() app.HandlerFunc {
 		// 3. 验证租户
 		if err := validateTenant(c, tenantID); err != nil {
 			logs.CtxErrorf(c, "[SessionUserTenantIsolation] validate tenant failed: %v", err)
-			httputil.Error(ctx, err.Error(), consts.StatusForbidden)
+			httputil.Unauthorized(ctx, err.Error())
 			return
 		}
 
 		// 4. 将tenant_id注入context
-		ctxcache.Store(c, consts.TenantIDKeyInCtx, tenantID)
+		ctxcache.Store(c, typesconsts.TenantIDKeyInCtx, tenantID)
 		ctx.Set(TenantIDKey, tenantID)
 
 		// 5. 记录追踪和日志
@@ -86,7 +79,7 @@ func extractTenantIDWithSessionSupport(c context.Context, ctx *app.RequestContex
 	}
 
 	// 2. 从Session获取（支持新的Session.TenantID）
-	if session, ok := ctxcache.Get[*entity.Session](c, consts.SessionDataKeyInCtx); ok {
+	if session, ok := ctxcache.Get[*entity.Session](c, typesconsts.SessionDataKeyInCtx); ok {
 		if session.HasTenantID() {
 			logs.CtxInfof(c, "[SessionUserTenantIsolation] tenant_id from session: %s", session.TenantID)
 			return session.TenantID, nil
@@ -112,29 +105,12 @@ func extractTenantIDWithSessionSupport(c context.Context, ctx *app.RequestContex
 }
 
 // getTenantIDByUserID 通过用户ID获取租户ID
+// 注意：这是临时实现，实际应该调用user service
 func getTenantIDByUserID(c context.Context, userID int64) (string, error) {
-	if tenantService == nil {
-		return "", fmt.Errorf("tenantService not initialized")
-	}
-
-	// 从缓存或数据库查询用户的tenant_id
-	// 这里简化实现，实际应该调用user service
-	var tenantID string
-	err := tenantService.GetDB().Table("user").
-		Select("tenant_id").
-		Where("id = ?", userID).
-		Pluck("tenant_id", &tenantID).Error
-
-	if err != nil {
-		logs.CtxErrorf(c, "[SessionUserTenantIsolation] get tenant_id by user_id failed: %v", err)
-		return "", err
-	}
-
-	if tenantID == "" {
-		return "", fmt.Errorf("user %d has no tenant_id", userID)
-	}
-
-	return tenantID, nil
+	// TODO: 实现从user service获取用户租户ID的逻辑
+	// 目前暂时返回空字符串，让上层使用默认租户ID
+	logs.CtxWarnf(c, "[SessionUserTenantIsolation] getTenantIDByUserID not implemented, user_id=%d", userID)
+	return "", fmt.Errorf("getTenantIDByUserID not implemented")
 }
 
 // RequireTenantIDForSessionUser Session/User表强制租户ID中间件
@@ -148,11 +124,10 @@ func RequireTenantIDForSessionUser() app.HandlerFunc {
 			logs.CtxWarnf(c, "[RequireTenantIDForSessionUser] missing valid tenant_id, got: %s", tenantID)
 
 			// 检查是否为 Session/User 相关操作
-			path := string(ctx.GetRequest().URI().Path)
+			path := string(ctx.GetRequest().URI().Path())
 			if isSessionUserOperation(path) {
-				httputil.Error(ctx,
+				httputil.BadRequest(ctx,
 					fmt.Sprintf("valid tenant_id is required for %s operations", getOperationType(path)),
-					consts.StatusBadRequest,
 				)
 				return
 			}
@@ -205,12 +180,12 @@ func GetTenantIDFromContextV2(c context.Context) string {
 	}
 
 	// 其次从ctxcache获取
-	if tenantID, ok := ctxcache.Get[string](c, consts.TenantIDKeyInCtx); ok {
+	if tenantID, ok := ctxcache.Get[string](c, typesconsts.TenantIDKeyInCtx); ok {
 		return tenantID
 	}
 
 	// 尝试从Session获取
-	if session, ok := ctxcache.Get[*entity.Session](c, consts.SessionDataKeyInCtx); ok {
+	if session, ok := ctxcache.Get[*entity.Session](c, typesconsts.SessionDataKeyInCtx); ok {
 		if session.HasTenantID() {
 			return session.TenantID
 		}

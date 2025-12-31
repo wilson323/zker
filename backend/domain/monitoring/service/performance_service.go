@@ -35,20 +35,14 @@ import (
 // PerformanceService 性能分析服务
 type PerformanceService struct {
 	metricsRepo  repository.AgentMetricsRepository
-	alertService AlertService
+	alertService interface{} // 使用 interface{} 避免循环依赖
 	logger       *zap.Logger
-}
-
-// AlertService 告警服务接口
-type AlertService interface {
-	CheckThreshold(ctx context.Context, tenantID, agentID string, metrics *PerformanceMetrics) error
-	CreateAlert(ctx context.Context, alert *PerformanceAlert) error
 }
 
 // NewPerformanceService 创建性能分析服务实例
 func NewPerformanceService(
 	metricsRepo repository.AgentMetricsRepository,
-	alertService AlertService,
+	alertService interface{},
 	logger *zap.Logger,
 ) *PerformanceService {
 	return &PerformanceService{
@@ -109,8 +103,12 @@ func (s *PerformanceService) GetPerformanceReport(
 	wg.Wait()
 
 	if qpsErr != nil || responseErr != nil || errorErr != nil || satisfactionErr != nil || tokenErr != nil {
-		return nil, errorx.Wrapf(fmt.Errorf("qps=%v, response=%v, error=%v, satisfaction=%v, token=%v",
-			qpsErr, responseErr, errorErr, satisfactionErr, tokenErr), errno.MetricsQueryFailed)
+		return nil, errorx.New(errno.MetricsQueryFailedCode,
+			errorx.KV("qps_error", fmt.Sprintf("%v", qpsErr)),
+			errorx.KV("response_error", fmt.Sprintf("%v", responseErr)),
+			errorx.KV("error_error", fmt.Sprintf("%v", errorErr)),
+			errorx.KV("satisfaction_error", fmt.Sprintf("%v", satisfactionErr)),
+			errorx.KV("token_error", fmt.Sprintf("%v", tokenErr)))
 	}
 
 	// 计算综合评分
@@ -197,7 +195,8 @@ func (s *PerformanceService) GetPerformanceTrends(
 
 	// 验证请求
 	if err := req.Validate(); err != nil {
-		return nil, errorx.Wrapf(err, errno.InvalidRequest)
+		return nil, errorx.WrapByCode(err, errno.InvalidParamsCode,
+			errorx.KV("operation", "validate trends request"))
 	}
 
 	// 生成时间序列数据点
@@ -244,7 +243,9 @@ func (s *PerformanceService) GetPerformanceTrends(
 			}
 			err = mErr
 		default:
-			return nil, errorx.Wrapf(fmt.Errorf("unsupported metric type: %s", req.MetricType), errno.InvalidRequest)
+			return nil, errorx.New(errno.InvalidParamsCode,
+				errorx.KV("metric_type", string(req.MetricType)),
+				errorx.KV("reason", "unsupported metric type"))
 		}
 
 		if err != nil {
@@ -290,7 +291,9 @@ func (s *PerformanceService) ComparePerformance(
 	)
 
 	if len(agentIDs) == 0 {
-		return nil, errorx.Wrapf(fmt.Errorf("agent_ids is required"), errno.InvalidRequest)
+		return nil, errorx.New(errno.InvalidParamsCode,
+			errorx.KV("field", "agent_ids"),
+			errorx.KV("reason", "agent_ids is required"))
 	}
 
 	// 并行收集所有Agent的指标
@@ -322,7 +325,8 @@ func (s *PerformanceService) ComparePerformance(
 	wg.Wait()
 
 	if len(metricsMap) == 0 {
-		return nil, errorx.Wrapf(fmt.Errorf("no valid metrics found"), errno.MetricsQueryFailed)
+		return nil, errorx.New(errno.MetricsQueryFailedCode,
+			errorx.KV("reason", "no valid metrics found"))
 	}
 
 	// 生成对比数据
@@ -358,7 +362,8 @@ func (s *PerformanceService) GetTopPerformingAgents(
 
 	comparisons, err := s.metricsRepo.CompareAgents(ctx, tenantID, []string{}, timeRange.StartTime, timeRange.EndTime)
 	if err != nil {
-		return nil, errorx.Wrapf(err, errno.MetricsQueryFailed)
+		return nil, errorx.WrapByCode(err, errno.MetricsQueryFailedCode,
+			errorx.KV("operation", "compare agents"))
 	}
 
 	// 按综合评分排序
@@ -368,7 +373,11 @@ func (s *PerformanceService) GetTopPerformingAgents(
 
 	// 取前N个
 	topAgents := make([]*TopAgent, 0, limit)
-	for i := 0; i < min(limit, len(comparisons)); i++ {
+	maxCount := limit
+	if len(comparisons) < maxCount {
+		maxCount = len(comparisons)
+	}
+	for i := 0; i < maxCount; i++ {
 		c := comparisons[i]
 		topAgents = append(topAgents, &TopAgent{
 			AgentID:       c.AgentID,
@@ -1047,11 +1056,4 @@ type PerformanceMetrics struct {
 	ResponseTime   float64 `json:"response_time"`
 	ErrorRate      float64 `json:"error_rate"`
 	Satisfaction   float64 `json:"satisfaction"`
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

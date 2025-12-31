@@ -23,11 +23,11 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
-	"github.com/coze-dev/coze-studio/backend/application/user"
 	"github.com/coze-dev/coze-studio/backend/bizpkg/config"
 	"github.com/coze-dev/coze-studio/backend/domain/user/entity"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/pkg/interfaces"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 	"github.com/coze-dev/coze-studio/backend/types/consts"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
@@ -58,8 +58,8 @@ func SessionAuthMW() app.HandlerFunc {
 			return
 		}
 
-		// sessionID -> sessionData
-		session, err := user.UserApplicationSVC.ValidateSession(c, string(s))
+		// sessionID -> sessionData（通过接口层调用，避免API层直接依赖应用层）
+		session, err := interfaces.GlobalSessionService.ValidateSession(c, string(s))
 		if err != nil {
 			logs.Errorf("[SessionAuthMW] validate session failed, err: %v", err)
 			httputil.InternalError(c, ctx, err)

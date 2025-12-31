@@ -94,7 +94,10 @@ func (d databaseService) CreateDatabase(ctx context.Context, req *CreateDatabase
 		return nil, err
 	}
 	if draftPhysicalTableRes.Table == nil {
-		return nil, fmt.Errorf("create draft table failed, columns info is %v", columns)
+		return nil, errorx.New(errno.ErrMemoryDatabaseColumnNotMatch,
+			errorx.KV("reason", "create draft table failed"),
+			errorx.KV("columns", fmt.Sprintf("%v", columns)),
+		)
 	}
 
 	draftID, err := d.generator.GenID(ctx)
@@ -110,7 +113,10 @@ func (d databaseService) CreateDatabase(ctx context.Context, req *CreateDatabase
 		return nil, err
 	}
 	if onlinePhysicalTableRes.Table == nil {
-		return nil, fmt.Errorf("create online table failed, columns info is %v", columns)
+		return nil, errorx.New(errno.ErrMemoryDatabaseColumnNotMatch,
+			errorx.KV("reason", "create online table failed"),
+			errorx.KV("columns", fmt.Sprintf("%v", columns)),
+		)
 	}
 
 	onlineID, err := d.generator.GenID(ctx)
@@ -121,7 +127,9 @@ func (d databaseService) CreateDatabase(ctx context.Context, req *CreateDatabase
 	// insert draft and online database info
 	tx := query.Use(d.db).Begin()
 	if tx.Error != nil {
-		return nil, fmt.Errorf("start transaction failed, %v", tx.Error)
+		return nil, errorx.WrapByCode(tx.Error, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("operation", "start_transaction"),
+		)
 	}
 
 	if draftEntity.IconURI == "" {
@@ -138,7 +146,11 @@ func (d databaseService) CreateDatabase(ctx context.Context, req *CreateDatabase
 				logs.CtxErrorf(ctx, "rollback failed, err=%v", e)
 			}
 
-			err = fmt.Errorf("catch panic: %v\nstack=%s", r, string(debug.Stack()))
+			err = errorx.New(errno.ErrMemoryInvalidParamCode,
+			errorx.KV("reason", "panic caught"),
+			errorx.KV("panic", fmt.Sprintf("%v", r)),
+			errorx.KV("stack", string(debug.Stack())),
+		)
 			return
 		}
 
@@ -183,12 +195,18 @@ func (d databaseService) UpdateDatabase(ctx context.Context, req *UpdateDatabase
 	input := req.Database
 	onlineInfo, err := d.onlineDAO.Get(ctx, req.Database.ID)
 	if err != nil {
-		return nil, fmt.Errorf("get online database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+			errorx.KV("database_type", "online"),
+			errorx.KV("operation", "get"),
+		)
 	}
 
 	draftInfo, err := d.draftDAO.Get(ctx, onlineInfo.GetDraftID())
 	if err != nil {
-		return nil, fmt.Errorf("get draft database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+			errorx.KV("database_type", "draft"),
+			errorx.KV("operation", "get"),
+		)
 	}
 
 	draftEntity, onlineEntity := *input, *input
@@ -209,29 +227,45 @@ func (d databaseService) UpdateDatabase(ctx context.Context, req *UpdateDatabase
 		TableName: draftInfo.ActualTableName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("get physical table info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+			errorx.KV("table_name", draftInfo.ActualTableName),
+			errorx.KV("operation", "get_physical_table"),
+		)
 	}
 
 	onlinePhysicalTable, err := d.rdb.GetTable(ctx, &rdb.GetTableRequest{
 		TableName: onlineInfo.ActualTableName,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("get physical table info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+			errorx.KV("table_name", onlineInfo.ActualTableName),
+			errorx.KV("operation", "get_physical_table"),
+		)
 	}
 
 	err = physicaltable.UpdatePhysicalTableWithDrops(ctx, d.rdb, draftPhysicalTable.Table, columns, droppedColumns, draftInfo.ActualTableName)
 	if err != nil {
-		return nil, fmt.Errorf("update draft physical table failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("table_type", "draft"),
+			errorx.KV("table_name", draftInfo.ActualTableName),
+			errorx.KV("operation", "update_physical_table"),
+		)
 	}
 
 	err = physicaltable.UpdatePhysicalTableWithDrops(ctx, d.rdb, onlinePhysicalTable.Table, columns, droppedColumns, onlineInfo.ActualTableName)
 	if err != nil {
-		return nil, fmt.Errorf("update online physical table failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("table_type", "online"),
+			errorx.KV("table_name", onlineInfo.ActualTableName),
+			errorx.KV("operation", "update_physical_table"),
+		)
 	}
 
 	tx := query.Use(d.db).Begin()
 	if tx.Error != nil {
-		return nil, fmt.Errorf("start transaction failed, %v", tx.Error)
+		return nil, errorx.WrapByCode(tx.Error, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("operation", "start_transaction"),
+		)
 	}
 
 	if draftEntity.IconURI == "" {
@@ -248,7 +282,11 @@ func (d databaseService) UpdateDatabase(ctx context.Context, req *UpdateDatabase
 				logs.CtxErrorf(ctx, "rollback failed, err=%v", e)
 			}
 
-			err = fmt.Errorf("catch panic: %v\nstack=%s", r, string(debug.Stack()))
+			err = errorx.New(errno.ErrMemoryInvalidParamCode,
+			errorx.KV("reason", "panic caught"),
+			errorx.KV("panic", fmt.Sprintf("%v", r)),
+			errorx.KV("stack", string(debug.Stack())),
+		)
 			return
 		}
 
@@ -262,17 +300,25 @@ func (d databaseService) UpdateDatabase(ctx context.Context, req *UpdateDatabase
 
 	_, err = d.draftDAO.UpdateWithTX(ctx, tx, &draftEntity)
 	if err != nil {
-		return nil, fmt.Errorf("update draft database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("database_type", "draft"),
+			errorx.KV("operation", "update"),
+		)
 	}
 
 	onlineEntityUpdated, err := d.onlineDAO.UpdateWithTX(ctx, tx, &onlineEntity)
 	if err != nil {
-		return nil, fmt.Errorf("update online database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("database_type", "online"),
+			errorx.KV("operation", "update"),
+		)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, fmt.Errorf("commit transaction failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("operation", "commit_transaction"),
+		)
 	}
 
 	return &UpdateDatabaseResponse{
@@ -283,17 +329,25 @@ func (d databaseService) UpdateDatabase(ctx context.Context, req *UpdateDatabase
 func (d databaseService) DeleteDatabase(ctx context.Context, req *DeleteDatabaseRequest) error {
 	onlineInfo, err := d.onlineDAO.Get(ctx, req.ID)
 	if err != nil {
-		return fmt.Errorf("get online database info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+			errorx.KV("database_type", "online"),
+			errorx.KV("operation", "get"),
+		)
 	}
 
 	draftInfo, err := d.draftDAO.Get(ctx, onlineInfo.GetDraftID())
 	if err != nil {
-		return fmt.Errorf("get draft database info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+			errorx.KV("database_type", "draft"),
+			errorx.KV("operation", "get"),
+		)
 	}
 
 	tx := query.Use(d.db).Begin()
 	if tx.Error != nil {
-		return fmt.Errorf("start transaction failed, %v", tx.Error)
+		return errorx.WrapByCode(tx.Error, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("operation", "start_transaction"),
+		)
 	}
 
 	defer func() {
@@ -303,7 +357,11 @@ func (d databaseService) DeleteDatabase(ctx context.Context, req *DeleteDatabase
 				logs.CtxErrorf(ctx, "rollback failed, err=%v", e)
 			}
 
-			err = fmt.Errorf("catch panic: %v\nstack=%s", r, string(debug.Stack()))
+			err = errorx.New(errno.ErrMemoryInvalidParamCode,
+			errorx.KV("reason", "panic caught"),
+			errorx.KV("panic", fmt.Sprintf("%v", r)),
+			errorx.KV("stack", string(debug.Stack())),
+		)
 			return
 		}
 
@@ -317,17 +375,25 @@ func (d databaseService) DeleteDatabase(ctx context.Context, req *DeleteDatabase
 
 	err = d.draftDAO.DeleteWithTX(ctx, tx, draftInfo.ID)
 	if err != nil {
-		return fmt.Errorf("delete draft database info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("database_type", "draft"),
+			errorx.KV("operation", "delete"),
+		)
 	}
 
 	err = d.onlineDAO.DeleteWithTX(ctx, tx, onlineInfo.ID)
 	if err != nil {
-		return fmt.Errorf("delete online database info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("database_type", "online"),
+			errorx.KV("operation", "delete"),
+		)
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return fmt.Errorf("commit transaction failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "commit_transaction"),
+	)
 	}
 
 	// delete draft physical table
@@ -381,12 +447,16 @@ func (d databaseService) MGetDatabase(ctx context.Context, req *MGetDatabaseRequ
 
 	onlineDatabases, err := d.onlineDAO.MGet(ctx, uniqueOnlineIDs)
 	if err != nil {
-		return nil, fmt.Errorf("batch get database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "batch_get"),
+	)
 	}
 
 	draftDatabases, err := d.draftDAO.MGet(ctx, uniqueDraftIDs)
 	if err != nil {
-		return nil, fmt.Errorf("batch get database info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "batch_get"),
+	)
 	}
 
 	for _, onlineDatabase := range onlineDatabases {
@@ -446,12 +516,16 @@ func (d databaseService) ListDatabase(ctx context.Context, req *ListDatabaseRequ
 	if req.TableType == table.TableType_OnlineTable {
 		databases, count, err = d.onlineDAO.List(ctx, filter, page, req.OrderBy)
 		if err != nil {
-			return nil, fmt.Errorf("list database failed: %v", err)
+			return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "list"),
+	)
 		}
 	} else {
 		databases, count, err = d.draftDAO.List(ctx, filter, page, req.OrderBy)
 		if err != nil {
-			return nil, fmt.Errorf("list database failed: %v", err)
+			return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "list"),
+	)
 		}
 	}
 
@@ -489,7 +563,9 @@ func (d databaseService) AddDatabaseRecord(ctx context.Context, req *AddDatabase
 	}
 
 	if err != nil {
-		return fmt.Errorf("get table info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+		errorx.KV("operation", "get_table_info"),
+	)
 	}
 
 	if tableInfo.RwMode == table.BotTableRWMode_ReadOnly {
@@ -498,7 +574,9 @@ func (d databaseService) AddDatabaseRecord(ctx context.Context, req *AddDatabase
 
 	physicalTableName := tableInfo.ActualTableName
 	if physicalTableName == "" {
-		return fmt.Errorf("physical table name is empty")
+		return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "physical table name is empty"),
+	)
 	}
 
 	fieldList := append(tableInfo.FieldList, physicaltable.GetCreateTimeField(), physicaltable.GetUidField(), physicaltable.GetIDField(), physicaltable.GetConnectIDField())
@@ -535,13 +613,19 @@ func (d databaseService) AddDatabaseRecord(ctx context.Context, req *AddDatabase
 
 			fieldInfo, _ := fieldMap[fieldName]
 			if value == "" && fieldInfo.MustRequired {
-				return fmt.Errorf("field %s's value is required", fieldName)
+				return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("field", fieldName),
+		errorx.KV("reason", "field value is required"),
+	)
 			}
 
 			physicalFieldName := fieldInfo.PhysicalName
 			convertedValue, err := convertor.ConvertValueByType(value, fieldInfo.Type)
 			if err != nil {
-				return fmt.Errorf("convert value failed for field %s: %v, using original value", fieldName, err)
+				return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("field", fieldName),
+		errorx.KV("reason", "convert value failed"),
+	)
 			}
 
 			convertedRecord[physicalFieldName] = convertedValue
@@ -555,7 +639,9 @@ func (d databaseService) AddDatabaseRecord(ctx context.Context, req *AddDatabase
 		Data:      convertedRecords,
 	})
 	if err != nil {
-		return fmt.Errorf("insert data failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryDatabaseCannotAddData,
+		errorx.KV("operation", "insert_data"),
+	)
 	}
 
 	return nil
@@ -572,7 +658,9 @@ func (d databaseService) UpdateDatabaseRecord(ctx context.Context, req *UpdateDa
 	}
 
 	if err != nil {
-		return fmt.Errorf("get table info failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+		errorx.KV("operation", "get_table_info"),
+	)
 	}
 
 	if tableInfo.RwMode == table.BotTableRWMode_ReadOnly {
@@ -581,7 +669,9 @@ func (d databaseService) UpdateDatabaseRecord(ctx context.Context, req *UpdateDa
 
 	physicalTableName := tableInfo.ActualTableName
 	if physicalTableName == "" {
-		return fmt.Errorf("physical table name is empty")
+		return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "physical table name is empty"),
+	)
 	}
 
 	fieldList := append(tableInfo.FieldList, physicaltable.GetCreateTimeField(), physicaltable.GetUidField(), physicaltable.GetIDField(), physicaltable.GetConnectIDField())
@@ -592,12 +682,17 @@ func (d databaseService) UpdateDatabaseRecord(ctx context.Context, req *UpdateDa
 	for _, record := range req.Records {
 		idStr, exists := record[database.DefaultIDColName]
 		if !exists {
-			return fmt.Errorf("record must contain %s field for update", database.DefaultIDColName)
+			return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("field", database.DefaultIDColName),
+		errorx.KV("reason", "required field missing"),
+	)
 		}
 
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid ID format: %v", err)
+			return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "invalid ID format"),
+	)
 		}
 
 		updateData := make(map[string]interface{})
@@ -613,7 +708,10 @@ func (d databaseService) UpdateDatabaseRecord(ctx context.Context, req *UpdateDa
 
 			fieldInfo, _ := fieldMap[fieldName]
 			if valueStr == "" && fieldInfo.MustRequired {
-				return fmt.Errorf("field %s's value is required", fieldName)
+				return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("field", fieldName),
+		errorx.KV("reason", "field value is required"),
+	)
 			}
 
 			physicalFieldName := fieldInfo.PhysicalName
@@ -655,7 +753,10 @@ func (d databaseService) UpdateDatabaseRecord(ctx context.Context, req *UpdateDa
 			Where:     condition,
 		})
 		if err != nil {
-			return fmt.Errorf("update data failed for ID %d: %v", id, err)
+			return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "update_data"),
+		errorx.KV("id", fmt.Sprintf("%d", id)),
+	)
 		}
 	}
 
@@ -681,19 +782,26 @@ func (d databaseService) DeleteDatabaseRecord(ctx context.Context, req *DeleteDa
 
 	physicalTableName := tableInfo.ActualTableName
 	if physicalTableName == "" {
-		return fmt.Errorf("physical table name is empty")
+		return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "physical table name is empty"),
+	)
 	}
 
 	var ids []interface{}
 	for _, record := range req.Records {
 		idStr, exists := record[database.DefaultIDColName]
 		if !exists {
-			return fmt.Errorf("record must contain %s field for deletion", database.DefaultIDColName)
+			return errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("field", database.DefaultIDColName),
+		errorx.KV("reason", "required field missing"),
+	)
 		}
 
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			return fmt.Errorf("invalid ID format: %v", err)
+			return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "invalid ID format"),
+	)
 		}
 
 		ids = append(ids, id)
@@ -724,7 +832,9 @@ func (d databaseService) DeleteDatabaseRecord(ctx context.Context, req *DeleteDa
 		Where:     condition,
 	})
 	if err != nil {
-		return fmt.Errorf("delete data failed: %v", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "delete_data"),
+	)
 	}
 
 	return nil
@@ -741,12 +851,16 @@ func (d databaseService) ListDatabaseRecord(ctx context.Context, req *ListDataba
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("get table info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+		errorx.KV("operation", "get_table_info"),
+	)
 	}
 
 	physicalTableName := tableInfo.ActualTableName
 	if physicalTableName == "" {
-		return nil, fmt.Errorf("physical table name is empty")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "physical table name is empty"),
+	)
 	}
 
 	fieldNameToPhysical := make(map[string]string)
@@ -814,7 +928,9 @@ func (d databaseService) ListDatabaseRecord(ctx context.Context, req *ListDataba
 		Offset:    &req.Offset,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("select data failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "select_data"),
+	)
 	}
 
 	if selectResp.ResultSet == nil {
@@ -931,7 +1047,9 @@ func (d databaseService) ExecuteSQL(ctx context.Context, req *ExecuteSQLRequest)
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("get table info failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseFieldNotFoundCode,
+		errorx.KV("operation", "get_table_info"),
+	)
 	}
 
 	if tableInfo.RwMode == table.BotTableRWMode_ReadOnly &&
@@ -942,7 +1060,9 @@ func (d databaseService) ExecuteSQL(ctx context.Context, req *ExecuteSQLRequest)
 
 	physicalTableName := tableInfo.ActualTableName
 	if physicalTableName == "" {
-		return nil, fmt.Errorf("physical table name is empty")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "physical table name is empty"),
+	)
 	}
 
 	fieldNameToPhysical := make(map[string]string)
@@ -996,7 +1116,10 @@ func (d databaseService) ExecuteSQL(ctx context.Context, req *ExecuteSQLRequest)
 		}
 
 	default:
-		return nil, fmt.Errorf("unsupported operation type: %v", req.OperateType)
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", fmt.Sprintf("%v", req.OperateType)),
+		errorx.KV("reason", "unsupported operation type"),
+	)
 	}
 
 	response := &ExecuteSQLResponse{
@@ -1042,7 +1165,9 @@ func (d databaseService) ExecuteSQL(ctx context.Context, req *ExecuteSQLRequest)
 func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRequest, physicalTableName string, tableInfo *entity2.Database, fieldNameToPhysical map[string]string) (*entity3.ResultSet, error) {
 	var params []interface{}
 	if req.SQL == nil || *req.SQL == "" {
-		return nil, fmt.Errorf("SQL is empty")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "SQL is empty"),
+	)
 	}
 
 	operation, err := sqlparser.New().GetSQLOperation(*req.SQL)
@@ -1051,7 +1176,10 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 	}
 
 	if tableInfo.RwMode == table.BotTableRWMode_ReadOnly && (operation == sqlparsercontract.OperationTypeInsert || operation == sqlparsercontract.OperationTypeUpdate || operation == sqlparsercontract.OperationTypeDelete) {
-		return nil, fmt.Errorf("unsupported operation type: %v", operation)
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", fmt.Sprintf("%v", operation)),
+		errorx.KV("reason", "unsupported operation type"),
+	)
 	}
 
 	if req.SQLParams != nil {
@@ -1074,7 +1202,9 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 
 	parsedSQL, err := sqlparser.New().ParseAndModifySQL(*req.SQL, tableColumnMapping)
 	if err != nil {
-		return nil, fmt.Errorf("parse sql failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "parse_sql"),
+	)
 	}
 	// add rw mode
 	if tableInfo.RwMode == table.BotTableRWMode_LimitedReadWrite && len(req.UserID) != 0 {
@@ -1082,7 +1212,9 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 		case sqlparsercontract.OperationTypeSelect, sqlparsercontract.OperationTypeUpdate, sqlparsercontract.OperationTypeDelete:
 			parsedSQL, err = sqlparser.New().AppendSQLFilter(parsedSQL, sqlparsercontract.SQLFilterOpAnd, fmt.Sprintf("%s = '%s'", database.DefaultUidColName, req.UserID))
 			if err != nil {
-				return nil, fmt.Errorf("append sql filter failed: %v", err)
+				return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "append_filter"),
+	)
 			}
 		}
 	}
@@ -1125,7 +1257,9 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 				},
 			}, &sqlparsercontract.PrimaryKeyValue{ColName: database.DefaultIDColName, Values: iIDs}, false)
 			if err != nil {
-				return nil, fmt.Errorf("add columns to insert sql failed: %v", err)
+				return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "add_columns_to_sql"),
+	)
 			}
 		} else if req.SQLType == database.SQLType_Parameterized {
 			parsedSQL, existingCols, err = sqlparser.New().AddColumnsToInsertSQL(parsedSQL, []sqlparsercontract.ColumnValue{
@@ -1137,12 +1271,16 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 				},
 			}, &sqlparsercontract.PrimaryKeyValue{ColName: database.DefaultIDColName}, true)
 			if err != nil {
-				return nil, fmt.Errorf("add columns to insert sql failed: %v", err)
+				return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "add_columns_to_sql"),
+	)
 			}
 
 			if nums > 0 {
 				if len(params)%nums != 0 {
-					return nil, fmt.Errorf("number of params is not a multiple of number of rows")
+					return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "number of params is not a multiple of number of rows"),
+	)
 				}
 				paramsPerRow := len(params) / nums
 				newParams := make([]interface{}, 0)
@@ -1170,7 +1308,9 @@ func (d databaseService) executeCustomSQL(ctx context.Context, req *ExecuteSQLRe
 		SQLType: entity3.SQLType(req.SQLType),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("execute SQL failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "execute_sql"),
+	)
 	}
 
 	if operation == sqlparsercontract.OperationTypeInsert {
@@ -1201,7 +1341,10 @@ func (d databaseService) executeSelectSQL(ctx context.Context, req *ExecuteSQLRe
 		fields := make([]string, 0, len(req.SelectFieldList.FieldID))
 		for _, fieldID := range req.SelectFieldList.FieldID {
 			if _, exists := fieldMap[fieldID]; !exists {
-				return nil, fmt.Errorf("fieldID %s does not exist", fieldID)
+				return nil, errorx.New(errno.ErrMemoryDatabaseFieldNotFoundCode,
+		errorx.KV("field_id", fieldID),
+		errorx.KV("reason", "field does not exist"),
+	)
 			}
 
 			field, _ := fieldMap[fieldID]
@@ -1236,7 +1379,9 @@ func (d databaseService) executeSelectSQL(ctx context.Context, req *ExecuteSQLRe
 
 	selectResp, err := d.rdb.SelectData(ctx, selectReq)
 	if err != nil {
-		return nil, fmt.Errorf("select data failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("operation", "select_data"),
+	)
 	}
 
 	return selectResp.ResultSet, nil
@@ -1244,7 +1389,9 @@ func (d databaseService) executeSelectSQL(ctx context.Context, req *ExecuteSQLRe
 
 func (d databaseService) executeInsertSQL(ctx context.Context, req *ExecuteSQLRequest, physicalTableName string, tableInfo *entity2.Database) (*entity3.ResultSet, error) {
 	if len(req.UpsertRows) == 0 {
-		return nil, fmt.Errorf("no data to insert")
+		return nil, errorx.New(errno.ErrMemoryDatabaseCannotAddData,
+		errorx.KV("reason", "no data to insert"),
+	)
 	}
 
 	insertData := make([]map[string]interface{}, 0, len(req.UpsertRows))
@@ -1311,7 +1458,9 @@ func (d databaseService) executeInsertSQL(ctx context.Context, req *ExecuteSQLRe
 		Data:      insertData,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("insert data failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryDatabaseCannotAddData,
+		errorx.KV("operation", "insert_data"),
+	)
 	}
 
 	return &entity3.ResultSet{
@@ -1322,7 +1471,9 @@ func (d databaseService) executeInsertSQL(ctx context.Context, req *ExecuteSQLRe
 
 func (d databaseService) executeUpdateSQL(ctx context.Context, req *ExecuteSQLRequest, physicalTableName string, tableInfo *entity2.Database, fieldNameToPhysical map[string]string) (int64, error) {
 	if len(req.UpsertRows) == 0 || req.Condition == nil {
-		return -1, fmt.Errorf("missing update data or condition")
+		return -1, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "missing update data or condition"),
+	)
 	}
 
 	fieldList := append(tableInfo.FieldList, physicaltable.GetCreateTimeField(), physicaltable.GetUidField(), physicaltable.GetIDField(), physicaltable.GetConnectIDField())
@@ -1368,7 +1519,9 @@ func (d databaseService) executeUpdateSQL(ctx context.Context, req *ExecuteSQLRe
 		Limit:     int64PtrToIntPtr(req.Limit),
 	})
 	if err != nil {
-		return -1, fmt.Errorf("update data failed: %v", err)
+		return -1, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "update_data"),
+	)
 	}
 
 	return updateResp.AffectedRows, nil
@@ -1376,7 +1529,9 @@ func (d databaseService) executeUpdateSQL(ctx context.Context, req *ExecuteSQLRe
 
 func (d databaseService) executeDeleteSQL(ctx context.Context, req *ExecuteSQLRequest, physicalTableName string, tableInfo *entity2.Database, fieldNameToPhysical map[string]string) (int64, error) {
 	if req.Condition == nil {
-		return -1, fmt.Errorf("missing delete condition")
+		return -1, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "missing delete condition"),
+	)
 	}
 
 	complexCond, err := generateComplexCond(ctx, req, tableInfo.RwMode, fieldNameToPhysical)
@@ -1390,7 +1545,9 @@ func (d databaseService) executeDeleteSQL(ctx context.Context, req *ExecuteSQLRe
 		Limit:     int64PtrToIntPtr(req.Limit),
 	})
 	if err != nil {
-		return -1, fmt.Errorf("delete data failed: %v", err)
+		return -1, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "delete_data"),
+	)
 	}
 
 	return deleteResp.AffectedRows, nil
@@ -1447,12 +1604,16 @@ func convertCondition(ctx context.Context, cond *database.ComplexCondition, fiel
 					}
 				}
 				if qCount == 0 {
-					return nil, fmt.Errorf("IN/NOT_IN condition right side must contain ? placeholders")
+					return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "IN/NOT_IN condition right side must contain ? placeholders"),
+	)
 				}
 				vals := make([]interface{}, 0, qCount)
 				for j := 0; j < qCount; j++ {
 					if index >= len(params) {
-						return nil, fmt.Errorf("not enough params for IN/NOT_IN condition")
+						return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "not enough params for IN/NOT_IN condition"),
+	)
 					}
 					if params[index].ISNull || params[index].Value == nil {
 						index++
@@ -1511,7 +1672,10 @@ func (d databaseService) BindDatabase(ctx context.Context, req *BindDatabaseToAg
 		return err
 	}
 	if len(draft.Databases) == 0 {
-		return fmt.Errorf("online table not found, id: %d", req.DraftDatabaseID)
+		return errorx.New(errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("database_id", fmt.Sprintf("%d", req.DraftDatabaseID)),
+		errorx.KV("database_type", "online"),
+	)
 	}
 
 	onlineID := draft.Databases[0].GetOnlineID()
@@ -1530,7 +1694,9 @@ func (d databaseService) BindDatabase(ctx context.Context, req *BindDatabaseToAg
 
 	_, err = d.agentToDatabaseDAO.BatchCreate(ctx, relations)
 	if err != nil {
-		return fmt.Errorf("failed to bind databases to agent: %w", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "bind_databases_to_agent"),
+	)
 	}
 
 	return nil
@@ -1549,7 +1715,10 @@ func (d databaseService) UnBindDatabase(ctx context.Context, req *UnBindDatabase
 		return err
 	}
 	if len(draft.Databases) == 0 {
-		return fmt.Errorf("online table not found, id: %d", req.DraftDatabaseID)
+		return errorx.New(errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("database_id", fmt.Sprintf("%d", req.DraftDatabaseID)),
+		errorx.KV("database_type", "online"),
+	)
 	}
 
 	onlineID := draft.Databases[0].GetOnlineID()
@@ -1566,7 +1735,9 @@ func (d databaseService) UnBindDatabase(ctx context.Context, req *UnBindDatabase
 
 	err = d.agentToDatabaseDAO.BatchDelete(ctx, relations)
 	if err != nil {
-		return fmt.Errorf("failed to unbind databases from agent: %w", err)
+		return errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "unbind_databases_from_agent"),
+	)
 	}
 
 	return nil
@@ -1574,7 +1745,9 @@ func (d databaseService) UnBindDatabase(ctx context.Context, req *UnBindDatabase
 
 func (d databaseService) MGetDatabaseByAgentID(ctx context.Context, req *MGetDatabaseByAgentIDRequest) (*MGetDatabaseByAgentIDResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("invalid request: request is nil")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "request is nil"),
+	)
 	}
 
 	relations, err := d.agentToDatabaseDAO.ListByAgentID(ctx, req.AgentID, req.TableType)
@@ -1603,7 +1776,9 @@ func (d databaseService) MGetDatabaseByAgentID(ctx context.Context, req *MGetDat
 // PublishDatabase return online database according to draft database info
 func (d databaseService) PublishDatabase(ctx context.Context, req *PublishDatabaseRequest) (*PublishDatabaseResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("invalid request: request is nil")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "request is nil"),
+	)
 	}
 
 	relationResp, err := d.MGetRelationsByAgentID(ctx, &MGetRelationsByAgentIDRequest{
@@ -1679,7 +1854,9 @@ func (d databaseService) PublishDatabase(ctx context.Context, req *PublishDataba
 
 func (d databaseService) MGetRelationsByAgentID(ctx context.Context, req *MGetRelationsByAgentIDRequest) (*MGetRelationsByAgentIDResponse, error) {
 	if req == nil {
-		return nil, fmt.Errorf("invalid request: request is nil")
+		return nil, errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "request is nil"),
+	)
 	}
 
 	relations, err := d.agentToDatabaseDAO.ListByAgentID(ctx, req.AgentID, req.TableType)
@@ -1769,7 +1946,10 @@ func (d databaseService) SubmitDatabaseInsertTask(ctx context.Context, req *Subm
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("panic: %v", r)
 			d.cache.Set(ctx, fmt.Sprintf(failKey, req.DatabaseID, req.UserID), errMsg, redisKeyTimeOut)
-			err = fmt.Errorf("panic: %v", r)
+			err = errorx.New(errno.ErrMemoryInvalidParamCode,
+		errorx.KV("reason", "panic caught"),
+		errorx.KV("panic", fmt.Sprintf("%v", r)),
+	)
 			return
 		}
 		if err != nil {
@@ -1986,7 +2166,10 @@ func (d databaseService) GetDraftDatabaseByOnlineID(ctx context.Context, req *Ge
 		return nil, err
 	}
 	if len(online.Databases) == 0 {
-		return nil, fmt.Errorf("online table not found, id: %d", req.OnlineID)
+		return nil, errorx.New(errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("database_id", fmt.Sprintf("%d", req.OnlineID)),
+		errorx.KV("database_type", "online"),
+	)
 	}
 
 	draftID := online.Databases[0].GetDraftID()
@@ -2003,7 +2186,10 @@ func (d databaseService) GetDraftDatabaseByOnlineID(ctx context.Context, req *Ge
 		return nil, err
 	}
 	if len(draftResp.Databases) == 0 {
-		return nil, fmt.Errorf("online table not found, id: %d", req.OnlineID)
+		return nil, errorx.New(errno.ErrMemoryDatabaseNotFoundCode,
+		errorx.KV("database_id", fmt.Sprintf("%d", req.OnlineID)),
+		errorx.KV("database_type", "online"),
+	)
 	}
 
 	return &GetDraftDatabaseByOnlineIDResponse{
@@ -2025,7 +2211,9 @@ func (d databaseService) DeleteDatabaseByAppID(ctx context.Context, req *DeleteD
 
 	tx := query.Use(d.db).Begin()
 	if tx.Error != nil {
-		return nil, fmt.Errorf("start transaction failed, %v", tx.Error)
+		return nil, errorx.WrapByCode(tx.Error, errno.ErrMemoryInvalidParamCode,
+			errorx.KV("operation", "start_transaction"),
+		)
 	}
 
 	defer func() {
@@ -2035,7 +2223,11 @@ func (d databaseService) DeleteDatabaseByAppID(ctx context.Context, req *DeleteD
 				logs.CtxErrorf(ctx, "rollback failed, err=%v", e)
 			}
 
-			err = fmt.Errorf("catch panic: %v\nstack=%s", r, string(debug.Stack()))
+			err = errorx.New(errno.ErrMemoryInvalidParamCode,
+			errorx.KV("reason", "panic caught"),
+			errorx.KV("panic", fmt.Sprintf("%v", r)),
+			errorx.KV("stack", string(debug.Stack())),
+		)
 			return
 		}
 
@@ -2067,7 +2259,9 @@ func (d databaseService) DeleteDatabaseByAppID(ctx context.Context, req *DeleteD
 
 	err = tx.Commit()
 	if err != nil {
-		return nil, fmt.Errorf("commit transaction failed: %v", err)
+		return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "commit_transaction"),
+	)
 	}
 
 	// delete draft and online physical table
@@ -2152,7 +2346,9 @@ func generateComplexCond(ctx context.Context, req *ExecuteSQLRequest, mode table
 	if req.Condition != nil {
 		complexCond, err = convertCondition(ctx, req.Condition, fieldNameToPhysical, req.SQLParams)
 		if err != nil {
-			return nil, fmt.Errorf("convert condition failed: %v", err)
+			return nil, errorx.WrapByCode(err, errno.ErrMemoryInvalidParamCode,
+		errorx.KV("operation", "convert_condition"),
+	)
 		}
 	}
 

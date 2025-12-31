@@ -102,7 +102,7 @@ func (c *HealthChecker) checkDatabase(ctx context.Context) CheckResult {
 
 	// 执行简单的查询测试连接
 	var count int64
-	err := c.db.WithContext(ctx).Table(&entity.TokenLog{}).
+	err := c.db.WithContext(ctx).Table("token_usage_logs").
 		Where("created_at > ?", time.Now().AddDate(0, 0, -1)).
 		Count(&count).Error
 

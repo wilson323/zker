@@ -24,6 +24,8 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // FieldPermission 3级字段权限（位标志）
@@ -247,7 +249,9 @@ func (c *FieldPermissionCheckerImpl) GetFieldPermissions(
 	// 1. 获取用户的所有角色
 	roles, err := c.userRoleRepo.GetRolesByUser(ctx, userID, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user roles: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get user roles"),
+            )
 	}
 
 	// 2. 合并所有角色的字段权限（取最大权限）

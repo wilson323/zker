@@ -5,6 +5,7 @@ package coze
 import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
+	"github.com/coze-dev/coze-studio/backend/api/middleware"
 )
 
 /*
@@ -15,6 +16,12 @@ import (
 
 // Register register routes based on the IDL 'api.${HTTP Method}' annotation.
 func Register(r *server.Hertz) {
+	// 全局应用安全中间件：安全响应头 + CSRF防护
+	r.Use(middleware.SecurityHeadersMiddleware())
+	r.Use(middleware.CSRFMiddleware())
+
+	// 注册CSRF Token获取接口
+	r.GET("/api/csrf_token", middleware.GetCSRFTokenHandler)
 
 	root := r.Group("/", rootMw()...)
 	{
@@ -522,4 +529,10 @@ func Register(r *server.Hertz) {
 			}
 		}
 	}
+
+	// 注册数字员工管理路由
+	registerDigitalEmployeeRoutes(r)
+
+	// 注册计费相关路由
+	RegisterBillingRoutes(r)
 }

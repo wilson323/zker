@@ -24,6 +24,7 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/routing/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"go.uber.org/zap"
 )
@@ -108,7 +109,7 @@ func (o *RoutingOptimizer) OptimizeRouting(ctx context.Context, req *RoutingRequ
 		o.logger.Error("failed to build routing context",
 			zap.String("tenant_id", req.TenantID),
 			zap.Error(err))
-		return nil, errno.ROUTING500001.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	// 2. 获取候选Agent列表
@@ -117,11 +118,11 @@ func (o *RoutingOptimizer) OptimizeRouting(ctx context.Context, req *RoutingRequ
 		o.logger.Error("failed to get candidate agents",
 			zap.String("tenant_id", req.TenantID),
 			zap.Error(err))
-		return nil, errno.ROUTING500001.WithDetail("error", err.Error())
+		return nil, errorx.WrapByCode(err, errno.ErrRoutingDecisionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	if len(candidates) == 0 {
-		return nil, errno.ROUTING404001.WithDetail("reason", "no available agents")
+		return nil, errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "no available agents"))
 	}
 
 	// 3. 为每个候选Agent评分
@@ -138,7 +139,7 @@ func (o *RoutingOptimizer) OptimizeRouting(ctx context.Context, req *RoutingRequ
 	}
 
 	if len(scores) == 0 {
-		return nil, errno.ROUTING500001.WithDetail("reason", "no valid agent scores")
+		return nil, errorx.New(errno.ErrRoutingDecisionFailedCode, errorx.KV("reason", "no valid agent scores"))
 	}
 
 	// 4. 选择得分最高的Agent
@@ -171,7 +172,7 @@ func (o *RoutingOptimizer) OptimizeRouting(ctx context.Context, req *RoutingRequ
 // GetOptimalAgent 获取最优Agent（简化版）
 func (o *RoutingOptimizer) GetOptimalAgent(ctx context.Context, intent string, agentCandidates []string) (string, error) {
 	if len(agentCandidates) == 0 {
-		return "", errno.ROUTING404001.WithDetail("reason", "empty candidate list")
+		return "", errorx.New(errno.ErrRouteNotFoundCode, errorx.KV("reason", "empty candidate list"))
 	}
 
 	// 如果只有一个候选，直接返回
@@ -245,8 +246,8 @@ func (o *RoutingOptimizer) buildRoutingContext(ctx context.Context, req *Routing
 
 	// 提取候选Agent
 	for _, rule := range rules {
-		if rule.HasBotTarget() {
-			routingCtx.CandidateAgents = append(routingCtx.CandidateAgents, rule.TargetBotID)
+		if rule.TargetBotID != nil && *rule.TargetBotID != "" {
+			routingCtx.CandidateAgents = append(routingCtx.CandidateAgents, *rule.TargetBotID)
 		}
 	}
 

@@ -16,10 +16,10 @@
 
 package entity
 
-import "github.com/coze-dev/coze-studio/backend/api/model/app/developer_api"
+import "github.com/coze-dev/coze-studio/backend/domain/agent/singleagent/entity/vo"
 
 type AgentDraftDisplayInfo struct {
 	AgentID     int64
-	DisplayInfo *developer_api.DraftBotDisplayInfoData
+	DisplayInfo *vo.DraftBotDisplayInfoData
 	SpaceID     *string
 }

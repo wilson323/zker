@@ -62,11 +62,11 @@ type TenantIsolatedCache struct {
 	EnableStats bool
 
 	// Stats 统计信息
-	Stats *CacheStats
+	Stats *TenantCacheStats
 }
 
-// CacheStats 缓存统计
-type CacheStats struct {
+// TenantCacheStats 租户缓存统计
+type TenantCacheStats struct {
 	HitCount  int64
 	MissCount int64
 	SetCount  int64
@@ -78,7 +78,7 @@ func NewTenantIsolatedCache(redis Cmdable) *TenantIsolatedCache {
 	return &TenantIsolatedCache{
 		redis:      redis,
 		EnableStats: true,
-		Stats:      &CacheStats{},
+		Stats:      &TenantCacheStats{},
 	}
 }
 
@@ -565,8 +565,8 @@ func (c *TenantIsolatedCache) MDel(ctx context.Context, tenantID string, keys []
 }
 
 // GetStats 获取缓存统计信息
-func (c *TenantIsolatedCache) GetStats() CacheStats {
-	return CacheStats{
+func (c *TenantIsolatedCache) GetStats() TenantCacheStats {
+	return TenantCacheStats{
 		HitCount:  c.Stats.HitCount,
 		MissCount: c.Stats.MissCount,
 		SetCount:  c.Stats.SetCount,
@@ -576,7 +576,7 @@ func (c *TenantIsolatedCache) GetStats() CacheStats {
 
 // ResetStats 重置统计信息
 func (c *TenantIsolatedCache) ResetStats() {
-	c.Stats = &CacheStats{}
+	c.Stats = &TenantCacheStats{}
 }
 
 // GetHitRate 获取缓存命中率

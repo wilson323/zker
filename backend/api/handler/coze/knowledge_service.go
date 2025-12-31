@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	dataset "github.com/coze-dev/coze-studio/backend/api/model/data/knowledge"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/application/knowledge"
 	application "github.com/coze-dev/coze-studio/backend/application/knowledge"
 	"github.com/coze-dev/coze-studio/backend/application/memory"
@@ -44,10 +45,10 @@ func CreateDataset(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.CreateDatasetResponse)
 	resp, err = application.KnowledgeSVC.CreateKnowledge(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DatasetDetail .
@@ -63,10 +64,10 @@ func DatasetDetail(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.DatasetDetailResponse)
 	resp, err = application.KnowledgeSVC.DatasetDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListDataset .
@@ -83,10 +84,10 @@ func ListDataset(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ListDatasetResponse)
 	resp, err = application.KnowledgeSVC.ListKnowledge(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteDataset .
@@ -103,10 +104,10 @@ func DeleteDataset(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.DeleteDatasetResponse)
 	resp, err = application.KnowledgeSVC.DeleteKnowledge(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDataset .
@@ -123,10 +124,10 @@ func UpdateDataset(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.UpdateDatasetResponse)
 	resp, err = application.KnowledgeSVC.UpdateKnowledge(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateDocument .
@@ -143,10 +144,10 @@ func CreateDocument(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.CreateDocumentResponse)
 	resp, err = application.KnowledgeSVC.CreateDocument(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListDocument .
@@ -163,10 +164,10 @@ func ListDocument(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ListDocumentResponse)
 	resp, err = application.KnowledgeSVC.ListDocument(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteDocument .
@@ -183,10 +184,10 @@ func DeleteDocument(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.DeleteDocumentResponse)
 	resp, err = application.KnowledgeSVC.DeleteDocument(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDocument .
@@ -203,10 +204,10 @@ func UpdateDocument(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.UpdateDocumentResponse)
 	resp, err = application.KnowledgeSVC.UpdateDocument(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDocumentProgress .
@@ -223,10 +224,10 @@ func GetDocumentProgress(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.GetDocumentProgressResponse)
 	resp, err = application.KnowledgeSVC.GetDocumentProgress(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // Resegment .
@@ -243,10 +244,10 @@ func Resegment(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ResegmentResponse)
 	resp, err = application.KnowledgeSVC.Resegment(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdatePhotoCaption .
@@ -263,10 +264,10 @@ func UpdatePhotoCaption(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.UpdatePhotoCaptionResponse)
 	resp, err = application.KnowledgeSVC.UpdatePhotoCaption(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListPhoto .
@@ -283,10 +284,10 @@ func ListPhoto(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ListPhotoResponse)
 	resp, err = application.KnowledgeSVC.ListPhoto(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PhotoDetail .
@@ -303,10 +304,10 @@ func PhotoDetail(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.PhotoDetailResponse)
 	resp, err = application.KnowledgeSVC.PhotoDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetTableSchema .
@@ -323,10 +324,10 @@ func GetTableSchema(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.GetTableSchemaResponse)
 	resp, err = application.KnowledgeSVC.GetTableSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ValidateTableSchema .
@@ -343,10 +344,10 @@ func ValidateTableSchema(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ValidateTableSchemaResponse)
 	resp, err = application.KnowledgeSVC.ValidateTableSchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteSlice .
@@ -363,10 +364,10 @@ func DeleteSlice(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.DeleteSliceResponse)
 	resp, err = application.KnowledgeSVC.DeleteSlice(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateSlice .
@@ -383,10 +384,10 @@ func CreateSlice(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.CreateSliceResponse)
 	resp, err = application.KnowledgeSVC.CreateSlice(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateSlice .
@@ -403,10 +404,10 @@ func UpdateSlice(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.UpdateSliceResponse)
 	resp, err = application.KnowledgeSVC.UpdateSlice(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListSlice .
@@ -423,10 +424,10 @@ func ListSlice(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ListSliceResponse)
 	resp, err = application.KnowledgeSVC.ListSlice(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateDocumentReview .
@@ -443,10 +444,10 @@ func CreateDocumentReview(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.CreateDocumentReviewResponse)
 	resp, err = application.KnowledgeSVC.CreateDocumentReview(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // MGetDocumentReview .
@@ -463,10 +464,10 @@ func MGetDocumentReview(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.MGetDocumentReviewResponse)
 	resp, err = application.KnowledgeSVC.MGetDocumentReview(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SaveDocumentReview .
@@ -483,10 +484,10 @@ func SaveDocumentReview(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.SaveDocumentReviewResponse)
 	resp, err = application.KnowledgeSVC.SaveDocumentReview(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetIconForDataset .
@@ -503,10 +504,10 @@ func GetIconForDataset(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.GetIconResponse)
 	resp, err = upload.SVC.GetIconForDataset(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ExtractPhotoCaption .
@@ -523,10 +524,10 @@ func ExtractPhotoCaption(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.ExtractPhotoCaptionResponse)
 	resp, err = application.KnowledgeSVC.ExtractPhotoCaption(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDocumentTableInfo .
@@ -543,10 +544,10 @@ func GetDocumentTableInfo(ctx context.Context, c *app.RequestContext) {
 	resp := new(dataset.GetDocumentTableInfoResponse)
 	resp, err = knowledge.KnowledgeSVC.GetDocumentTableInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetModeConfig .
@@ -561,15 +562,15 @@ func GetModeConfig(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 {
-		invalidParamRequestResponse(c, "bot_id is zero")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot_id is zero", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := memory.DatabaseApplicationSVC.GetModeConfig(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

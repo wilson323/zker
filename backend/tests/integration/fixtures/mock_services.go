@@ -1,3 +1,6 @@
+//go:build !integration
+// +build !integration
+
 /*
  * Copyright 2025 coze-dev Authors
  *
@@ -23,9 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/coze-dev/coze-studio/backend/application/memory"
+	conversationmemoryservice "github.com/coze-dev/coze-studio/backend/domain/memory/conversation/service"
 )
 
 // ==================== Mock对话服务（带记忆功能） ====================
@@ -35,7 +36,7 @@ import (
 type MockConversationServiceWithMemory struct {
 	mu            sync.RWMutex
 	db            *sql.DB
-	memoryService memory.ConversationMemoryService
+	memoryService conversationmemoryservice.ConversationMemoryService
 	llmClient     *MockLLMClient
 	conversations map[string]*Conversation
 	messages      map[string][]*Message
@@ -51,7 +52,7 @@ type Message struct {
 }
 
 // NewMockConversationServiceWithMemory 创建带记忆的Mock对话服务
-func NewMockConversationServiceWithMemory(db *sql.DB, memSvc memory.ConversationMemoryService, llmClient *MockLLMClient) *MockConversationServiceWithMemory {
+func NewMockConversationServiceWithMemory(db *sql.DB, memSvc conversationmemoryservice.ConversationMemoryService, llmClient *MockLLMClient) *MockConversationServiceWithMemory {
 	return &MockConversationServiceWithMemory{
 		db:            db,
 		memoryService: memSvc,
@@ -89,7 +90,7 @@ func (s *MockConversationServiceWithMemory) Chat(ctx context.Context, req interf
 	}
 
 	conversationID := reqData.GetConversationID()
-	userID := reqData.GetUserID()
+	_ = reqData.GetUserID() //(userID 暂时不使用，保留供未来使用)
 	message := reqData.GetMessage()
 	enableMemory := reqData.GetEnableMemory()
 
@@ -129,7 +130,7 @@ func (s *MockConversationServiceWithMemory) Chat(ctx context.Context, req interf
 			// 提取实体
 			entities := s.llmClient.GetEntityExtraction()
 			for _, entity := range entities {
-				// 存储记忆
+				_ = entity // TODO: 存储记忆
 				// s.memoryService.StoreMemory(ctx, ...)
 			}
 		}()

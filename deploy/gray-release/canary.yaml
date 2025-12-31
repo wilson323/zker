@@ -1,0 +1,359 @@
+# ZKER 灰度发布策略配置
+# 版本: v1.0.0
+# 说明: Flagger Canary资源定义
+
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: coze-studio-api
+  namespace: coze-studio-prod
+spec:
+  # 引用的Deployment
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: backend
+
+  # 引用的Service
+  serviceRef:
+    apiVersion: v1
+    kind: Service
+    name: backend
+    port: 8080
+
+  # 前提条件检查
+  analysis:
+    # 分析间隔
+    interval: 1m
+
+    # 最大权重（50%流量）
+    maxWeight: 50
+
+    # 每次步进权重
+    stepWeight: 10
+
+    # 指标阈值
+    thresholds:
+      # 成功率阈值
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+          max: 100
+      # 响应时间阈值
+      - name: request-duration
+        thresholdRange:
+          min: 0
+          max: 500
+      # 错误率阈值
+      - name: request-error-rate
+        thresholdRange:
+          min: 0
+          max: 1
+
+    # PromQL指标查询
+    metrics:
+      # 成功率指标
+      - name: request-success-rate
+        template: |
+          sum(
+            rate(
+              http_request_duration_seconds_bucket{
+                job="coze-studio",
+                status!~"5..",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          /
+          sum(
+            rate(
+              http_request_duration_seconds_bucket{
+                job="coze-studio",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          * 100
+        queryRange: 5m
+
+      # 响应时间指标
+      - name: request-duration
+        template: |
+          histogram_quantile(0.99,
+            sum(
+              rate(
+                http_request_duration_seconds_bucket{
+                  job="coze-studio",
+                  namespace="{{ namespace }}",
+                  service="{{ name }}"
+                }[5m]
+              )
+            ) by (le)
+          )
+        queryRange: 5m
+
+      # 错误率指标
+      - name: request-error-rate
+        template: |
+          sum(
+            rate(
+              http_requests_total{
+                job="coze-studio",
+                status=~"5..",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          /
+          sum(
+            rate(
+              http_requests_total{
+                job="coze-studio",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          * 100
+        queryRange: 5m
+
+  # 灰度发布阶段
+  steps:
+    # 阶段1: 金丝雀发布（5%流量）
+    - setWeight: 5
+      pause:
+        duration: 2m
+      metrics:
+        - name: request-success-rate
+          thresholdRange:
+            min: 99
+            max: 100
+
+    # 阶段2: 小范围灰度（20%流量）
+    - setWeight: 20
+      pause:
+        duration: 5m
+      metrics:
+        - name: request-success-rate
+          thresholdRange:
+            min: 99
+            max: 100
+
+    # 阶段3: 大范围灰度（50%流量）
+    - setWeight: 50
+      pause:
+        duration: 10m
+      metrics:
+        - name: request-success-rate
+          thresholdRange:
+            min: 99
+            max: 100
+
+    # 阶段4: 全量发布（100%流量）
+    - setWeight: 100
+      pause:
+        duration: 5m
+
+  # 自动回滚配置
+  webhook:
+    - name: on-canary-failing
+      url: http://flagger-prometheus/prometheus
+      timeout: 5s
+      # 回滚触发器
+      backoff:
+        duration: 30s
+
+  # 自动回滚阈值
+  rollback:
+    # 成功率低于99%回滚
+    prometheus:
+      url: http://flagger-prometheus/prometheus
+      query: |
+        sum(
+          rate(
+            http_request_duration_seconds_bucket{
+              job="coze-studio",
+              status!~"5..",
+              namespace="{{ namespace }}",
+              service="{{ name }}"
+            }[1m]
+          )
+        )
+        /
+        sum(
+          rate(
+            http_request_duration_seconds_bucket{
+              job="coze-studio",
+              namespace="{{ namespace }}",
+              service="{{ name }}"
+            }[1m]
+          )
+        )
+        * 100
+      threshold: 99
+
+  # HPA自动扩缩容配置
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: backend
+
+  # 流量匹配配置（基于Istio）
+  match:
+    - headers:
+        x-canary:
+          exact: "true"
+  # 流量路由配置
+  apiVersion: networking.istio.io/v1alpha3
+  kind: VirtualService
+  metadata:
+    name: backend
+    namespace: coze-studio-prod
+  spec:
+    hosts:
+      - backend
+    http:
+      - match:
+          - headers:
+              x-canary:
+                exact: "true"
+        route:
+          - destination:
+              host: backend
+              subset: canary
+            weight: 100
+      - route:
+          - destination:
+              host: backend
+              subset: stable
+            weight: 100
+
+---
+# 前端灰度发布配置
+apiVersion: flagger.app/v1beta1
+kind: Canary
+metadata:
+  name: coze-studio-frontend
+  namespace: coze-studio-prod
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+
+  serviceRef:
+    apiVersion: v1
+    kind: Service
+    name: frontend
+    port: 3000
+
+  analysis:
+    interval: 1m
+    maxWeight: 50
+    stepWeight: 10
+    thresholds:
+      - name: request-success-rate
+        thresholdRange:
+          min: 99
+          max: 100
+      - name: request-duration
+        thresholdRange:
+          min: 0
+          max: 300
+
+    metrics:
+      - name: request-success-rate
+        template: |
+          sum(
+            rate(
+              http_request_duration_seconds_bucket{
+                job="coze-studio-frontend",
+                status!~"5..",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          /
+          sum(
+            rate(
+              http_request_duration_seconds_bucket{
+                job="coze-studio-frontend",
+                namespace="{{ namespace }}",
+                service="{{ name }}"
+              }[5m]
+            )
+          )
+          * 100
+        queryRange: 5m
+
+      - name: request-duration
+        template: |
+          histogram_quantile(0.99,
+            sum(
+              rate(
+                http_request_duration_seconds_bucket{
+                  job="coze-studio-frontend",
+                  namespace="{{ namespace }}",
+                  service="{{ name }}"
+                }[5m]
+              )
+            ) by (le)
+          )
+        queryRange: 5m
+
+  steps:
+    # 阶段1: 5%流量
+    - setWeight: 5
+      pause:
+        duration: 2m
+
+    # 阶段2: 20%流量
+    - setWeight: 20
+      pause:
+        duration: 5m
+
+    # 阶段3: 50%流量
+    - setWeight: 50
+      pause:
+        duration: 10m
+
+    # 阶段4: 100%流量
+    - setWeight: 100
+      pause:
+        duration: 5m
+
+  rollback:
+    prometheus:
+      url: http://flagger-prometheus/prometheus
+      query: |
+        sum(
+          rate(
+            http_request_duration_seconds_bucket{
+              job="coze-studio-frontend",
+              status!~"5..",
+              namespace="{{ namespace }}",
+              service="{{ name }}"
+            }[1m]
+          )
+        )
+        /
+        sum(
+          rate(
+            http_request_duration_seconds_bucket{
+              job="coze-studio-frontend",
+              namespace="{{ namespace }}",
+              service="{{ name }}"
+            }[1m]
+          )
+        )
+        * 100
+      threshold: 99
+
+  autoscalerRef:
+    apiVersion: autoscaling/v2
+    kind: HorizontalPodAutoscaler
+    name: frontend

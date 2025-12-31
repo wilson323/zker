@@ -56,9 +56,9 @@ type Organization struct {
 	DeletedAt   *int64              `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
-	Parent   *Organization  `json:"parent,omitempty" gorm:"foreignKey:ParentID"`
-	Children []Organization `json:"children,omitempty" gorm:"foreignKey:ParentID"`
-	Leader   *Employee      `json:"leader,omitempty" gorm:"foreignKey:LeaderID"`
+	Parent   *Organization   `json:"parent,omitempty" gorm:"foreignKey:ParentID"`
+	Children []*Organization `json:"children,omitempty" gorm:"foreignKey:ParentID"`
+	Leader   *Employee       `json:"leader,omitempty" gorm:"foreignKey:LeaderID"`
 }
 
 // TableName 指定表名
@@ -130,10 +130,10 @@ type Department struct {
 	DeletedAt    *int64             `json:"deleted_at,omitempty" gorm:"index"`
 
 	// 关联
-	Organization *Organization `json:"organization,omitempty" gorm:"foreignKey:OrgID"`
-	Parent       *Department   `json:"parent,omitempty" gorm:"foreignKey:ParentID"`
-	Children     []Department  `json:"children,omitempty" gorm:"foreignKey:ParentID"`
-	Leader       *Employee     `json:"leader,omitempty" gorm:"foreignKey:LeaderID"`
+	Organization *Organization  `json:"organization,omitempty" gorm:"foreignKey:OrgID"`
+	Parent       *Department    `json:"parent,omitempty" gorm:"foreignKey:ParentID"`
+	Children     []*Department  `json:"children,omitempty" gorm:"foreignKey:ParentID"`
+	Leader       *Employee      `json:"leader,omitempty" gorm:"foreignKey:LeaderID"`
 }
 
 // TableName 指定表名

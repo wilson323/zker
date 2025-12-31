@@ -20,19 +20,21 @@ import (
 	"context"
 	"log"
 	"time"
+
+	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
 )
 
 // TemporaryGrantCleanupJob 临时授权清理任务
 // 定期清理过期的临时授权和历史记录
 type TemporaryGrantCleanupJob struct {
-	temporaryGrantService *TemporaryGrantService
+	temporaryGrantService *permissionservice.TemporaryGrantService
 	cleanupInterval       time.Duration // 清理间隔
 	historyRetentionDays  int           // 历史记录保留天数
 }
 
 // NewTemporaryGrantCleanupJob 创建清理任务实例
 func NewTemporaryGrantCleanupJob(
-	temporaryGrantService *TemporaryGrantService,
+	temporaryGrantService *permissionservice.TemporaryGrantService,
 	cleanupInterval time.Duration,
 	historyRetentionDays int,
 ) *TemporaryGrantCleanupJob {

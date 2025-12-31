@@ -1,0 +1,126 @@
+# ================================================================================
+# Coze Studio - 通用配置 ConfigMap
+# ================================================================================
+# 用途：存储所有微服务共享的环境变量配置
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coze-studio-config
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: config
+data:
+  # 应用配置
+  APP_ENV: "production"
+  APP_NAME: "coze-studio"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+
+  # 服务端口
+  API_SERVER_PORT: "8888"
+  GRPC_SERVER_PORT: "9000"
+
+  # 数据库配置（从 Secret 获取敏感信息）
+  DB_HOST: "mysql.coze-studio.svc.cluster.local"
+  DB_PORT: "3306"
+  DB_NAME: "coze_studio"
+  DB_MAX_OPEN_CONNS: "100"
+  DB_MAX_IDLE_CONNS: "10"
+  DB_CONN_MAX_LIFETIME: "1h"
+
+  # Redis 配置
+  Redis_HOST: "redis.coze-studio.svc.cluster.local"
+  Redis_PORT: "6379"
+  Redis_DB: "0"
+  Redis_POOL_SIZE: "100"
+
+  # Elasticsearch 配置
+  ES_ENDPOINTS: "http://elasticsearch.coze-studio.svc.cluster.local:9200"
+  ES_INDEX_PREFIX: "coze_studio"
+
+  # Milvus 配置
+  MILVUS_ADDRESS: "milvus.coze-studio.svc.cluster.local:19530"
+
+  # MinIO 配置
+  MINIO_ENDPOINT: "minio.coze-studio.svc.cluster.local:9000"
+  MINIO_BUCKET: "coze-studio"
+  MINIO_USE_SSL: "false"
+
+  # NSQ 配置
+  NSQD_ADDRESS: "nsqd.coze-studio.svc.cluster.local:4150"
+  NSQLOOKUPD_ADDRESS: "nsqlookupd.coze-studio.svc.cluster.local:4161"
+
+  # etcd 配置（配置中心）
+  ETCD_ENDPOINTS: "etcd.coze-studio.svc.cluster.local:2379"
+
+  # Prometheus 配置
+  PROMETHEUS_ADDRESS: "http://prometheus-operated.monitoring.svc.cluster.local:9090"
+  ENABLE_METRICS: "true"
+  METRICS_PATH: "/metrics"
+
+  # Jaeger 配置（分布式追踪）
+  JAEGER_ENDPOINT: "http://jaeger-collector.monitoring.svc.cluster.local:14268/api/traces"
+  JAEGER_SAMPLER_TYPE: "probabilistic"
+  JAEGER_SAMPLER_PARAM: "0.1"  # 10% 采样率
+
+  # 业务配置
+  TENANT_CONTEXT_HEADER: "X-Tenant-ID"
+  USER_CONTEXT_HEADER: "X-User-ID"
+  DEFAULT_PAGE_SIZE: "20"
+  MAX_PAGE_SIZE: "100"
+
+  # 性能配置
+  GORM_MAX_OPEN_CONNS: "100"
+  GORM_MAX_IDLE_CONNS: "10"
+  HTTP_READ_TIMEOUT: "30s"
+  HTTP_WRITE_TIMEOUT: "30s"
+
+  # 安全配置
+  ENABLE_CORS: "true"
+  CORS_ALLOW_ORIGINS: "*"
+  ENABLE_RATE_LIMIT: "true"
+  RATE_LIMIT_REQUESTS: "1000"
+  RATE_LIMIT_WINDOW: "1m"
+
+---
+# ================================================================================
+# 开发环境 ConfigMap
+# ================================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coze-studio-config-dev
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: config
+    environment: development
+data:
+  APP_ENV: "development"
+  LOG_LEVEL: "debug"
+  JAEGER_SAMPLER_PARAM: "1.0"  # 开发环境 100% 采样
+  ENABLE_CORS: "true"
+  CORS_ALLOW_ORIGINS: "*"
+
+---
+# ================================================================================
+# 测试环境 ConfigMap
+# ================================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coze-studio-config-test
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: config
+    environment: testing
+data:
+  APP_ENV: "testing"
+  LOG_LEVEL: "debug"
+  JAEGER_SAMPLER_PARAM: "1.0"  # 测试环境 100% 采样

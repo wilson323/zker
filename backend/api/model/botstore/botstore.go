@@ -173,6 +173,88 @@ type GetPendingReviewsResponse struct {
 	Data *BotStoreItemListData `json:"data"`
 }
 
+// CreateReviewRequest 创建评论请求
+type CreateReviewRequest struct {
+	ItemID  string `json:"item_id" binding:"required"`
+	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
+	Comment string `json:"comment" binding:"max=1000"`
+}
+
+// CreateReviewResponse 创建评论响应
+type CreateReviewResponse struct {
+	BaseResponse
+	Data *BotStoreReviewDTO `json:"data"`
+}
+
+// BotStoreReviewDTO Bot商店评论DTO
+type BotStoreReviewDTO struct {
+	ReviewID  string `json:"review_id"`
+	ItemID    string `json:"item_id"`
+	UserID    string `json:"user_id"`
+	Rating    int    `json:"rating"`
+	Comment   string `json:"comment"`
+	CreatedAt string `json:"created_at"`
+	UpdatedAt string `json:"updated_at"`
+}
+
+// UpdateReviewRequest 更新评论请求
+type UpdateReviewRequest struct {
+	Rating  int    `json:"rating" binding:"required,min=1,max=5"`
+	Comment string `json:"comment" binding:"max=1000"`
+}
+
+// UpdateReviewResponse 更新评论响应
+type UpdateReviewResponse struct {
+	BaseResponse
+}
+
+// DeleteReviewResponse 删除评论响应
+type DeleteReviewResponse struct {
+	BaseResponse
+}
+
+// GetReviewsRequest 获取评论列表请求
+type GetReviewsRequest struct {
+	ItemID   string `path:"item_id" binding:"required"`
+	Page     int    `query:"page" binding:"omitempty,min=1"`
+	PageSize int    `query:"page_size" binding:"omitempty,min=1,max=100"`
+	SortBy   string `query:"sort_by" binding:"omitempty,oneof=latest highest lowest"`
+}
+
+// GetReviewsResponse 获取评论列表响应
+type GetReviewsResponse struct {
+	BaseResponse
+	Data *ReviewListData `json:"data"`
+}
+
+// ReviewListData 评论列表数据
+type ReviewListData struct {
+	Reviews       []*BotStoreReviewDTO `json:"reviews"`
+	Total         int                  `json:"total"`
+	Page          int                  `json:"page"`
+	PageSize      int                  `json:"page_size"`
+	TotalPages    int                  `json:"total_pages"`
+	AverageRating float64              `json:"average_rating"`
+	RatingCount   int                  `json:"rating_count"`
+}
+
+// GetReviewStatisticsResponse 获取评论统计响应
+type GetReviewStatisticsResponse struct {
+	BaseResponse
+	Data *ReviewStatisticsDTO `json:"data"`
+}
+
+// ReviewStatisticsDTO 评论统计DTO
+type ReviewStatisticsDTO struct {
+	AverageRating float64 `json:"average_rating"`
+	RatingCount   int     `json:"rating_count"`
+	Rating1Count  int     `json:"rating_1_count"`
+	Rating2Count  int     `json:"rating_2_count"`
+	Rating3Count  int     `json:"rating_3_count"`
+	Rating4Count  int     `json:"rating_4_count"`
+	Rating5Count  int     `json:"rating_5_count"`
+}
+
 // BaseResponse 基础响应
 type BaseResponse struct {
 	Code int    `json:"code"`

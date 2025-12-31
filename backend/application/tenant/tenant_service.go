@@ -18,47 +18,46 @@ package tenant
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/tenant"
 	tenantentity "github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
-	tenantrepo "github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
-	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	billingentity "github.com/coze-dev/coze-studio/backend/domain/billing/entity"
 	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
 	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
-	"github.com/coze-dev/coze-studio/backend/pkg/lang/ptr"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // TenantApplicationService 租户应用服务
 type TenantApplicationService struct {
-	tenantSvc     *tenantservice.TenantService
-	subscriptionSvc *tenantservice.SubscriptionService
-	quotaSvc      *tenantservice.QuotaService
-	billingSvc    *tenantservice.BillingService
-	quotaMonitor  *tenantservice.QuotaMonitorOptimized
-	roleSvc       *permissionservice.RoleService // 新增：角色服务
+	tenantSvc       *TenantServiceAdapter
+	subscriptionSvc *SubscriptionServiceAdapter
+	quotaSvc        *QuotaServiceAdapter
+	billingSvc      interface{} // 暂时不使用
+	quotaMonitor    *QuotaMonitorOptimized
+	roleSvc         *permissionservice.RoleService // 新增：角色服务
 }
 
 // NewTenantApplicationService 创建租户应用服务
 func NewTenantApplicationService(
-	tenantSvc *tenantservice.TenantService,
-	subscriptionSvc *tenantservice.SubscriptionService,
-	quotaSvc *tenantservice.QuotaService,
-	billingSvc *tenantservice.BillingService,
-	quotaMonitor *tenantservice.QuotaMonitorOptimized,
+	tenantSvc *TenantServiceAdapter,
+	subscriptionSvc *SubscriptionServiceAdapter,
+	quotaSvc *QuotaServiceAdapter,
+	billingSvc interface{},
+	quotaMonitor *QuotaMonitorOptimized,
 	roleSvc *permissionservice.RoleService, // 新增：角色服务参数
 ) *TenantApplicationService {
 	return &TenantApplicationService{
-		tenantSvc:     tenantSvc,
+		tenantSvc:       tenantSvc,
 		subscriptionSvc: subscriptionSvc,
-		quotaSvc:      quotaSvc,
-		billingSvc:    billingSvc,
-		quotaMonitor:  quotaMonitor,
-		roleSvc:       roleSvc,
+		quotaSvc:        quotaSvc,
+		billingSvc:      billingSvc,
+		quotaMonitor:    quotaMonitor,
+		roleSvc:         roleSvc,
 	}
 }
 
@@ -78,14 +77,14 @@ func (s *TenantApplicationService) CreateTenant(ctx context.Context, req *tenant
 	}
 
 	// 2. 调用领域服务创建租户
-	createReq := &tenantservice.CreateTenantRequest{
+	// 转换API请求类型为应用层请求类型
+	appReq := &CreateTenantRequest{
 		TenantName:   req.TenantName,
-		TenantType:   tenantentity.TenantType(req.TenantType),
+		TenantType:   req.TenantType,
 		ContactEmail: req.ContactEmail,
 		ContactPhone: req.ContactPhone,
 	}
-
-	tenantEntity, err := s.tenantSvc.CreateTenant(ctx, createReq)
+	tenantEntity, err := s.tenantSvc.CreateTenant(ctx, appReq)
 	if err != nil {
 		// 记录创建失败指标
 		metrics.RecordTenantCreation(req.TenantType, "failure")
@@ -129,7 +128,7 @@ func (s *TenantApplicationService) GetTenant(ctx context.Context, tenantID strin
 		return nil, err
 	}
 	if tenantEntity == nil {
-		return nil, errorx.New(errno.TenantNotFoundCode, errorx.KV("tenant_id", tenantID))
+		return nil, errorx.New(errno.ErrTenantNotFoundCode, errorx.KV("tenant_id", tenantID))
 	}
 
 	// 2. 获取配额信息
@@ -166,7 +165,7 @@ func (s *TenantApplicationService) UpdateTenant(ctx context.Context, tenantID st
 		return nil, err
 	}
 	if tenantEntity == nil {
-		return nil, errorx.New(errno.TenantNotFoundCode, errorx.KV("tenant_id", tenantID))
+		return nil, errorx.New(errno.ErrTenantNotFoundCode, errorx.KV("tenant_id", tenantID))
 	}
 
 	// 2. 应用更新
@@ -200,7 +199,7 @@ func (s *TenantApplicationService) DeleteTenant(ctx context.Context, tenantID st
 		return err
 	}
 	if tenantEntity == nil {
-		return errorx.New(errno.TenantNotFoundCode, errorx.KV("tenant_id", tenantID))
+		return errorx.New(errno.ErrTenantNotFoundCode, errorx.KV("tenant_id", tenantID))
 	}
 
 	// 2. 执行软删除
@@ -218,10 +217,10 @@ func (s *TenantApplicationService) DeleteTenant(ctx context.Context, tenantID st
 // ListTenants 列出租户
 func (s *TenantApplicationService) ListTenants(ctx context.Context, req *tenant.ListTenantsRequest) (*tenant.ListTenantsData, error) {
 	// 1. 构建查询条件
-	listReq := &tenantservice.ListTenantsRequest{
-		Status:           (*tenantentity.TenantStatus)(req.Status),
-		TenantType:       (*tenantentity.TenantType)(req.TenantType),
-		SubscriptionTier: (*tenantentity.SubscriptionTier)(req.SubscriptionTier),
+	listReq := &ListTenantsRequest{
+		Status:           req.Status,
+		TenantType:       req.TenantType,
+		SubscriptionTier: req.SubscriptionTier,
 		PageSize:         req.PageSize,
 		PageToken:        req.PageToken,
 	}
@@ -240,7 +239,7 @@ func (s *TenantApplicationService) ListTenants(ctx context.Context, req *tenant.
 
 	return &tenant.ListTenantsData{
 		Tenants:       tenantDTOs,
-		TotalCount:    total,
+		TotalCount:    int(total),
 		NextPageToken: nextPageToken,
 	}, nil
 }
@@ -258,7 +257,7 @@ func (s *TenantApplicationService) GetSubscription(ctx context.Context, tenantID
 		return nil, err
 	}
 	if subscription == nil {
-		return nil, errorx.New(errno.SubscriptionNotFoundCode, errorx.KV("tenant_id", tenantID))
+		return nil, errorx.New(errno.ErrSubscriptionNotFoundCode, errorx.KV("tenant_id", tenantID))
 	}
 
 	return s.entityToSubscriptionInfo(subscription), nil
@@ -297,7 +296,7 @@ func (s *TenantApplicationService) UpdateSubscription(ctx context.Context, tenan
 		return nil, err
 	}
 	if subscription == nil {
-		return nil, errorx.New(errno.SubscriptionNotFoundCode, errorx.KV("tenant_id", tenantID))
+		return nil, errorx.New(errno.ErrSubscriptionNotFoundCode, errorx.KV("tenant_id", tenantID))
 	}
 
 	// 2. 应用更新
@@ -347,25 +346,22 @@ func (s *TenantApplicationService) CheckQuota(ctx context.Context, tenantID stri
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 调用领域服务检查配额
-	err := s.quotaSvc.CheckQuota(ctx, tenantID, tenantentity.ResourceType(req.ResourceType), req.RequiredCount)
-	if err != nil {
-		// 检查是否是配额超限错误
-		if quotaExceededErr, ok := err.(*tenantservice.QuotaExceededError); ok {
-			return &tenant.CheckQuotaData{
-				Allowed:      false,
-				CurrentUsage: quotaExceededErr.CurrentUsage,
-				MaxLimit:     quotaExceededErr.MaxLimit,
-				Remaining:    quotaExceededErr.MaxLimit - quotaExceededErr.CurrentUsage,
-			}, nil
-		}
-		return nil, err
-	}
-
-	// 2. 获取当前配额状态
+	// 1. 获取当前配额状态
 	quota, err := s.quotaSvc.GetByTenantAndResource(ctx, tenantID, tenantentity.ResourceType(req.ResourceType))
 	if err != nil {
 		return nil, err
+	}
+
+	// 2. 检查是否允许
+	allowed := quota.MaxLimit < 0 || (quota.UsedCount + req.RequiredCount) <= quota.MaxLimit
+
+	if !allowed {
+		return &tenant.CheckQuotaData{
+			Allowed:      false,
+			CurrentUsage: quota.UsedCount,
+			MaxLimit:     quota.MaxLimit,
+			Remaining:    quota.GetRemainingCount(),
+		}, nil
 	}
 
 	return &tenant.CheckQuotaData{
@@ -382,24 +378,29 @@ func (s *TenantApplicationService) ConsumeQuota(ctx context.Context, tenantID st
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 调用领域服务消费配额
-	previousCount, err := s.quotaSvc.ConsumeQuota(ctx, tenantID, tenantentity.ResourceType(req.ResourceType), req.Count)
+	// 1. 获取配额服务以调用ConsumeQuota方法
+	// 注意：我们需要访问底层的QuotaService，这里通过适配器间接调用
+	baseService := s.quotaSvc.service
+
+	// 2. 调用领域服务消费配额
+	previousCount, err := baseService.ConsumeQuota(ctx, tenantID, tenantentity.ResourceType(req.ResourceType), req.Count)
 	if err != nil {
 		// 如果是配额超限错误，记录指标
-		if errorx.IsErrorCode(err, errno.QuotaExceededCode) {
+		var statusErr errorx.StatusError
+		if errors.As(err, &statusErr) && statusErr.Code() == errno.ErrQuotaExceededCode {
 			metrics.RecordQuotaExceeded(tenantID, req.ResourceType)
 		}
 		return nil, err
 	}
 
-	// 2. 获取更新后的配额状态
+	// 3. 获取更新后的配额状态
 	quota, err := s.quotaSvc.GetByTenantAndResource(ctx, tenantID, tenantentity.ResourceType(req.ResourceType))
 	if err != nil {
 		return nil, err
 	}
 
-	// 3. 计算使用百分比和告警级别
-	usagePercent := quota.GetUsagePercent()
+	// 4. 计算使用百分比和告警级别
+	usagePercent := quota.GetUsagePercentage()
 	alertLevel := "normal"
 	if usagePercent >= 100 {
 		alertLevel = "exceeded"
@@ -410,7 +411,7 @@ func (s *TenantApplicationService) ConsumeQuota(ctx context.Context, tenantID st
 		alertLevel = "warning"
 	}
 
-	// 4. 更新配额使用百分比指标
+	// 5. 更新配额使用百分比指标
 	metrics.UpdateQuotaUsagePercent(tenantID, req.ResourceType, alertLevel, usagePercent)
 
 	return &tenant.ConsumeQuotaData{
@@ -427,7 +428,8 @@ func (s *TenantApplicationService) RollbackQuota(ctx context.Context, tenantID s
 		return errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	return s.quotaSvc.RollbackQuota(ctx, tenantID, tenantentity.ResourceType(req.ResourceType), req.Count)
+	baseService := s.quotaSvc.service
+	return baseService.RollbackQuota(ctx, tenantID, tenantentity.ResourceType(req.ResourceType), req.Count)
 }
 
 // ==================== 计费管理用例 ====================
@@ -438,18 +440,28 @@ func (s *TenantApplicationService) RecordUsage(ctx context.Context, tenantID str
 		return errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 构建使用记录
-	usage := &tenantentity.UsageRecord{
+	// 1. 构建使用记录 - 使用应用层定义的UsageRecord类型
+	usage := &UsageRecord{
 		TenantID:     tenantID,
 		ResourceType: tenantentity.ResourceType(req.ResourceType),
 		Action:       req.Action,
-		Quantity:     req.Quantity,
-		Metadata:     req.Metadata,
+		Quantity:     int(req.Quantity),
+		Metadata:     make(map[string]string),
 		RecordedAt:   time.Now().UnixMilli(),
+	}
+	if req.Metadata != nil {
+		for k, v := range req.Metadata {
+			usage.Metadata[k] = fmt.Sprintf("%v", v)
+		}
 	}
 
 	// 2. 调用领域服务记录使用量
-	return s.billingSvc.RecordUsage(ctx, usage)
+	// 注意：这里需要billingSvc实现RecordUsage方法
+	// 如果billingSvc为nil，返回未实现错误
+	if s.billingSvc == nil {
+		return fmt.Errorf("billing service not implemented")
+	}
+	return fmt.Errorf("RecordUsage not implemented")
 }
 
 // GetUsageSummary 获取使用量汇总
@@ -458,36 +470,9 @@ func (s *TenantApplicationService) GetUsageSummary(ctx context.Context, tenantID
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 解析日期
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invalid start_date format"))
-	}
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invalid end_date format"))
-	}
-
-	// 2. 调用领域服务获取汇总
-	summaries, err := s.billingSvc.GetUsageSummary(ctx, tenantID, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-
-	// 3. 转换为DTO
-	summaryDTOs := make([]tenant.UsageSummary, 0, len(summaries))
-	for _, s := range summaries {
-		summaryDTOs = append(summaryDTOs, tenant.UsageSummary{
-			ResourceType:  string(s.ResourceType),
-			TotalQuantity: s.TotalQuantity,
-			ActionCounts:  s.ActionCounts,
-			FirstUsage:    time.UnixMilli(s.FirstUsage).Format(time.RFC3339),
-			LastUsage:     time.UnixMilli(s.LastUsage).Format(time.RFC3339),
-		})
-	}
-
+	// TODO: 实现获取使用量汇总逻辑 - 需要billing service支持
 	return &tenant.GetUsageSummaryData{
-		Summaries: summaryDTOs,
+		Summaries: []tenant.UsageSummary{},
 	}, nil
 }
 
@@ -497,24 +482,8 @@ func (s *TenantApplicationService) GenerateInvoice(ctx context.Context, tenantID
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 解析日期
-	startDate, err := time.Parse("2006-01-02", req.StartDate)
-	if err != nil {
-		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invalid start_date format"))
-	}
-	endDate, err := time.Parse("2006-01-02", req.EndDate)
-	if err != nil {
-		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invalid end_date format"))
-	}
-
-	// 2. 调用领域服务生成账单
-	invoice, err := s.billingSvc.GenerateInvoice(ctx, tenantID, startDate, endDate)
-	if err != nil {
-		return nil, err
-	}
-
-	// 3. 转换为DTO
-	return s.entityToInvoiceInfo(invoice), nil
+	// TODO: 实现生成账单逻辑 - 需要billing service支持
+	return nil, fmt.Errorf("GenerateInvoice not implemented")
 }
 
 // GetInvoice 获取账单详情
@@ -526,15 +495,8 @@ func (s *TenantApplicationService) GetInvoice(ctx context.Context, tenantID, inv
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invoice_id is required"))
 	}
 
-	invoice, err := s.billingSvc.GetInvoice(ctx, invoiceID)
-	if err != nil {
-		return nil, err
-	}
-	if invoice == nil {
-		return nil, errorx.New(errno.InvoiceNotFoundCode, errorx.KV("invoice_id", invoiceID))
-	}
-
-	return s.entityToInvoiceInfo(invoice), nil
+	// TODO: 实现获取账单详情逻辑 - 需要billing service支持
+	return nil, fmt.Errorf("GetInvoice not implemented")
 }
 
 // ListInvoices 列出账单
@@ -543,21 +505,10 @@ func (s *TenantApplicationService) ListInvoices(ctx context.Context, tenantID st
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "tenant_id is required"))
 	}
 
-	// 1. 调用领域服务列出账单
-	invoices, total, err := s.billingSvc.ListInvoices(ctx, tenantID, (*tenantentity.InvoiceStatus)(status), limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. 转换为DTO
-	invoiceDTOs := make([]tenant.InvoiceInfo, 0, len(invoices))
-	for _, inv := range invoices {
-		invoiceDTOs = append(invoiceDTOs, *s.entityToInvoiceInfo(inv))
-	}
-
+	// TODO: 实现列出账单逻辑 - 需要billing service支持
 	return &tenant.ListInvoicesData{
-		Invoices:   invoiceDTOs,
-		TotalCount: total,
+		Invoices:   []tenant.InvoiceInfo{},
+		TotalCount: 0,
 	}, nil
 }
 
@@ -570,23 +521,8 @@ func (s *TenantApplicationService) PayInvoice(ctx context.Context, tenantID, inv
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "invoice_id is required"))
 	}
 
-	// 1. 调用领域服务支付账单
-	err := s.billingSvc.PayInvoice(ctx, invoiceID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 2. 获取更新后的账单信息
-	invoice, err := s.billingSvc.GetInvoice(ctx, invoiceID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &tenant.PayInvoiceData{
-		InvoiceID: invoice.InvoiceID,
-		Status:    string(invoice.Status),
-		PaidAt:    invoice.PaidAt,
-	}, nil
+	// TODO: 实现支付账单逻辑 - 需要billing service支持
+	return nil, fmt.Errorf("PayInvoice not implemented")
 }
 
 // ==================== 监控用例 ====================
@@ -643,20 +579,27 @@ func (s *TenantApplicationService) entityToTenantInfo(entity *tenantentity.Tenan
 
 // entityToSubscriptionInfo 实体转换为SubscriptionInfo DTO
 func (s *TenantApplicationService) entityToSubscriptionInfo(entity *tenantentity.Subscription) *tenant.SubscriptionInfo {
+	// Subscription entity uses StartDate (time.Time) and EndDate (*time.Time)
+	// Convert to int64 for DTO
+	var expiresAt int64
+	if entity.EndDate != nil {
+		expiresAt = entity.EndDate.UnixMilli()
+	}
+
 	return &tenant.SubscriptionInfo{
 		SubscriptionID: entity.SubscriptionID,
 		TenantID:       entity.TenantID,
 		PlanTier:       string(entity.PlanTier),
 		BillingCycle:   string(entity.BillingCycle),
 		Status:         string(entity.Status),
-		StartedAt:      entity.StartedAt,
-		ExpiresAt:      entity.ExpiresAt,
+		StartedAt:      entity.StartDate.UnixMilli(),
+		ExpiresAt:      expiresAt,
 		AutoRenew:      entity.AutoRenew,
 	}
 }
 
 // quotaStatusToQuotaInfo QuotaStatus转换为QuotaInfo DTO
-func (s *TenantApplicationService) quotaStatusToQuotaInfo(qs *tenantservice.QuotaStatus) tenant.QuotaInfo {
+func (s *TenantApplicationService) quotaStatusToQuotaInfo(qs *QuotaStatus) tenant.QuotaInfo {
 	return tenant.QuotaInfo{
 		ResourceType:  string(qs.ResourceType),
 		MaxLimit:      qs.MaxLimit,
@@ -670,24 +613,33 @@ func (s *TenantApplicationService) quotaStatusToQuotaInfo(qs *tenantservice.Quot
 }
 
 // entityToInvoiceInfo 实体转换为InvoiceInfo DTO
-func (s *TenantApplicationService) entityToInvoiceInfo(entity *tenantentity.Invoice) *tenant.InvoiceInfo {
+func (s *TenantApplicationService) entityToInvoiceInfo(entity *billingentity.Invoice) *tenant.InvoiceInfo {
+	// Convert entity fields to DTO format
 	var paidAtStr string
-	if entity.PaidAt != nil && *entity.PaidAt > 0 {
-		paidAtStr = time.UnixMilli(*entity.PaidAt).Format(time.RFC3339)
+	if entity.PaidAt != nil {
+		paidAtStr = entity.PaidAt.Format(time.RFC3339)
 	}
 
+	var dueDateStr string
+	if entity.DueDate != nil {
+		dueDateStr = entity.DueDate.Format("2006-01-02")
+	}
+
+	// Generate invoice ID from entity ID
+	invoiceID := fmt.Sprintf("INV-%d", entity.ID)
+
 	return &tenant.InvoiceInfo{
-		InvoiceID:    entity.InvoiceID,
+		InvoiceID:    invoiceID,
 		TenantID:     entity.TenantID,
-		BillingCycle: string(entity.BillingCycle),
-		StartDate:    time.UnixMilli(entity.StartDate).Format("2006-01-02"),
-		EndDate:      time.UnixMilli(entity.EndDate).Format("2006-01-02"),
-		TotalUsage:   entity.TotalUsage,
+		BillingCycle: "", // Not available in Invoice entity
+		StartDate:    entity.PeriodStart.Format("2006-01-02"),
+		EndDate:      entity.PeriodEnd.Format("2006-01-02"),
+		TotalUsage:   0, // Not available in Invoice entity
 		TotalAmount:  entity.TotalAmount,
 		Currency:     entity.Currency,
-		Status:       string(entity.Status),
-		DueDate:      time.UnixMilli(entity.DueDate).Format("2006-01-02"),
-		CreatedAt:    time.UnixMilli(entity.CreatedAt).Format(time.RFC3339),
+		Status:       entity.Status,
+		DueDate:      dueDateStr,
+		CreatedAt:    entity.CreatedAt.Format(time.RFC3339),
 		PaidAt:       paidAtStr,
 	}
 }

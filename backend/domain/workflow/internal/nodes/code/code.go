@@ -220,11 +220,11 @@ func validatePythonImports(code string) error {
 
 func (c *Runner) Invoke(ctx context.Context, input map[string]any) (ret map[string]any, err error) {
 	if c.importError != nil {
-		return nil, vo.WrapError(errno.ErrCodeExecuteFail, c.importError, errorx.KV("detail", c.importError.Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrCodeExecuteFail, c.importError, errorx.KV("detail", c.importError.Error()))
 	}
 	response, err := c.runner.Run(ctx, &coderunner.RunRequest{Code: c.code, Language: c.language, Params: input})
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrCodeExecuteFail, err, errorx.KV("detail", err.Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrCodeExecuteFail, err, errorx.KV("detail", err.Error()))
 	}
 
 	result := response.Result
@@ -232,7 +232,7 @@ func (c *Runner) Invoke(ctx context.Context, input map[string]any) (ret map[stri
 
 	output, ws, err := nodes.ConvertInputs(ctx, result, c.outputConfig)
 	if err != nil {
-		return nil, vo.WrapIfNeeded(errno.ErrCodeExecuteFail, err, errorx.KV("detail", err.Error()))
+		return nil, vo.WrapIfNeeded(errno.DeprecatedErrCodeExecuteFail, err, errorx.KV("detail", err.Error()))
 	}
 
 	if ws != nil && len(*ws) > 0 {
@@ -257,7 +257,7 @@ func (c *Runner) ToCallbackOutput(ctx context.Context, output map[string]any) (*
 
 	var wfe vo.WorkflowError
 	if warnings, ok := ctxcache.Get[nodes.ConversionWarnings](ctx, coderRunnerWarnErrorLevelCtxKey); ok {
-		wfe = vo.WrapWarn(errno.ErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
+		wfe = vo.WrapWarn(errno.DeprecatedErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
 	}
 	return &nodes.StructuredCallbackOutput{
 			Output:    output,

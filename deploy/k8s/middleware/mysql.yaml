@@ -1,0 +1,273 @@
+# ================================================================================
+# Coze Studio - MySQL StatefulSet & Service
+# ================================================================================
+# 用途：主数据库，存储所有业务数据
+# 架构：StatefulSet + 主从复制（可选）
+# 存储：PVC 持久化存储
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# MySQL StatefulSet
+# ================================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: mysql
+  annotations:
+    description: "Coze Studio MySQL 数据库"
+spec:
+  serviceName: mysql  # 必须关联 Headless Service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: mysql
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: mysql
+    spec:
+      containers:
+      - name: mysql
+        image: mysql:8.4.5
+        ports:
+        - name: mysql
+          containerPort: 3306
+          protocol: TCP
+
+        # 环境变量
+        env:
+        - name: MYSQL_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: db-root-password
+        - name: MYSQL_DATABASE
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: DB_NAME
+        - name: MYSQL_USER
+          value: "coze_studio"
+        - name: MYSQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: db-password
+
+        # 资源配置
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 2Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+
+        # 健康检查
+        livenessProbe:
+          exec:
+            command:
+            - mysqladmin
+            - ping
+            - -h
+            - localhost
+            - -u
+            - root
+            - -p$(MYSQL_ROOT_PASSWORD)
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - mysql
+            - -h
+            - 127.0.0.1
+            - -u
+            - root
+            - -p$(MYSQL_ROOT_PASSWORD)
+            - -e
+            - SELECT 1
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # 卷挂载
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/mysql
+          subPath: mysql
+        - name: config
+          mountPath: /etc/mysql/conf.d
+          readOnly: true
+
+      # 卷定义
+      volumes:
+      - name: config
+        configMap:
+          name: mysql-config
+
+  # PVC 模板
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd  # 使用 SSD 存储类
+      resources:
+        requests:
+          storage: 500Gi
+
+---
+# ================================================================================
+# MySQL Service (Headless)
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: mysql
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless Service，StatefulSet 必需
+  selector:
+    app: coze-studio
+    component: mysql
+  ports:
+  - name: mysql
+    port: 3306
+    targetPort: 3306
+    protocol: TCP
+
+---
+# ================================================================================
+# MySQL ConfigMap（配置文件）
+# ================================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mysql-config
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: mysql
+data:
+  my.cnf: |
+    [mysqld]
+    # 基础配置
+    default_authentication_plugin = mysql_native_password
+    skip-name-resolve
+    explicit_defaults_for_timestamp = true
+
+    # 字符集
+    character-set-server = utf8mb4
+    collation-server = utf8mb4_unicode_ci
+
+    # 连接配置
+    max_connections = 500
+    max_connect_errors = 10000
+
+    # InnoDB 配置（优化性能）
+    innodb_buffer_pool_size = 4G
+    innodb_log_file_size = 512M
+    innodb_flush_method = O_DIRECT
+    innodb_flush_log_at_trx_commit = 2
+    innodb_file_per_table = 1
+
+    # 慢查询日志
+    slow_query_log = 1
+    slow_query_log_file = /var/lib/mysql/mysql-slow.log
+    long_query_time = 2
+
+    # 二进制日志（用于主从复制和恢复）
+    log-bin = mysql-bin
+    binlog_format = ROW
+    expire_logs_days = 7
+    max_binlog_size = 100M
+
+    # 性能优化
+    query_cache_size = 0
+    query_cache_type = 0
+
+    [client]
+    default-character-set = utf8mb4
+
+---
+# ================================================================================
+# PodDisruptionBudget
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mysql-pdb
+  namespace: coze-studio
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: mysql
+
+---
+# ================================================================================
+# MySQL Backup CronJob（每日备份）
+# ================================================================================
+# 说明：需要安装 VolumeSnapshot Controller 或使用 mysqldump
+#
+# apiVersion: batch/v1
+# kind: CronJob
+# metadata:
+#   name: mysql-backup
+#   namespace: coze-studio
+# spec:
+#   schedule: "0 2 * * *"  # 每天凌晨 2 点执行
+#   successfulJobsHistoryLimit: 7
+#   failedJobsHistoryLimit: 3
+#   jobTemplate:
+#     spec:
+#       template:
+#         spec:
+#           containers:
+#           - name: backup
+#             image: mysql:8.4.5
+#             command:
+#             - /bin/sh
+#             - -c
+#             - |
+#               TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+#               BACKUP_FILE="/backup/mysql-backup-${TIMESTAMP}.sql"
+#               mysqldump -h mysql -u root -p${MYSQL_ROOT_PASSWORD} \
+#                 --all-databases --single-transaction --quick --lock-tables=false \
+#                 > ${BACKUP_FILE}
+#               gzip ${BACKUP_FILE}
+#               # 删除 7 天前的备份
+#               find /backup -name "mysql-backup-*.sql.gz" -mtime +7 -delete
+#             env:
+#             - name: MYSQL_ROOT_PASSWORD
+#               valueFrom:
+#                 secretKeyRef:
+#                   name: coze-studio-secret
+#                   key: db-root-password
+#             volumeMounts:
+#             - name: backup
+#               mountPath: /backup
+#           volumes:
+#           - name: backup
+#             persistentVolumeClaim:
+#               claimName: mysql-backup-pvc
+#           restartPolicy: OnFailure
+---

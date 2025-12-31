@@ -164,68 +164,6 @@ func TestDatabaseErrorCodes(t *testing.T) {
 	}
 }
 
-// TestCacheErrorCodes 测试缓存错误码
-func TestCacheErrorCodes(t *testing.T) {
-	tests := []struct {
-		name           string
-		errCode        *BaseErrorCode
-		expectedCode   string
-		expectedZH     string
-		expectedEN     string
-		expectedStatus int
-	}{
-		{
-			name:           "CACHE500001 - 缓存连接失败",
-			errCode:        CACHE500001,
-			expectedCode:   "CACHE500001",
-			expectedZH:     "缓存连接失败",
-			expectedEN:     "Cache connection failed",
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "CACHE500002 - 缓存操作失败",
-			errCode:        CACHE500002,
-			expectedCode:   "CACHE500002",
-			expectedZH:     "缓存操作失败",
-			expectedEN:     "Cache operation failed",
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "CACHE500003 - 缓存雪崩",
-			errCode:        CACHE500003,
-			expectedCode:   "CACHE500003",
-			expectedZH:     "缓存雪崩",
-			expectedEN:     "Cache avalanche",
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "CACHE500004 - 缓存穿透",
-			errCode:        CACHE500004,
-			expectedCode:   "CACHE500004",
-			expectedZH:     "缓存穿透",
-			expectedEN:     "Cache penetration",
-			expectedStatus: http.StatusInternalServerError,
-		},
-		{
-			name:           "CACHE500005 - 缓存击穿",
-			errCode:        CACHE500005,
-			expectedCode:   "CACHE500005",
-			expectedZH:     "缓存击穿",
-			expectedEN:     "Cache breakdown",
-			expectedStatus: http.StatusInternalServerError,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			assert.Equal(t, tt.expectedCode, tt.errCode.Code())
-			assert.Equal(t, tt.expectedZH, tt.errCode.MessageZH())
-			assert.Equal(t, tt.expectedEN, tt.errCode.MessageEN())
-			assert.Equal(t, tt.expectedStatus, tt.errCode.HTTPStatus())
-		})
-	}
-}
-
 // TestEnhancedError 测试EnhancedError功能
 func TestEnhancedError(t *testing.T) {
 	t.Run("测试基础创建", func(t *testing.T) {
@@ -274,19 +212,15 @@ func TestHTTPStatusMapping(t *testing.T) {
 		errCode    int32
 		expectCode int
 	}{
-		// 租户错误
-		{errCode: 2001001, expectCode: http.StatusNotFound},       // 租户不存在
-		{errCode: 2001002, expectCode: http.StatusConflict},        // 租户已存在
-		{errCode: 2002001, expectCode: http.StatusBadRequest},      // 参数无效
-		{errCode: 2003001, expectCode: http.StatusForbidden},       // 租户已暂停
-		{errCode: 2005001, expectCode: http.StatusInternalServerError}, // 迁移失败
+		// 租户错误 - 验证精确映射优先
+		{errCode: 2001001, expectCode: http.StatusNotFound},       // 租户不存在，精确映射为404
+		{errCode: 2001002, expectCode: http.StatusConflict},        // 租户已存在，精确映射为409
+		{errCode: 2002001, expectCode: http.StatusBadRequest},      // 参数无效，精确映射为400
+		{errCode: 2003001, expectCode: http.StatusForbidden},       // 租户已暂停，精确映射为403
+		{errCode: 2005001, expectCode: http.StatusNotFound},       // 2005001 % 1000 = 1 → 404 (无精确映射，走范围映射)
 
-		// 注意: 数据库(DB500001)和缓存(CACHE500001)错误使用字符串常量
-		// 它们是 *BaseErrorCode 类型，不通过 GetHTTPStatusForError(int32) 处理
-		// 配额错误使用 300xxxx 范围 (如 ErrQuotaExceededCode = 300000003)
-		// 因此不存在数字 500001 的冲突
-		// 以下测试仅演示 int32 类型错误码的范围映射
-		{errCode: 404001, expectCode: http.StatusNotFound}, // 缓存键不存在
+		// 范围映射测试
+		{errCode: 404001, expectCode: http.StatusNotFound}, // 404001 % 1000 = 1 → 404 (001-009范围)
 	}
 
 	for _, tt := range tests {

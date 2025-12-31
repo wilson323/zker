@@ -18,6 +18,7 @@ package ctxutil
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/coze-dev/coze-studio/backend/domain/user/entity"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
@@ -33,20 +34,34 @@ func GetUserSessionFromCtx(ctx context.Context) *entity.Session {
 	return data
 }
 
-func MustGetUIDFromCtx(ctx context.Context) int64 {
+// GetUIDFromCtx 获取用户ID，如果未登录返回error
+// 这是新的推荐方法，返回error而不是panic
+func GetUIDFromCtxWithError(ctx context.Context) (int64, error) {
 	sessionData := GetUserSessionFromCtx(ctx)
 	if sessionData == nil {
-		panic("mustGetUIDFromCtx: sessionData is nil")
+		return 0, fmt.Errorf("session data is required")
 	}
-
-	return sessionData.UserID
+	return sessionData.UserID, nil
 }
 
+// GetUIDFromCtx 获取用户ID的指针，未登录返回nil
+// 保留向后兼容
 func GetUIDFromCtx(ctx context.Context) *int64 {
 	sessionData := GetUserSessionFromCtx(ctx)
 	if sessionData == nil {
 		return nil
 	}
-
 	return &sessionData.UserID
+}
+
+// MustGetUIDFromCtx 获取用户ID，失败则panic
+// Deprecated: 使用 GetUIDFromCtxWithError 替代以获得更好的错误处理
+func MustGetUIDFromCtx(ctx context.Context) int64 {
+	userID, err := GetUIDFromCtxWithError(ctx)
+	if err != nil {
+		// 记录日志后panic（向后兼容）
+		// 生产环境应该使用 GetUIDFromCtxWithError 并处理error
+		panic(fmt.Errorf("MustGetUIDFromCtx: %w", err))
+	}
+	return userID
 }

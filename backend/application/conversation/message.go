@@ -150,7 +150,7 @@ func (c *ConversationApplicationService) getCurrentConversation(ctx context.Cont
 		}
 		if ccNew == nil {
 			return nil, isNewCreate,
-				errorx.New(errno.ErrConversationNotFound)
+			errno.ErrConversationNotFound
 		}
 		isNewCreate = true
 		currentConversation = ccNew
@@ -297,12 +297,12 @@ func (c *ConversationApplicationService) DeleteMessage(ctx context.Context, mr *
 		return resp, err
 	}
 	if messageInfo == nil {
-		return resp, errorx.New(errno.ErrConversationMessageNotFound)
+		return resp, errno.ErrMessageNotFound
 	}
 
 	userID := ctxutil.GetUIDFromCtx(ctx)
 	if messageInfo.UserID != conv.Int64ToStr(*userID) {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission denied"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission denied"))
 	}
 
 	err = c.AgentRunDomainSVC.Delete(ctx, []int64{messageInfo.RunID})
@@ -327,16 +327,16 @@ func (c *ConversationApplicationService) BreakMessage(ctx context.Context, mr *m
 		return resp, err
 	}
 	if messageInfo == nil {
-		return resp, errorx.New(errno.ErrConversationMessageNotFound)
+		return resp, errno.ErrMessageNotFound
 	}
 
 	userID := ctxutil.GetUIDFromCtx(ctx)
 	if messageInfo.UserID != conv.Int64ToStr(*userID) {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission denied"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission denied"))
 	}
 
 	if messageInfo.ConversationID != mr.ConversationID {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "conversation not match"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "conversation not match"))
 	}
 
 	err = c.MessageDomainSVC.Broken(ctx, &entity.BrokenMeta{

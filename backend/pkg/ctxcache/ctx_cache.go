@@ -61,3 +61,13 @@ func HasKey(ctx context.Context, key any) bool {
 
 	return false
 }
+
+// GetTenantIDFromCtx 从上下文获取租户ID
+// 优先从 TenantIDKeyInCtx 获取，如果不存在则返回空字符串
+func GetTenantIDFromCtx(ctx context.Context) string {
+	// 尝试从 TenantIDKeyInCtx 获取
+	if tenantID, ok := Get[string](ctx, "tenant_id"); ok {
+		return tenantID
+	}
+	return ""
+}

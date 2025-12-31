@@ -56,7 +56,7 @@ func (c *conversationImpl) CreateDraftConversationTemplate(ctx context.Context, 
 		return 0, err
 	}
 	if existed {
-		return 0, vo.WrapError(errno.ErrConversationNameIsDuplicated, fmt.Errorf("conversation name %s exists", name), errorx.KV("name", name))
+		return 0, vo.WrapError(errno.DeprecatedErrConversationNameIsDuplicated, fmt.Errorf("conversation name %s exists", name), errorx.KV("name", name))
 	}
 
 	return c.repo.CreateDraftConversationTemplate(ctx, &vo.CreateConversationTemplateMeta{
@@ -105,7 +105,7 @@ func (c *conversationImpl) UpdateDraftConversationTemplateName(ctx context.Conte
 		return err
 	}
 	if existed {
-		return vo.WrapError(errno.ErrConversationNameIsDuplicated, fmt.Errorf("conversation name %s exists", modifiedName), errorx.KV("name", modifiedName))
+		return vo.WrapError(errno.DeprecatedErrConversationNameIsDuplicated, fmt.Errorf("conversation name %s exists", modifiedName), errorx.KV("name", modifiedName))
 	}
 
 	wfs, err := c.findReplaceWorkflowByConversationName(ctx, appID, template.Name)
@@ -226,7 +226,7 @@ func (c *conversationImpl) findReplaceWorkflowByConversationName(ctx context.Con
 		QType: workflowModel.FromDraft,
 		MetaQuery: vo.MetaQuery{
 			AppID: ptr.Of(appID),
-			Mode:  ptr.Of(workflow2.WorkflowMode_ChatFlow),
+			Mode:  ptr.Of(vo.WorkflowMode(workflow2.WorkflowMode_ChatFlow)),
 		},
 	})
 	if err != nil {

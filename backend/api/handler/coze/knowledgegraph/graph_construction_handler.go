@@ -24,6 +24,7 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/api/handler/coze"
 	baseModel "github.com/coze-dev/coze-studio/backend/api/model/base"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/application/base/ctxutil"
 	"github.com/coze-dev/coze-studio/backend/domain/knowledgegraph/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/knowledgegraph/service"
@@ -66,7 +67,7 @@ func BuildGraphFromText(ctx context.Context, c *app.RequestContext) {
 		Message:      "知识图谱构建成功",
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ExtractEntities 从文本中抽取实体
@@ -112,7 +113,7 @@ func ExtractEntities(ctx context.Context, c *app.RequestContext) {
 		Count:        len(entityList),
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ExtractRelationships 从文本中抽取关系
@@ -172,7 +173,7 @@ func ExtractRelationships(ctx context.Context, c *app.RequestContext) {
 		Count:          len(relList),
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // AddEntity 添加实体
@@ -214,7 +215,7 @@ func AddEntity(ctx context.Context, c *app.RequestContext) {
 		Message:      "实体添加成功",
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // AddRelationship 添加关系
@@ -258,7 +259,7 @@ func AddRelationship(ctx context.Context, c *app.RequestContext) {
 		Message:      "关系添加成功",
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteEntity 删除实体
@@ -289,7 +290,7 @@ func DeleteEntity(ctx context.Context, c *app.RequestContext) {
 		Message:      "实体删除成功",
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetEntityStats 获取实体统计
@@ -329,7 +330,7 @@ func GetEntityStats(ctx context.Context, c *app.RequestContext) {
 		Stats:        statsMap,
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ========================================

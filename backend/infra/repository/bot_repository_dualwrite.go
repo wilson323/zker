@@ -39,7 +39,7 @@ func (r *BotRepositoryWithDualWrite) Create(
 		return fmt.Errorf("创建Bot失败: %w", err)
 	}
 
-	logger.CtxInfof(ctx, "[BotRepo] bot created: id=%d, space_id=%d, dual_write=%v",
+	logs.CtxInfof(ctx, "[BotRepo] bot created: id=%d, space_id=%d, dual_write=%v",
 		bot.AgentID, bot.SpaceID, r.dualWriteEnabled)
 
 	return nil
@@ -56,7 +56,7 @@ func (r *BotRepositoryWithDualWrite) Update(
 		return fmt.Errorf("更新Bot失败: %w", err)
 	}
 
-	logger.CtxInfof(ctx, "[BotRepo] bot updated: id=%d, space_id=%d, dual_write=%v",
+	logs.CtxInfof(ctx, "[BotRepo] bot updated: id=%d, space_id=%d, dual_write=%v",
 		bot.AgentID, bot.SpaceID, r.dualWriteEnabled)
 
 	return nil
@@ -120,7 +120,7 @@ func (r *BotRepositoryWithDualWrite) Delete(
 		return fmt.Errorf("删除Bot失败: %w", err)
 	}
 
-	logger.CtxInfof(ctx, "[BotRepo] bot deleted: id=%d", id)
+	logs.CtxInfof(ctx, "[BotRepo] bot deleted: id=%d", id)
 
 	return nil
 }
@@ -140,7 +140,7 @@ func (r *BotRepositoryWithDualWrite) GetAllActiveBots(
 		return nil, fmt.Errorf("查询活跃Bot列表失败: %w", err)
 	}
 
-	logger.CtxInfof(ctx, "[BotRepo] found %d active bots", len(bots))
+	logs.CtxInfof(ctx, "[BotRepo] found %d active bots", len(bots))
 
 	return bots, nil
 }

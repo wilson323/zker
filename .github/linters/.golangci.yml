@@ -1,0 +1,287 @@
+# golangci-lint 配置文件
+# 用途: 统一的Go代码规范检查配置
+# 遵循规范: ZKER企业级开发规范手册 v1.0
+# 文档: https://golangci-lint.run/usage/configuration/
+
+# ==================== 启用的linters ====================
+linters:
+  # 启用所有推荐的linters
+  enable:
+    # 格式化相关
+    - gofmt         # 代码格式检查（标准gofmt）
+    - goimports     # import排序和去重
+
+    # 静态分析
+    - govet         # Go官方静态分析工具
+    - staticcheck   # 高级静态分析
+    - structcheck   # 检查未使用的结构体字段
+    - varcheck      # 检查未使用的全局变量和常量
+
+    # 错误处理
+    - errcheck      # 检查未处理的错误
+    - errorlint     # 检查错误处理最佳实践
+
+    # 代码质量
+    - unused        # 检查未使用的代码
+    - deadcode      # 检查死代码
+    - ineffassign   # 检查无效赋值
+    - unconvert     # 检查不必要的类型转换
+    - prealloc      # 检查可以预先分配的slice
+
+    # 复杂度检查
+    - gocyclo       # 检查圈复杂度
+    - dupl          # 检查重复代码
+    - goconst       # 检查可以提取为常量的重复字符串
+    - gocritic      # 代码风格和最佳实践检查
+
+    # 性能相关
+    - prealloc      # 检查slice预分配优化
+
+    # 安全相关
+    - gosec         # 安全漏洞扫描
+
+    # 命名规范
+    - revive        # 代码风格和命名规范检查（替代golint）
+
+    # 其他
+    - misspell      # 拼写检查
+    - lll           # 行长度检查
+    - nolintlint    # 检查nolint注释的使用
+
+  # 禁用的linters
+  disable:
+    - exhaustivestruct  # 不强制要求结构体字段完全初始化
+    - exhaustive        # 不强制要求枚举完全检查
+    - exhaustruct       # 同上
+    - tagliatelle       # 不强制要求结构体tag一致性
+    - cyclop            # 使用gocyclo即可
+    - funlen            # 函数长度限制过于严格
+    - wsl               # 空行规则过于严格
+
+  # 快速模式（禁用慢速linters）
+  fast: false
+
+# ==================== linters配置 ====================
+linters-settings:
+  # gofmt配置
+  gofmt:
+    simplify: true  # 简化代码
+
+  # goimports配置
+  goimports:
+    local-prefixes: github.com/coze-dev/coze-studio  # 本地包前缀
+
+  # govet配置
+  govet:
+    check-shadowing: true        # 检查变量遮蔽
+    enable-all: true             # 启用所有vet分析器
+    disable:
+      - shadow                   # 禁用shadow检查（误报较多）
+
+  # errcheck配置
+  errcheck:
+    check-type-assertions: true  # 检查类型断言
+    check-blank: false           # 不检查赋值给_的错误
+    disable-all: false
+
+  # gocyclo配置（圈复杂度）
+  gocyclo:
+    min-complexity: 15           # 圈复杂度阈值（默认15）
+
+  # dupl配置（重复代码）
+  dupl:
+    threshold: 100               # 重复代码阈值（token数）
+
+  # goconst配置（重复常量）
+  goconst:
+    min-len: 3                   # 字符串最小长度
+    min-occurrences: 3           # 最少出现次数
+    ignore-tests: true           # 忽略测试文件
+
+  # lll配置（行长度）
+  lll:
+    line-length: 120             # 行长度阈值（标准120）
+    tab-width: 4                 # tab宽度
+
+  # misspell配置（拼写）
+  misspell:
+    locale: US                   # 美式英语
+
+  # revive配置（代码风格）
+  revive:
+    confidence: 0.8              # 置信度阈值
+    rules:
+      - name: blank-imports      # 禁止空导入组
+      - name: context-as-argument # context应该作为第一个参数
+      - name: context-keys-type  # context key类型
+      - name: dot-imports        # 限制dot导入
+      - name: error-return       # 错误返回
+      - name: error-strings      # 错误字符串
+      - name: error-naming       # 错误命名（以Err开头）
+      - name: exported           # 导出函数注释
+      - name: if-return          # if语句可以简化为return
+      - name: increment-decrement # 增减量语句
+      - name: var-naming         # 变量命名
+      - name: var-declaration    # 变量声明
+      - name: package-comments   # 包注释
+      - name: range              # range循环
+      - name: receiver-naming    # receiver命名
+      - name: time-naming        # time变量命名
+      - name: unexported-return  # 未导出的返回值
+      - name: indent-error-flow  # 缩进错误流
+      - name: errorf             # 应该使用errorf
+      - name: empty-block        # 空代码块
+      - name: superfluous-else   # 多余的else
+      - name: unused-parameter   # 未使用的参数
+      - name: unreachable-code   # 不可达代码
+      - name: redefines-builtin-id # 重定义内置标识符
+
+  # gosec配置（安全）
+  gosec:
+    includes:
+      - G101  # 检查硬编码凭证
+      - G102  # 绑定到所有网络接口
+      - G103  # 审计未使用的分支
+      - G104  # 审计错误
+      - G106  # SSH主机密钥
+      - G107  # URL重定向到提供的URL
+      - G201  # SQL注入
+      - G202  # SQL查询字符串构建
+      - G203  # 模板生成
+      - G204  # 审计命令执行
+      - G301  # 文件创建时权限较差
+      - G302  # 文件创建时权限较差
+      - G303  # 创建临时文件
+      - G304  # 文件路径遍历
+      - G305  # 文件遍aversal
+      - G306  # 写入文件权限较差
+      - G307  # defer方法指针
+      - G401  # 检测DES/RC4/MD5等弱加密
+      - G402  # 寻找TLS连接配置不佳
+      - G403  # 确保最小RSA密钥长度
+      - G404  # 不安全的随机数来源
+      - G501  # 导入块列表
+      - G502  # 导入自定义块列表
+      - G503  # 导入弱加密块列表
+      - G504  | 证书
+      - G505  # 检测块列表中的弱加密
+      - G601  # 隐式内存别名
+
+  # prealloc配置（slice预分配）
+  prealloc:
+    simple: true          # 简单情况
+    range-loops: true     # range循环
+    for-loops: false      # for循环
+
+# ==================== issues配置 ====================
+issues:
+  # 显示所有问题
+  max-issues-per-linter: 0        # 每个linter最大问题数（0=无限制）
+  max-same-issues: 0              # 相同问题最大数（0=无限制）
+
+  # 排除规则
+  exclude-rules:
+    # 排除测试文件的某些检查
+    - path: _test\.go
+      linters:
+        - dupl          # 测试文件可能有重复代码
+        - gocyclo       # 测试函数可能复杂度高
+        - errcheck      # 测试文件可能有未处理的错误
+        - gosec         # 测试文件可能有安全问题
+        - lll           # 测试文件可能有长字符串
+
+    # 排除生成的文件
+    - path: \.gen\.go
+      linters:
+        - goconst       # 生成的文件可能有重复常量
+        - dupl          # 生成的文件可能有重复代码
+        - gosec         # 生成的文件可能有安全问题
+        - lll           # 生成的文件可能行很长
+
+    # 排除vendor目录
+    - path: vendor/
+      linters:
+        - gosec
+
+    # 排除main函数的某些检查
+    - path: cmd/
+      linters:
+        - gochecknoglobals
+
+  # 排除的文件
+  exclude-files:
+    - ".*\\.test\\.go"
+    - ".*\\.gen\\.go"
+    - ".*\\.pb\\.go"
+    - "vendor/.*"
+
+  # 独立的新问题（未在代码中标记）
+  new: false
+
+  # 修复
+  fix: true
+
+# ==================== 运行配置 ====================
+run:
+  # 并发数
+  concurrency: 4
+
+  # 超时时间
+  timeout: 10m
+
+  # 包含测试
+  tests: true
+
+  # 构建标签
+  build-tags: []
+
+  # 跳过目录
+  skip-dirs:
+    - vendor
+    - third_party
+    - testdata
+    - examples
+    - Godeps
+    - builtin
+
+  # 跳过文件
+  skip-files: []
+
+  # Go版本
+  go: '1.24'
+
+# ==================== 输出配置 ====================
+output:
+  # 输出格式
+  formats:
+    - format: colored-line-number
+    - format: json:artifact
+
+  # 打印经过的linter
+  print-linter-name: true
+
+  # 打印检查的代码
+  print-issued-lines: true
+
+  # 打印linter速度
+  print-stats: true
+
+# ==================== 严重性配置 ====================
+severity:
+  # 默认严重性
+  default-severity: error
+
+  # 规则覆盖
+  rules:
+    - linters:
+        - dupl
+      severity: warning
+    - linters:
+        - goconst
+      severity: warning
+    - linters:
+        - misspell
+      severity: warning
+    - linters:
+        - lll
+      severity: warning

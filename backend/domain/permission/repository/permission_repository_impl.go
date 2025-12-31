@@ -213,6 +213,25 @@ func (r *dataPermissionRepository) GetByRole(ctx context.Context, roleID string)
 	return perms, err
 }
 
+// GetByRolesAndResource 根据多个角色ID和资源类型批量获取数据权限（性能优化）
+// ✅ Performance Optimization: Use single IN query instead of N queries
+// Before: N queries (loop through roles)
+// After: 1 query (WHERE role_id IN (...))
+// Performance: 10 roles = 10x improvement (10 queries → 1 query)
+func (r *dataPermissionRepository) GetByRolesAndResource(ctx context.Context, roleIDs []string, resourceType entity.ResourceType) ([]*entity.DataPermission, error) {
+	if len(roleIDs) == 0 {
+		return []*entity.DataPermission{}, nil
+	}
+
+	var perms []*entity.DataPermission
+	err := r.db.WithContext(ctx).
+		Where("role_id IN ?", roleIDs).
+		Where("resource_type = ?", resourceType).
+		Find(&perms).Error
+
+	return perms, err
+}
+
 // Update 更新数据权限
 func (r *dataPermissionRepository) Update(ctx context.Context, perm *entity.DataPermission) error {
 	perm.UpdatedAt = time.Now().UnixMilli()
@@ -285,6 +304,25 @@ func (r *fieldPermissionRepository) GetByRole(ctx context.Context, roleID string
 	err := r.db.WithContext(ctx).
 		Where("role_id = ?", roleID).
 		Find(&perms).Error
+	return perms, err
+}
+
+// GetByRolesAndResource 根据多个角色ID和资源类型批量获取字段权限列表（性能优化）
+// ✅ Performance Optimization: Use single IN query instead of N queries
+// Before: N queries (loop through roles)
+// After: 1 query (WHERE role_id IN (...))
+// Performance: 10 roles = 10x improvement (10 queries → 1 query)
+func (r *fieldPermissionRepository) GetByRolesAndResource(ctx context.Context, roleIDs []string, resourceType string) ([]*entity.FieldPermission, error) {
+	if len(roleIDs) == 0 {
+		return []*entity.FieldPermission{}, nil
+	}
+
+	var perms []*entity.FieldPermission
+	err := r.db.WithContext(ctx).
+		Where("role_id IN ?", roleIDs).
+		Where("resource_type = ?", resourceType).
+		Find(&perms).Error
+
 	return perms, err
 }
 

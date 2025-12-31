@@ -126,7 +126,7 @@ func (r *WorkflowRunner) Prepare(ctx context.Context) (
 	if r.resumeReq == nil {
 		executeID, err = repo.GenID(ctx)
 		if err != nil {
-			return ctx, 0, nil, nil, vo.WrapError(errno.ErrIDGenError,
+			return ctx, 0, nil, nil, vo.WrapError(errno.DeprecatedErrIDGenError,
 				fmt.Errorf("failed to generate workflow execute ID: %w", err))
 		}
 	} else {

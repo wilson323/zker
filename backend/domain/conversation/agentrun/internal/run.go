@@ -149,7 +149,7 @@ func (art *AgentRuntime) Run(ctx context.Context) (err error) {
 		srRecord := buildSendRunRecord(ctx, runRecord, entity.RunStatusCompleted)
 		if err != nil {
 			srRecord.Error = &entity.RunError{
-				Code: errno.ErrConversationAgentRunError,
+				Code: int64(errno.DeprecatedErrConversationAgentRunError),
 				Msg:  err.Error(),
 			}
 			art.RunProcess.StepToFailed(ctx, srRecord, art.SW)

@@ -1,0 +1,159 @@
+================================================================================
+ZKER 错误处理标准化修复报告
+================================================================================
+
+扫描目录: backend\domain
+扫描文件: 740 个
+违规数量: 1520 处
+
+================================================================================
+一、违规类型统计
+================================================================================
+
+使用fmt.Errorf                  :  1347 ( 88.6%)
+直接返回errno变量                   :    98 (  6.4%)
+使用errors.New                  :    75 (  4.9%)
+
+================================================================================
+二、模块违规统计（Top 10）
+================================================================================
+
+service                                 :   901 ( 59.3%)
+dal                                     :    86 (  5.7%)
+migration                               :    76 (  5.0%)
+repository                              :    64 (  4.2%)
+convert                                 :    35 (  2.3%)
+selector                                :    34 (  2.2%)
+compose                                 :    32 (  2.1%)
+database                                :    31 (  2.0%)
+repo                                    :    31 (  2.0%)
+entity                                  :    23 (  1.5%)
+
+================================================================================
+三、高优先级修复文件（Top 20）
+================================================================================
+
+memory\database\service\database_impl.go: 70 处违规
+org\service\member_profile_service.go: 50 处违规
+org\service\organization_service.go: 35 处违规
+org\service\virtual_organization_service.go: 35 处违规
+org\service\department_service.go: 34 处违规
+org\service\hr_lifecycle_service.go: 33 处违规
+permission\service\role_service.go: 32 处违规
+org\service\employee_service.go: 27 处违规
+workflow\internal\canvas\convert\type_convert.go: 27 处违规
+permission\service\temporary_grant_service.go: 26 处违规
+org\service\matrix_organization_service.go: 25 处违规
+billing\service\payment_service.go: 24 处违规
+workflow\service\executable_impl.go: 24 处违规
+tenant\service\tenant_registration_service.go: 23 处违规
+billing\service\budget_management_service.go: 22 处违规
+workflow\service\service_impl.go: 21 处违规
+billing\service\token_metering_service.go: 19 处违规
+knowledgegraph\service\graph_construction_service.go: 19 处违规
+monitoring\service\alert_service.go: 18 处违规
+digital_employee\dal\dao.go: 17 处违规
+
+================================================================================
+四、修复示例
+================================================================================
+
+示例 1: agent\service\human_review_integration.go:61
+--------------------------------------------------------------------------------
+❌ 原始代码:
+return nil, fmt.Errorf("failed to create bot: %w", err)
+
+✅ 建议代码:
+return errorx.New(errno.ErrInternalCode,
+    errorx.KV("reason", "failed to create bot: %w"),
+    errorx.KV("details", err.Error()),
+)
+
+📍 代码上下文:
+      59: 
+      60: 	if err := s.botRepo.Create(ctx, bot); err != nil {
+>>>   61: 		return nil, fmt.Errorf("failed to create bot: %w", err)
+      62: 	}
+      63: 
+
+================================================================================
+
+示例 2: agent\service\human_review_integration.go:83
+--------------------------------------------------------------------------------
+❌ 原始代码:
+return nil, fmt.Errorf("failed to create review task: %w", err)
+
+✅ 建议代码:
+return errorx.New(errno.ErrInternalCode,
+    errorx.KV("reason", "failed to create review task: %w"),
+    errorx.KV("details", err.Error()),
+)
+
+📍 代码上下文:
+      81: 
+      82: 		if err != nil {
+>>>   83: 			return nil, fmt.Errorf("failed to create review task: %w", err)
+      84: 		}
+      85: 
+
+================================================================================
+
+示例 3: agent\service\human_review_integration.go:123
+--------------------------------------------------------------------------------
+❌ 原始代码:
+return fmt.Errorf("failed to create sensitive content review: %w", err)
+
+✅ 建议代码:
+return errorx.New(errno.ErrInternalCode,
+    errorx.KV("reason", "failed to create sensitive content review: %w"),
+    errorx.KV("details", err.Error()),
+)
+
+📍 代码上下文:
+     121: 
+     122: 		if err != nil {
+>>>  123: 			return fmt.Errorf("failed to create sensitive content review: %w", err)
+     124: 		}
+     125: 	}
+
+================================================================================
+
+示例 4: agent\service\human_review_integration.go:160
+--------------------------------------------------------------------------------
+❌ 原始代码:
+return nil, fmt.Errorf("failed to create validation task: %w", err)
+
+✅ 建议代码:
+return errorx.New(errno.ErrInternalCode,
+    errorx.KV("reason", "failed to create validation task: %w"),
+    errorx.KV("details", err.Error()),
+)
+
+📍 代码上下文:
+     158: 
+     159: 	if err != nil {
+>>>  160: 		return nil, fmt.Errorf("failed to create validation task: %w", err)
+     161: 	}
+     162: 
+
+================================================================================
+
+示例 5: agent\service\human_review_integration.go:167
+--------------------------------------------------------------------------------
+❌ 原始代码:
+return nil, fmt.Errorf("review timeout or failed: %w", err)
+
+✅ 建议代码:
+return errorx.New(errno.ErrInternalCode,
+    errorx.KV("reason", "review timeout or failed: %w"),
+    errorx.KV("details", err.Error()),
+)
+
+📍 代码上下文:
+     165: 	result, err := s.waitForReview(ctx, task.TaskID, 5*60) // 最多等待5分钟
+     166: 	if err != nil {
+>>>  167: 		return nil, fmt.Errorf("review timeout or failed: %w", err)
+     168: 	}
+     169: 
+
+================================================================================

@@ -75,16 +75,16 @@ func (d *DeleteConversation) Invoke(ctx context.Context, in map[string]any) (map
 	)
 
 	if agentID != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, delete conversation is not available"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, delete conversation is not available"))
 	}
 
 	if appID == nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, errors.New("delete conversation node, app id is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, errors.New("delete conversation node, app id is required"))
 	}
 
 	cName, ok := in["conversationName"]
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversation name is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversation name is required"))
 	}
 
 	conversationName := cName.(string)
@@ -99,7 +99,7 @@ func (d *DeleteConversation) Invoke(ctx context.Context, in map[string]any) (map
 	}
 
 	if existed {
-		return nil, vo.WrapError(errno.ErrConversationNodeInvalidOperation, fmt.Errorf("only conversation created through nodes are allowed to be modified or deleted"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodeInvalidOperation, fmt.Errorf("only conversation created through nodes are allowed to be modified or deleted"))
 	}
 
 	dyConversation, existed, err := workflow.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
@@ -108,7 +108,7 @@ func (d *DeleteConversation) Invoke(ctx context.Context, in map[string]any) (map
 	}
 
 	if !existed {
-		return nil, vo.WrapError(errno.ErrConversationOfAppNotFound, fmt.Errorf("the conversation name does not exist: '%v'", conversationName))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationOfAppNotFound, fmt.Errorf("the conversation name does not exist: '%v'", conversationName))
 	}
 
 	_, err = workflow.GetRepository().DeleteDynamicConversation(ctx, env, dyConversation.ID)

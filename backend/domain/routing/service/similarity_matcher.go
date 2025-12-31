@@ -20,8 +20,6 @@ import (
 	"context"
 	"math"
 	"sort"
-
-	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
 )
 
 // EmbeddingClient 向量嵌入客户端接口
@@ -50,8 +48,8 @@ type SimilarityMatcher struct {
 	similarityThreshold float32 // 相似度阈值
 }
 
-// NewSimilarityMatcher 创建相似度匹配器实例
-func NewSimilarityMatcher(
+// NewSimilarityMatcherWithClients 创建相似度匹配器实例（完整版本）
+func NewSimilarityMatcherWithClients(
 	botRepo BotRepository,
 	embeddingClient EmbeddingClient,
 	similarityThreshold float32,
@@ -91,7 +89,7 @@ func (m *SimilarityMatcher) Match(ctx context.Context, input *MatchInput) ([]*Ma
 
 		similarity := cosineSimilarity(userEmbedding, bot.Embedding)
 
-		if similarity >= m.similarityThreshold {
+		if similarity >= float64(m.similarityThreshold) {
 			results = append(results, &MatchOutput{
 				BotID:      bot.BotID,
 				Confidence: similarity,
@@ -139,4 +137,20 @@ func cosineSimilarity(a, b []float32) float64 {
 	}
 
 	return float64(dotProduct / denominator)
+}
+
+// NewSimilarityMatcherThreshold 创建相似度匹配器（仅指定阈值）
+// 使用默认的空实现，实际使用时需要注入真实的 BotRepository 和 EmbeddingClient
+func NewSimilarityMatcherThreshold(threshold float32) *SimilarityMatcher {
+	return &SimilarityMatcher{
+		botRepo:             nil, // 需要后续注入
+		embeddingClient:      nil, // 需要后续注入
+		similarityThreshold:  threshold,
+	}
+}
+
+// NewSimilarityMatcher 创建相似度匹配器（单参数版本）
+// 这是一个便捷函数，用于快速创建匹配器实例
+func NewSimilarityMatcher(threshold float32) *SimilarityMatcher {
+	return NewSimilarityMatcherThreshold(threshold)
 }

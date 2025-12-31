@@ -265,7 +265,7 @@ func (u *userImpl) Create(ctx context.Context, req *CreateUserRequest) (user *us
 			return nil, err
 		}
 		if exist {
-			return nil, errorx.New(errno.ErrUserUniqueNameAlreadyExistCode, errorx.KV("name", req.UniqueName))
+			return nil, errorx.New(errno.ErrUserEmailAlreadyExistCode, errorx.KV("name", req.UniqueName))
 		}
 	}
 

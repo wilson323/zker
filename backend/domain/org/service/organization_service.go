@@ -26,6 +26,7 @@ import (
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // OrganizationService 组织管理服务
@@ -82,12 +83,14 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, req *Creat
 	// 1. 验证租户唯一性
 	orgs, err := s.orgRepo.GetByTenantID(ctx, req.TenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check tenant organizations: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check tenant organizations"),
+            )
 	}
 
 	// 2. 验证组织类型规则
 	if req.OrgType == entity.OrgTypeCompany && len(orgs) > 0 {
-		return nil, errno.ErrTenantAlreadyHasOrg
+		return nil, errorx.NewByErrorCode(errno.ErrTenantAlreadyHasOrg)
 	}
 
 	// 3. 如果有父组织，验证父组织存在且不是公司类型
@@ -98,23 +101,25 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, req *Creat
 	if req.ParentID != nil && *req.ParentID != "" {
 		parent, err = s.orgRepo.GetByID(ctx, *req.ParentID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get parent organization: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get parent organization"),
+            )
 		}
 		if parent == nil {
-			return nil, errno.ErrParentOrgNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrParentOrgNotFound)
 		}
 		if parent.TenantID != req.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 		if parent.OrgType == entity.OrgTypeDepartment {
-			return nil, errno.ErrInvalidParentOrg
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidParentOrg)
 		}
 
 		level = parent.Level + 1
 		path = parent.Path + "/"
 	} else {
 		if req.OrgType != entity.OrgTypeCompany {
-			return nil, errno.ErrRootOrgMustBeCompany
+			return nil, errorx.NewByErrorCode(errno.ErrRootOrgMustBeCompany)
 		}
 		level = 1
 		path = "/"
@@ -123,10 +128,12 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, req *Creat
 	// 4. 验证编码唯一性
 	exists, err := s.orgRepo.ExistsByCode(ctx, req.TenantID, req.OrgCode, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to check org code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check org code"),
+            )
 	}
 	if exists {
-		return nil, errno.ErrOrgCodeAlreadyExists
+		return nil, errorx.NewByErrorCode(errno.ErrOrgCodeAlreadyExists)
 	}
 
 	// 5. 生成组织ID
@@ -154,12 +161,16 @@ func (s *OrganizationService) CreateOrganization(ctx context.Context, req *Creat
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// 创建组织
 		if err := s.orgRepo.Create(ctx, org); err != nil {
-			return fmt.Errorf("failed to create organization: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create organization"),
+            )
 		}
 
 		// 创建闭包表路径
 		if err := s.createOrganizationPaths(ctx, org, parent); err != nil {
-			return fmt.Errorf("failed to create organization paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create organization paths"),
+            )
 		}
 
 		return nil
@@ -188,7 +199,9 @@ func (s *OrganizationService) createOrganizationPaths(ctx context.Context, org *
 	if parent != nil {
 		ancestorPaths, err := s.treeRepo.GetAncestors(ctx, parent.OrgID)
 		if err != nil {
-			return fmt.Errorf("failed to get ancestor paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor paths"),
+            )
 		}
 
 		for _, ancestorPath := range ancestorPaths {
@@ -208,15 +221,17 @@ func (s *OrganizationService) createOrganizationPaths(ctx context.Context, org *
 // GetOrganization 获取组织详情
 func (s *OrganizationService) GetOrganization(ctx context.Context, orgID string) (*entity.Organization, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 
 	return org, nil
@@ -227,10 +242,12 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, req *Updat
 	// 1. 获取组织
 	org, err := s.orgRepo.GetByID(ctx, req.OrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 
 	// 2. 更新字段
@@ -249,14 +266,16 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, req *Updat
 	if req.Status != "" {
 		// 验证状态变更规则
 		if req.Status == entity.OrgStatusFrozen && org.OrgType == entity.OrgTypeCompany {
-			return nil, errno.ErrCannotFreezeRootOrg
+			return nil, errorx.NewByErrorCode(errno.ErrCannotFreezeRootOrg)
 		}
 		org.Status = req.Status
 	}
 
 	// 3. 保存更新
 	if err := s.orgRepo.Update(ctx, org); err != nil {
-		return nil, fmt.Errorf("failed to update organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update organization"),
+            )
 	}
 
 	return org, nil
@@ -265,42 +284,59 @@ func (s *OrganizationService) UpdateOrganization(ctx context.Context, req *Updat
 // DeleteOrganization 删除组织
 func (s *OrganizationService) DeleteOrganization(ctx context.Context, orgID string) error {
 	if orgID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取组织
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to get organization: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return errno.ErrOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "organization not found"),
+                errorx.KV("resource_type", "organization"),
+            )
 	}
 
 	// 2. 检查是否有子组织
 	children, err := s.orgRepo.GetChildren(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to check children: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check children"),
+            )
 	}
 	if len(children) > 0 {
-		return errno.ErrOrgHasChildren
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "OrgHasChildren"),
+            )
 	}
 
 	// 3. 公司类型不能删除
 	if org.OrgType == entity.OrgTypeCompany {
-		return errno.ErrCannotDeleteRootOrg
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "CannotDeleteRootOrg"),
+            )
 	}
 
 	// 4. 使用事务删除组织和路径
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// 软删除组织
 		if err := s.orgRepo.Delete(ctx, orgID); err != nil {
-			return fmt.Errorf("failed to delete organization: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete organization"),
+            )
 		}
 
 		// 删除闭包表路径
 		if err := s.treeRepo.DeletePaths(ctx, orgID); err != nil {
-			return fmt.Errorf("failed to delete organization paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete organization paths"),
+            )
 		}
 
 		return nil
@@ -310,26 +346,37 @@ func (s *OrganizationService) DeleteOrganization(ctx context.Context, orgID stri
 // MoveOrganization 移动组织
 func (s *OrganizationService) MoveOrganization(ctx context.Context, req *MoveOrganizationRequest) error {
 	if req.OrgID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取要移动的组织
 	org, err := s.orgRepo.GetByID(ctx, req.OrgID)
 	if err != nil {
-		return fmt.Errorf("failed to get organization: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return errno.ErrOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "organization not found"),
+                errorx.KV("resource_type", "organization"),
+            )
 	}
 
 	// 2. 验证不能移动到自己
 	if req.NewParentID != nil && *req.NewParentID == org.OrgID {
-		return errno.ErrCannotMoveToSelf
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotMoveToSelf"),
+                )
 	}
 
 	// 3. 验证公司类型不能移动
 	if org.OrgType == entity.OrgTypeCompany {
-		return errno.ErrCannotMoveRootOrg
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "CannotMoveRootOrg"),
+            )
 	}
 
 	// 4. 获取新旧父组织
@@ -340,25 +387,35 @@ func (s *OrganizationService) MoveOrganization(ctx context.Context, req *MoveOrg
 	if req.NewParentID != nil && *req.NewParentID != "" {
 		newParent, err = s.orgRepo.GetByID(ctx, *req.NewParentID)
 		if err != nil {
-			return fmt.Errorf("failed to get new parent: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get new parent"),
+            )
 		}
 		if newParent == nil {
-			return errno.ErrParentOrgNotFound
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "ParentOrgNotFound"),
+            )
 		}
 		if newParent.TenantID != org.TenantID {
-			return errno.ErrTenantMismatch
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "TenantMismatch"),
+            )
 		}
 		if newParent.OrgType == entity.OrgTypeDepartment {
-			return nil, errno.ErrInvalidParentOrg
+			return errorx.NewByErrorCode(errno.ErrInvalidParentOrg)
 		}
 
 		// 验证不能移动到自己的后代
 		isDescendant, err := s.isDescendant(ctx, org.OrgID, newParent.OrgID)
 		if err != nil {
-			return fmt.Errorf("failed to check descendant: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check descendant"),
+            )
 		}
 		if isDescendant {
-			return errno.ErrCannotMoveToDescendant
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotMoveToDescendant"),
+                )
 		}
 
 		newLevel = newParent.Level + 1
@@ -378,12 +435,16 @@ func (s *OrganizationService) MoveOrganization(ctx context.Context, req *MoveOrg
 		org.UpdatedAt = time.Now().UnixMilli()
 
 		if err := s.orgRepo.Update(ctx, org); err != nil {
-			return fmt.Errorf("failed to update organization: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update organization"),
+            )
 		}
 
 		// 更新闭包表路径
 		if err := s.treeRepo.MoveSubtree(ctx, org.OrgID, *req.NewParentID); err != nil {
-			return fmt.Errorf("failed to move subtree: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "move subtree"),
+            )
 		}
 
 		// TODO: 更新所有后代的层级和路径
@@ -412,12 +473,14 @@ func (s *OrganizationService) isDescendant(ctx context.Context, ancestorID, desc
 // GetOrganizationTree 获取组织树
 func (s *OrganizationService) GetOrganizationTree(ctx context.Context, tenantID string) ([]*entity.Organization, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	orgs, err := s.orgRepo.GetTree(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization tree: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization tree"),
+            )
 	}
 
 	// 构建树形结构
@@ -463,7 +526,7 @@ type OrganizationFilter struct {
 // ListOrganizations 分页查询组织列表
 func (s *OrganizationService) ListOrganizations(ctx context.Context, filter *OrganizationFilter) ([]*entity.Organization, int64, error) {
 	if filter.TenantID == "" {
-		return nil, 0, errno.ErrInvalidParam
+		return nil, 0, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 转换为仓储层过滤器
@@ -483,7 +546,9 @@ func (s *OrganizationService) ListOrganizations(ctx context.Context, filter *Org
 
 	orgs, total, err := s.orgRepo.List(ctx, repoFilter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list organizations: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list organizations"),
+            )
 	}
 
 	return orgs, total, nil
@@ -492,12 +557,14 @@ func (s *OrganizationService) ListOrganizations(ctx context.Context, filter *Org
 // GetChildren 获取子组织
 func (s *OrganizationService) GetChildren(ctx context.Context, parentID string) ([]*entity.Organization, error) {
 	if parentID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	orgs, err := s.orgRepo.GetChildren(ctx, parentID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get children: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get children"),
+            )
 	}
 
 	return orgs, nil
@@ -506,12 +573,14 @@ func (s *OrganizationService) GetChildren(ctx context.Context, parentID string) 
 // GetAncestors 获取组织的所有祖先
 func (s *OrganizationService) GetAncestors(ctx context.Context, orgID string) ([]*entity.Organization, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	paths, err := s.treeRepo.GetAncestors(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ancestor paths: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor paths"),
+            )
 	}
 
 	// 转换为组织实体
@@ -520,7 +589,9 @@ func (s *OrganizationService) GetAncestors(ctx context.Context, orgID string) ([
 		if path.Depth > 0 { // 排除自己
 			org, err := s.orgRepo.GetByID(ctx, path.AncestorID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get ancestor organization: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor organization"),
+            )
 			}
 			if org != nil {
 				ancestors = append(ancestors, org)
@@ -534,12 +605,14 @@ func (s *OrganizationService) GetAncestors(ctx context.Context, orgID string) ([
 // GetDescendants 获取组织的所有后代
 func (s *OrganizationService) GetDescendants(ctx context.Context, orgID string) ([]*entity.Organization, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	paths, err := s.treeRepo.GetDescendants(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get descendant paths: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get descendant paths"),
+            )
 	}
 
 	// 转换为组织实体
@@ -548,7 +621,9 @@ func (s *OrganizationService) GetDescendants(ctx context.Context, orgID string) 
 		if path.Depth > 0 { // 排除自己
 			org, err := s.orgRepo.GetByID(ctx, path.DescendantID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get descendant organization: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get descendant organization"),
+            )
 			}
 			if org != nil {
 				descendants = append(descendants, org)
@@ -557,9 +632,4 @@ func (s *OrganizationService) GetDescendants(ctx context.Context, orgID string) 
 	}
 
 	return descendants, nil
-}
-
-// generateUUID 生成UUID
-func generateUUID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
 }

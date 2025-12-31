@@ -7,7 +7,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"gorm.io/gorm"
 )
 
@@ -363,7 +365,7 @@ func (s *migrationServiceImpl) GetProgress(ctx context.Context, migrationID stri
 		record = &MigrationRecord{}
 		err := s.db.Where("migration_id = ?", migrationID).First(record).Error
 		if err != nil {
-			return nil, fmt.Errorf("迁移记录不存在: %s", migrationID)
+			return nil, errorx.WrapByCode(err, errno.ErrTenantMigrationRecordNotFoundCode, errorx.KV("migration_id", migrationID))
 		}
 
 		s.mu.Lock()
@@ -396,7 +398,7 @@ func (s *migrationServiceImpl) Rollback(ctx context.Context, migrationID string)
 	}
 
 	if record.Status == "rolled_back" {
-		return fmt.Errorf("迁移已经回滚")
+		return errorx.New(errno.ErrTenantMigrationAlreadyRolledBackCode)
 	}
 
 	// 2. 从配置中获取表名
@@ -435,7 +437,7 @@ func (s *migrationServiceImpl) Validate(ctx context.Context, migrationID string)
 	}
 
 	if record.Status != "completed" {
-		return fmt.Errorf("迁移尚未完成，当前状态: %s", record.Status)
+		return errorx.WrapByCode(fmt.Errorf("migration not complete, status=%s", record.Status), errno.ErrTenantMigrationNotCompleteCode, errorx.KV("status", record.Status))
 	}
 
 	// 2. 验证数据完整性
@@ -481,7 +483,7 @@ func (s *migrationServiceImpl) getMigrationRecord(migrationID string) (*Migratio
 		record = &MigrationRecord{}
 		err := s.db.Where("migration_id = ?", migrationID).First(record).Error
 		if err != nil {
-			return nil, fmt.Errorf("迁移记录不存在: %s", migrationID)
+			return nil, errorx.WrapByCode(err, errno.ErrTenantMigrationRecordNotFoundCode, errorx.KV("migration_id", migrationID))
 		}
 
 		s.mu.Lock()

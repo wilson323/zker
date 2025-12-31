@@ -24,6 +24,8 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // RoleService 角色管理服务
@@ -83,10 +85,16 @@ func (s *RoleService) CreateRole(ctx context.Context, req *CreateRoleRequest) (*
 	// 1. 检查角色编码是否已存在
 	existing, err := s.roleRepo.GetByCode(ctx, req.TenantID, req.RoleCode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to check role code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to check role code"),
+            )
 	}
 	if existing != nil {
-		return nil, fmt.Errorf("role code %s already exists", req.RoleCode)
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("field", "role_code"),
+                errorx.KV("value", req.RoleCode),
+                errorx.KV("reason", "already exists"),
+            )
 	}
 
 	// 2. 创建角色
@@ -101,7 +109,9 @@ func (s *RoleService) CreateRole(ctx context.Context, req *CreateRoleRequest) (*
 	}
 
 	if err := s.roleRepo.Create(ctx, role); err != nil {
-		return nil, fmt.Errorf("failed to create role: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to create role"),
+            )
 	}
 
 	// 3. 创建数据权限
@@ -114,7 +124,9 @@ func (s *RoleService) CreateRole(ctx context.Context, req *CreateRoleRequest) (*
 			CustomFilter: dataPermReq.CustomFilter,
 		}
 		if err := s.dataPermRepo.Create(ctx, dataPerm); err != nil {
-			return nil, fmt.Errorf("failed to create data permission: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to create data permission"),
+            )
 		}
 	}
 
@@ -128,7 +140,9 @@ func (s *RoleService) CreateRole(ctx context.Context, req *CreateRoleRequest) (*
 			PermissionLevel: fieldPermReq.PermissionLevel,
 		}
 		if err := s.fieldPermRepo.Create(ctx, fieldPerm); err != nil {
-			return nil, fmt.Errorf("failed to create field permission: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to create field permission"),
+            )
 		}
 	}
 
@@ -140,10 +154,16 @@ func (s *RoleService) CreateRole(ctx context.Context, req *CreateRoleRequest) (*
 func (s *RoleService) GetRole(ctx context.Context, roleID string) (*entity.Role, error) {
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get role: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get role"),
+            )
 	}
 	if role == nil {
-		return nil, fmt.Errorf("role not found: %s", roleID)
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("resource", "role"),
+                errorx.KV("role_id", roleID),
+                errorx.KV("reason", "not found"),
+            )
 	}
 
 	// 加载数据权限和字段权限
@@ -170,15 +190,23 @@ func (s *RoleService) UpdateRole(ctx context.Context, req *UpdateRoleRequest) (*
 	// 1. 获取现有角色
 	role, err := s.roleRepo.GetByID(ctx, req.RoleID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get role: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get role"),
+            )
 	}
 	if role == nil {
-		return nil, fmt.Errorf("role not found: %s", req.RoleID)
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("resource", "role"),
+                errorx.KV("role_id", req.RoleID),
+                errorx.KV("reason", "not found"),
+            )
 	}
 
 	// 2. 系统角色不允许修改核心属性
 	if role.IsSystemRole() && len(req.DataPerms) > 0 {
-		return nil, fmt.Errorf("cannot modify system role permissions")
+		return nil, errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "cannot modify system role permissions"),
+            )
 	}
 
 	// 3. 更新基本信息
@@ -190,13 +218,17 @@ func (s *RoleService) UpdateRole(ctx context.Context, req *UpdateRoleRequest) (*
 	}
 
 	if err := s.roleRepo.Update(ctx, role); err != nil {
-		return nil, fmt.Errorf("failed to update role: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to update role"),
+            )
 	}
 
 	// 4. 更新数据权限（先删除旧的，再创建新的）
 	if len(req.DataPerms) > 0 {
 		if err := s.dataPermRepo.DeleteByRole(ctx, req.RoleID); err != nil {
-			return nil, fmt.Errorf("failed to delete old data permissions: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete old data permissions"),
+            )
 		}
 
 		for _, dataPermReq := range req.DataPerms {
@@ -208,7 +240,9 @@ func (s *RoleService) UpdateRole(ctx context.Context, req *UpdateRoleRequest) (*
 				CustomFilter: dataPermReq.CustomFilter,
 			}
 			if err := s.dataPermRepo.Create(ctx, dataPerm); err != nil {
-				return nil, fmt.Errorf("failed to create data permission: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to create data permission"),
+            )
 			}
 		}
 	}
@@ -216,7 +250,9 @@ func (s *RoleService) UpdateRole(ctx context.Context, req *UpdateRoleRequest) (*
 	// 5. 更新字段权限
 	if len(req.FieldPerms) > 0 {
 		if err := s.fieldPermRepo.DeleteByRole(ctx, req.RoleID); err != nil {
-			return nil, fmt.Errorf("failed to delete old field permissions: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete old field permissions"),
+            )
 		}
 
 		for _, fieldPermReq := range req.FieldPerms {
@@ -228,7 +264,9 @@ func (s *RoleService) UpdateRole(ctx context.Context, req *UpdateRoleRequest) (*
 				PermissionLevel: fieldPermReq.PermissionLevel,
 			}
 			if err := s.fieldPermRepo.Create(ctx, fieldPerm); err != nil {
-				return nil, fmt.Errorf("failed to create field permission: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to create field permission"),
+            )
 			}
 		}
 	}
@@ -242,35 +280,51 @@ func (s *RoleService) DeleteRole(ctx context.Context, roleID string) error {
 	// 1. 获取角色
 	role, err := s.roleRepo.GetByID(ctx, roleID)
 	if err != nil {
-		return fmt.Errorf("failed to get role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get role"),
+            )
 	}
 	if role == nil {
-		return fmt.Errorf("role not found: %s", roleID)
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("resource", "role"),
+                errorx.KV("role_id", roleID),
+                errorx.KV("reason", "not found"),
+            )
 	}
 
 	// 2. 系统角色不允许删除
 	if role.IsSystemRole() {
-		return fmt.Errorf("cannot delete system role")
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "cannot delete system role"),
+            )
 	}
 
 	// 3. 删除角色的用户关联
 	if err := s.userRoleRepo.DeleteByRole(ctx, roleID); err != nil {
-		return fmt.Errorf("failed to delete user role associations: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete user role associations"),
+            )
 	}
 
 	// 4. 删除数据权限
 	if err := s.dataPermRepo.DeleteByRole(ctx, roleID); err != nil {
-		return fmt.Errorf("failed to delete data permissions: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete data permissions"),
+            )
 	}
 
 	// 5. 删除字段权限
 	if err := s.fieldPermRepo.DeleteByRole(ctx, roleID); err != nil {
-		return fmt.Errorf("failed to delete field permissions: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete field permissions"),
+            )
 	}
 
 	// 6. 软删除角色
 	if err := s.roleRepo.Delete(ctx, roleID); err != nil {
-		return fmt.Errorf("failed to delete role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to delete role"),
+            )
 	}
 
 	return nil
@@ -295,7 +349,9 @@ func (s *RoleService) ListRoles(ctx context.Context, req *ListRolesRequest) ([]*
 
 	roles, total, err := s.roleRepo.List(ctx, filter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list roles: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "failed to list roles"),
+            )
 	}
 
 	return roles, total, nil
@@ -313,19 +369,29 @@ func (s *RoleService) AssignRole(ctx context.Context, req *AssignRoleRequest) er
 	// 1. 检查角色是否存在
 	role, err := s.roleRepo.GetByID(ctx, req.RoleID)
 	if err != nil {
-		return fmt.Errorf("failed to get role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get role"),
+            )
 	}
 	if role == nil {
-		return fmt.Errorf("role not found: %s", req.RoleID)
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("resource", "role"),
+                errorx.KV("role_id", req.RoleID),
+                errorx.KV("reason", "not found"),
+            )
 	}
 
 	// 2. 检查是否已经分配
 	exists, err := s.userRoleRepo.Exists(ctx, req.UserID, req.TenantID, req.RoleID)
 	if err != nil {
-		return fmt.Errorf("failed to check role assignment: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to check role assignment"),
+            )
 	}
 	if exists {
-		return fmt.Errorf("role already assigned to user")
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "role already assigned to user"),
+            )
 	}
 
 	// 3. 创建用户角色关联
@@ -336,7 +402,9 @@ func (s *RoleService) AssignRole(ctx context.Context, req *AssignRoleRequest) er
 	}
 
 	if err := s.userRoleRepo.Create(ctx, userRole); err != nil {
-		return fmt.Errorf("failed to assign role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to assign role"),
+            )
 	}
 
 	return nil
@@ -345,7 +413,9 @@ func (s *RoleService) AssignRole(ctx context.Context, req *AssignRoleRequest) er
 // RevokeRole 撤销用户的角色
 func (s *RoleService) RevokeRole(ctx context.Context, userID, tenantID, roleID string) error {
 	if err := s.userRoleRepo.Delete(ctx, userID, tenantID, roleID); err != nil {
-		return fmt.Errorf("failed to revoke role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to revoke role"),
+            )
 	}
 	return nil
 }
@@ -354,7 +424,9 @@ func (s *RoleService) RevokeRole(ctx context.Context, userID, tenantID, roleID s
 func (s *RoleService) GetUserRoles(ctx context.Context, userID, tenantID string) ([]*entity.Role, error) {
 	roles, err := s.userRoleRepo.GetRolesByUser(ctx, userID, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user roles: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "failed to get user roles"),
+            )
 	}
 	return roles, nil
 }
@@ -450,17 +522,26 @@ func (s *RoleService) InitializeSystemRoles(ctx context.Context, tenantID string
 	// 3. 批量创建角色
 	for _, role := range roles {
 		if err := s.roleRepo.Create(ctx, role); err != nil {
-			return fmt.Errorf("创建系统角色失败 %s: %w", role.RoleCode, err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "创建系统角色失败"),
+                errorx.KV("role_code", role.RoleCode),
+            )
 		}
 
 		// 4. 为每个角色初始化数据权限
 		if err := s.initializeDataPermissions(ctx, role); err != nil {
-			return fmt.Errorf("初始化角色数据权限失败 %s: %w", role.RoleCode, err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "初始化角色数据权限失败"),
+                errorx.KV("role_code", role.RoleCode),
+            )
 		}
 
 		// 5. 为每个角色初始化字段权限
 		if err := s.initializeFieldPermissions(ctx, role); err != nil {
-			return fmt.Errorf("初始化角色字段权限失败 %s: %w", role.RoleCode, err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "初始化角色字段权限失败"),
+                errorx.KV("role_code", role.RoleCode),
+            )
 		}
 	}
 

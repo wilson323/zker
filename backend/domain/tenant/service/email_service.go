@@ -145,3 +145,29 @@ func (s *EmailService) SendPaymentSuccessEmail(ctx context.Context, to, invoiceN
 	// TODO: 实现支付成功邮件发送
 	return nil
 }
+
+// SendApprovalEmail 发送审核通过邮件
+func (s *EmailService) SendApprovalEmail(ctx context.Context, to, tenantName string) error {
+	if !s.enabled {
+		return nil
+	}
+
+	_ = "租户审核通过通知" // subject (TODO: 实际发送时使用)
+	logs.Infof("Sending approval email to %s for tenant: %s", to, tenantName)
+
+	// TODO: 实现审核通过邮件发送
+	return nil
+}
+
+// SendRejectionEmail 发送审核拒绝邮件
+func (s *EmailService) SendRejectionEmail(ctx context.Context, to, tenantName, reason string) error {
+	if !s.enabled {
+		return nil
+	}
+
+	_ = "租户审核拒绝通知" // subject (TODO: 实际发送时使用)
+	logs.Infof("Sending rejection email to %s for tenant: %s, reason: %s", to, tenantName, reason)
+
+	// TODO: 实现审核拒绝邮件发送
+	return nil
+}

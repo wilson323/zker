@@ -19,14 +19,11 @@ package health
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"runtime/debug"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-
-	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 )
 
 var (
@@ -183,8 +180,8 @@ func VersionHandler(ctx context.Context, c *app.RequestContext) {
 	c.JSON(consts.StatusOK, map[string]interface{}{
 		"version":      globalHealthService.version,
 		"go_version":   info.GoVersion,
-		"build_time":   getBuildTime(info),
-		"git_commit":   getGitCommit(info),
+		"build_time":   getBuildTime(*info),
+		"git_commit":   getGitCommit(*info),
 		"git_summary":  info.Main.Version,
 		"uptime":       int64(time.Since(globalHealthService.startTime).Seconds()),
 		"timestamp":    time.Now().UnixMilli(),

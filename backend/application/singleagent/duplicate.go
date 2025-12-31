@@ -82,8 +82,8 @@ func (s *SingleAgentApplicationService) DuplicateDraftBot(ctx context.Context, r
 	err = s.appContext.EventBus.PublishProject(ctx, &searchEntity.ProjectDomainEvent{
 		OpType: searchEntity.Created,
 		Project: &searchEntity.ProjectDocument{
-			Status:  intelligence.IntelligenceStatus_Using,
-			Type:    intelligence.IntelligenceType_Bot,
+			Status:  ConvertIntelligenceStatusFromAPI(intelligence.IntelligenceStatus_Using),
+			Type:    ConvertIntelligenceTypeFromAPI(intelligence.IntelligenceType_Bot),
 			ID:      newAgent.AgentID,
 			SpaceID: &req.SpaceID,
 			OwnerID: &userID,

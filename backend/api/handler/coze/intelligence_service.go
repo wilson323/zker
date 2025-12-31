@@ -26,6 +26,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/app/intelligence"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/app/intelligence/common"
 	project "github.com/coze-dev/coze-studio/backend/api/model/app/intelligence/project"
 	publish "github.com/coze-dev/coze-studio/backend/api/model/app/intelligence/publish"
@@ -41,17 +42,17 @@ func GetDraftIntelligenceList(ctx context.Context, c *app.RequestContext) {
 	var req intelligence.GetDraftIntelligenceListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := search.SearchSVC.GetDraftIntelligenceList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDraftIntelligenceInfo .
@@ -61,26 +62,26 @@ func GetDraftIntelligenceInfo(ctx context.Context, c *app.RequestContext) {
 	var req intelligence.GetDraftIntelligenceInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.IntelligenceID <= 0 {
-		invalidParamRequestResponse(c, "invalid intelligence id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid intelligence id", "参数验证失败", nil)
 		return
 	}
 	if req.IntelligenceType != common.IntelligenceType_Project {
-		invalidParamRequestResponse(c, fmt.Sprintf("invalid intelligence type '%d'", req.IntelligenceType))
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, fmt.Sprintf("invalid intelligence type '%d'", req.IntelligenceType, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.GetDraftIntelligenceInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetUserRecentlyEditIntelligence .
@@ -96,7 +97,7 @@ func GetUserRecentlyEditIntelligence(ctx context.Context, c *app.RequestContext)
 
 	resp := new(intelligence.GetUserRecentlyEditIntelligenceResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DraftProjectCreate .
@@ -106,30 +107,30 @@ func DraftProjectCreate(ctx context.Context, c *app.RequestContext) {
 	var req project.DraftProjectCreateRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "invalid space id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid space id", "参数验证失败", nil)
 		return
 	}
 	if req.Name == "" || len(req.Name) > 256 {
-		invalidParamRequestResponse(c, "invalid name")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid name", "参数验证失败", nil)
 		return
 	}
 	if req.IconURI == "" || len(req.IconURI) > 512 {
-		invalidParamRequestResponse(c, "invalid icon uri")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid icon uri", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.DraftProjectCreate(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DraftProjectUpdate .
@@ -139,30 +140,30 @@ func DraftProjectUpdate(ctx context.Context, c *app.RequestContext) {
 	var req project.DraftProjectUpdateRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 	if req.Name != nil && (len(*req.Name) == 0 || len(*req.Name) > 256) {
-		invalidParamRequestResponse(c, "invalid name")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid name", "参数验证失败", nil)
 		return
 	}
 	if req.IconURI != nil && (len(*req.IconURI) == 0 || len(*req.IconURI) > 512) {
-		invalidParamRequestResponse(c, "invalid icon uri")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid icon uri", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.DraftProjectUpdate(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DraftProjectDelete .
@@ -172,22 +173,22 @@ func DraftProjectDelete(ctx context.Context, c *app.RequestContext) {
 	var req project.DraftProjectDeleteRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.DraftProjectDelete(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetProjectPublishedConnector .
@@ -203,7 +204,7 @@ func GetProjectPublishedConnector(ctx context.Context, c *app.RequestContext) {
 
 	resp := new(publish.GetProjectPublishedConnectorResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CheckProjectVersionNumber .
@@ -213,26 +214,26 @@ func CheckProjectVersionNumber(ctx context.Context, c *app.RequestContext) {
 	var req publish.CheckProjectVersionNumberRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 	if req.VersionNumber == "" {
-		invalidParamRequestResponse(c, "invalid version number")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid version number", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.CheckProjectVersionNumber(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublishProject .
@@ -242,26 +243,26 @@ func PublishProject(ctx context.Context, c *app.RequestContext) {
 	var req publish.PublishProjectRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 	if req.VersionNumber == "" {
-		invalidParamRequestResponse(c, "invalid version number")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid version number", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.PublishAPP(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPublishRecordList .
@@ -271,22 +272,22 @@ func GetPublishRecordList(ctx context.Context, c *app.RequestContext) {
 	var req publish.GetPublishRecordListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.GetPublishRecordList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ProjectPublishConnectorList .
@@ -296,22 +297,22 @@ func ProjectPublishConnectorList(ctx context.Context, c *app.RequestContext) {
 	var req publish.PublishConnectorListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.ProjectPublishConnectorList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetPublishRecordDetail .
@@ -321,26 +322,26 @@ func GetPublishRecordDetail(ctx context.Context, c *app.RequestContext) {
 	var req publish.GetPublishRecordDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 	if req.PublishRecordID != nil && *req.PublishRecordID <= 0 {
-		invalidParamRequestResponse(c, "invalid publish record id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid publish record id", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.GetPublishRecordDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DraftProjectInnerTaskList .
@@ -350,22 +351,22 @@ func DraftProjectInnerTaskList(ctx context.Context, c *app.RequestContext) {
 	var req task.DraftProjectInnerTaskListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.DraftProjectInnerTaskList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DraftProjectCopy .
@@ -375,34 +376,34 @@ func DraftProjectCopy(ctx context.Context, c *app.RequestContext) {
 	var req project.DraftProjectCopyRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ProjectID <= 0 {
-		invalidParamRequestResponse(c, "invalid project id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid project id", "参数验证失败", nil)
 		return
 	}
 	if req.ToSpaceID <= 0 {
-		invalidParamRequestResponse(c, "invalid to space id")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid to space id", "参数验证失败", nil)
 		return
 	}
 	if req.Name == "" || len(req.Name) > 256 {
-		invalidParamRequestResponse(c, "invalid name")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid name", "参数验证失败", nil)
 		return
 	}
 	if req.IconURI == "" || len(req.IconURI) > 512 {
-		invalidParamRequestResponse(c, "invalid icon uri")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "invalid icon uri", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := appApplication.APPApplicationSVC.DraftProjectCopy(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetOnlineAppData .
@@ -418,9 +419,9 @@ func GetOnlineAppData(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := appApplication.APPApplicationSVC.GetOnlineAppData(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

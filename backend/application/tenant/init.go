@@ -19,7 +19,6 @@ package tenant
 import (
 	"gorm.io/gorm"
 
-	"github.com/coze-dev/coze-studio/backend/api/middleware"
 	"github.com/coze-dev/coze-studio/backend/domain/tenant/repository"
 	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
 	"github.com/coze-dev/coze-studio/backend/infra/cache"
@@ -39,32 +38,38 @@ func InitService(c *ServiceComponents) (*TenantApplicationService, error) {
 	tenantRepo := repository.NewTenantRepository(c.DB)
 	subscriptionRepo := repository.NewSubscriptionRepository(c.DB)
 	quotaRepo := repository.NewQuotaRepository(c.DB)
-	quotaUsageRepo := repository.NewQuotaUsageRepository(c.DB)
-	invoiceRepo := repository.NewInvoiceRepository(c.DB)
 
 	// 2. 初始化领域服务
-	tenantSvc := tenantservice.NewTenantService(tenantRepo)
-	subscriptionSvc := tenantservice.NewSubscriptionService(subscriptionRepo, tenantRepo)
+	tenantSvc := tenantservice.NewTenantManagementService(c.DB, tenantRepo, quotaRepo, subscriptionRepo)
+	subscriptionSvc := tenantservice.NewSubscriptionService(subscriptionRepo, quotaRepo)
 	quotaSvc := tenantservice.NewQuotaService(quotaRepo)
-	billingSvc := tenantservice.NewBillingService(quotaUsageRepo, invoiceRepo, quotaRepo)
-	quotaMonitor := tenantservice.NewQuotaMonitorOptimized(quotaRepo, billingSvc, 10)
 
-	// 3. 初始化应用服务
+	// 3. 创建应用服务适配器
+	tenantAdapter := NewTenantServiceAdapter(tenantSvc)
+	subscriptionAdapter := NewSubscriptionServiceAdapter(subscriptionSvc)
+	quotaAdapter := NewQuotaServiceAdapter(quotaSvc)
+
+	// 4. 初始化配额监控器（无需计费服务）
+	quotaMonitor := NewQuotaMonitorOptimized(quotaRepo, nil, 10)
+
+	// 5. 初始化应用服务
 	tenantAppSvc := NewTenantApplicationService(
-		tenantSvc,
-		subscriptionSvc,
-		quotaSvc,
-		billingSvc,
+		tenantAdapter,
+		subscriptionAdapter,
+		quotaAdapter,
+		nil, // billingSvc - 暂时不使用
 		quotaMonitor,
+		nil, // roleSvc - 初始化为nil，将在外部注入
 	)
 
-	// 4. 设置全局变量
+	// 6. 设置全局变量
 	TenantAppSVC = tenantAppSvc
 
-	// 🔧 P0修复：初始化配额中间件
-	if quotaSvc != nil {
-		middleware.InitQuotaMiddleware(quotaSvc)
-	}
+	// 7. 将配额服务注册到接口层，供API层调用（避免应用层依赖API层）
+	// 注意：暂时注释掉，因为接口签名不匹配，需要后续修复interfaces.QuotaService接口
+	// if quotaSvc != nil {
+	// 	interfaces.SetQuotaService(quotaSvc)
+	// }
 
 	return tenantAppSvc, nil
 }

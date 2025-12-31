@@ -31,6 +31,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/app/developer_api"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/application/base/ctxutil"
 	"github.com/coze-dev/coze-studio/backend/application/modelmgr"
 	"github.com/coze-dev/coze-studio/backend/application/singleagent"
@@ -49,42 +50,42 @@ func DraftBotCreate(ctx context.Context, c *app.RequestContext) {
 	var req developer_api.DraftBotCreateRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.SpaceID <= 0 {
-		invalidParamRequestResponse(c, "space id is not set")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "space id is not set", "参数验证失败", nil)
 		return
 	}
 
 	if req.Name == "" {
-		invalidParamRequestResponse(c, "name is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "name is nil", "参数验证失败", nil)
 		return
 	}
 
 	if req.IconURI == "" {
-		invalidParamRequestResponse(c, "icon uri is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "icon uri is nil", "参数验证失败", nil)
 		return
 	}
 
 	if utf8.RuneCountInString(req.Name) > 50 {
-		invalidParamRequestResponse(c, "name is too long")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "name is too long", "参数验证失败", nil)
 		return
 	}
 
 	if utf8.RuneCountInString(req.Description) > 2000 {
-		invalidParamRequestResponse(c, "description is too long")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "description is too long", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := application.SingleAgentSVC.CreateSingleAgentDraft(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteDraftBot .
@@ -94,17 +95,17 @@ func DeleteDraftBot(ctx context.Context, c *app.RequestContext) {
 	var req developer_api.DeleteDraftBotRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.SingleAgentSVC.DeleteAgentDraft(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateDraftBotDisplayInfo .
@@ -120,11 +121,11 @@ func UpdateDraftBotDisplayInfo(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := application.SingleAgentSVC.UpdateAgentDraftDisplayInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DuplicateDraftBot .
@@ -134,17 +135,17 @@ func DuplicateDraftBot(ctx context.Context, c *app.RequestContext) {
 	var req developer_api.DuplicateDraftBotRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.SingleAgentSVC.DuplicateDraftBot(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDraftBotDisplayInfo .
@@ -160,11 +161,11 @@ func GetDraftBotDisplayInfo(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := application.SingleAgentSVC.GetAgentDraftDisplayInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublishDraftBot .
@@ -179,17 +180,17 @@ func PublishDraftBot(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if len(req.Connectors) == 0 {
-		invalidParamRequestResponse(c, "connectors is nil")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "connectors is nil", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := application.SingleAgentSVC.PublishAgent(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListDraftBotHistory .
@@ -204,7 +205,7 @@ func ListDraftBotHistory(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 {
-		invalidParamRequestResponse(c, "bot id is not set")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot id is not set", "参数验证失败", nil)
 		return
 	}
 
@@ -218,11 +219,11 @@ func ListDraftBotHistory(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := application.SingleAgentSVC.ListAgentPublishHistory(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetIcon .
@@ -232,17 +233,17 @@ func GetIcon(ctx context.Context, c *app.RequestContext) {
 	var req developer_api.GetIconRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := upload.SVC.GetIcon(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetUploadAuthToken .
@@ -258,10 +259,10 @@ func GetUploadAuthToken(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := application.SingleAgentSVC.GetUploadAuthToken(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func createSecret(uid int64, fileType string) string {
@@ -296,7 +297,7 @@ func UploadFile(ctx context.Context, c *app.RequestContext) {
 	resp := new(developer_api.UploadFileResponse)
 	fileContent, err := base64.StdEncoding.DecodeString(req.Data)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	userID := ctxutil.GetUIDFromCtx(ctx)
@@ -309,11 +310,11 @@ func UploadFile(ctx context.Context, c *app.RequestContext) {
 	objectName := fmt.Sprintf("%s/%s", req.FileHead.BizType.String(), fileName)
 	resp, err = upload.SVC.UploadFile(ctx, fileContent, objectName)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 const baseWord = "1Aa2Bb3Cc4Dd5Ee6Ff7Gg8Hh9Ii0JjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz"
@@ -331,7 +332,7 @@ func GetOnboarding(ctx context.Context, c *app.RequestContext) {
 
 	resp := new(developer_api.GetOnboardingResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublishConnectorList .
@@ -346,17 +347,17 @@ func PublishConnectorList(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if req.BotID == 0 {
-		invalidParamRequestResponse(c, "bot id is not set")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "bot id is not set", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.GetPublishConnectorList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CheckDraftBotCommit .
@@ -371,7 +372,7 @@ func CheckDraftBotCommit(ctx context.Context, c *app.RequestContext) {
 
 	}
 	resp := new(developer_api.CheckDraftBotCommitResponse)
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateUserProfileCheck .
@@ -387,11 +388,11 @@ func UpdateUserProfileCheck(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := user.UserApplicationSVC.UpdateUserProfileCheck(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetTypeList .
@@ -407,9 +408,9 @@ func GetTypeList(ctx context.Context, c *app.RequestContext) {
 
 	resp, err := modelmgr.ModelmgrApplicationSVC.GetModelList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

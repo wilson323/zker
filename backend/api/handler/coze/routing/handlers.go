@@ -29,22 +29,18 @@ type RoutingHandlers struct {
 	RoutingRuleConfig  *RoutingRuleConfigHandler
 	ABTest             *ABTestHandler
 	RoutingLearning    *RoutingLearningHandler
+	RoutingMonitoring  *RoutingMonitoringHandler
 }
 
 // NewRoutingHandlers 创建路由模块的所有Handler实例
-func NewRoutingHandlers(
-	intentService *routingapp.IntentRecognitionService,
-	optimizerService *routingapp.RoutingOptimizerService,
-	ruleConfigService *routingapp.RoutingRuleConfigService,
-	abTestService *routingapp.ABTestService,
-	learningService *routingapp.RoutingLearningService,
-	logger *zap.Logger,
-) *RoutingHandlers {
+// 使用应用层初始化的全局服务实例
+func NewRoutingHandlers(logger *zap.Logger) *RoutingHandlers {
 	return &RoutingHandlers{
-		IntentRecognition:  NewIntentRecognitionHandler(intentService, logger),
-		RoutingOptimizer:    NewRoutingOptimizerHandler(optimizerService, logger),
-		RoutingRuleConfig:  NewRoutingRuleConfigHandler(ruleConfigService, logger),
-		ABTest:             NewABTestHandler(abTestService, logger),
-		RoutingLearning:    NewRoutingLearningHandler(learningService, logger),
+		IntentRecognition:  NewIntentRecognitionHandler(routingapp.IntentRecognitionSVC, logger),
+		RoutingOptimizer:    NewRoutingOptimizerHandler(routingapp.RoutingOptimizerSVC, logger),
+		RoutingRuleConfig:  NewRoutingRuleConfigHandler(routingapp.RoutingRuleConfigSVC, logger),
+		ABTest:             NewABTestHandler(routingapp.ABTestSVC, logger),
+		RoutingLearning:    NewRoutingLearningHandler(routingapp.RoutingLearningSVC, logger),
+		RoutingMonitoring:  NewRoutingMonitoringHandler(routingapp.Handler, routingapp.ABTestSVC, routingapp.RoutingLearningSVC, routingapp.LoadMonitor, routingapp.AdvancedLoadBalancer),
 	}
 }

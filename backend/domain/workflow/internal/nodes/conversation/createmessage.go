@@ -83,7 +83,7 @@ func (c *CreateMessage) getConversationIDByName(ctx context.Context, env vo.Env,
 		Version: ptr.Of(version),
 	})
 	if err != nil {
-		return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	conversationIDGenerator := workflow.ConversationIDGenerator(func(ctx context.Context, appID int64, userID, connectorID int64) (*conventity.Conversation, error) {
@@ -104,13 +104,13 @@ func (c *CreateMessage) getConversationIDByName(ctx context.Context, env vo.Env,
 			ConnectorID: connectorID,
 		})
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		conversationID = cID
 	} else {
 		dc, _, err := workflow.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return 0, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		if dc != nil {
 			conversationID = dc.ConversationID
@@ -132,20 +132,20 @@ func (c *CreateMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 
 	conversationName, ok := input["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversationName is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversationName is required"))
 	}
 
 	role, ok := input["role"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("role is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("role is required"))
 	}
 	if role != "user" && role != "assistant" {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("role must be user or assistant"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("role must be user or assistant"))
 	}
 
 	content, ok := input["content"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("content is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("content is required"))
 	}
 
 	var conversationID int64
@@ -153,7 +153,7 @@ func (c *CreateMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 	var bizID int64
 	if appID == nil {
 		if conversationName != "Default" {
-			return nil, vo.WrapError(errno.ErrOnlyDefaultConversationAllowInAgentScenario, errors.New("conversation node only allow in application"))
+			return nil, vo.WrapError(errno.DeprecatedErrOnlyDefaultConversationAllowInAgentScenario, errors.New("conversation node only allow in application"))
 		}
 		if agentID == nil || execCtx.ExeCfg.ConversationID == nil {
 			return map[string]any{
@@ -196,7 +196,7 @@ func (c *CreateMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 		if execCtx.ExeCfg.SectionID != nil {
 			sectionID = *execCtx.ExeCfg.SectionID
 		} else {
-			return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("section id is required"))
+			return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("section id is required"))
 		}
 	} else {
 		cInfo, err := crossconversation.DefaultSVC().GetByID(ctx, conversationID)
@@ -261,7 +261,7 @@ func (c *CreateMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 				SectionID:      sectionID,
 			})
 			if err != nil {
-				return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+				return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 			}
 			runID = runRecord.ID
 		}
@@ -284,7 +284,7 @@ func (c *CreateMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 	}
 	msg, err := crossmessage.DefaultSVC().Create(ctx, message)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	messageOutput := map[string]any{

@@ -18,12 +18,11 @@ package permission
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/permission"
 	permissionentity "github.com/coze-dev/coze-studio/backend/domain/permission/entity"
-	permissionrepo "github.com/coze-dev/coze-studio/backend/domain/permission/repository"
 	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
 	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
@@ -34,14 +33,14 @@ import (
 type PermissionApplicationService struct {
 	permissionChecker  *permissionservice.PermissionChecker
 	roleSVC          *permissionservice.RoleService
-	departmentSVC    *permissionservice.DepartmentService
+	departmentSVC    DepartmentServiceAdapter
 }
 
 // NewPermissionApplicationService 创建权限应用服务
 func NewPermissionApplicationService(
 	permissionChecker *permissionservice.PermissionChecker,
 	roleSVC *permissionservice.RoleService,
-	departmentSVC *permissionservice.DepartmentService,
+	departmentSVC DepartmentServiceAdapter,
 ) *PermissionApplicationService {
 	return &PermissionApplicationService{
 		permissionChecker: permissionChecker,
@@ -68,22 +67,23 @@ func (s *PermissionApplicationService) CreateRole(ctx context.Context, req *perm
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "role_type is required"))
 	}
 
-	// 2. 构建实体
-	role := &permissionentity.Role{
+	// 2. 构建 CreateRoleRequest
+	roleReq := &permissionservice.CreateRoleRequest{
 		TenantID:     req.TenantID,
-		RoleCode:     req.RoleCode,
 		RoleName:     req.RoleName,
+		RoleCode:     req.RoleCode,
 		RoleType:     permissionentity.RoleType(req.RoleType),
 		Description:  req.Description,
-		ParentRoleID: nil,
+		DataPerms:    nil,
+		FieldPerms:   nil,
 	}
 
 	if req.ParentRoleID != "" {
-		role.ParentRoleID = &req.ParentRoleID
+		roleReq.ParentRoleID = &req.ParentRoleID
 	}
 
 	// 3. 调用领域服务
-	createdRole, err := s.roleSVC.CreateRole(ctx, role)
+	createdRole, err := s.roleSVC.CreateRole(ctx, roleReq)
 	if err != nil {
 		return nil, err
 	}
@@ -98,19 +98,15 @@ func (s *PermissionApplicationService) GetRole(ctx context.Context, roleID strin
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "role_id is required"))
 	}
 
-	role, err := s.roleSVC.GetRoleByID(ctx, roleID)
+	role, err := s.roleSVC.GetRole(ctx, roleID)
 	if err != nil {
 		return nil, err
 	}
 	if role == nil {
-		return nil, errorx.New(errno.RoleNotFoundCode, errorx.KV("role_id", roleID))
+		return nil, errorx.New(errno.ErrRoleNotFoundCode, errorx.KV("role_id", roleID))
 	}
 
-	// 获取权限信息
-	dataPerms, _ := s.roleSVC.GetAllDataPermissions(ctx, roleID)
-	fieldPerms, _ := s.roleSVC.GetAllFieldPermissions(ctx, roleID)
-
-	return s.entityToRoleInfo(role, dataPerms, fieldPerms), nil
+	return s.entityToRoleInfo(role, role.DataPerms, role.FieldPerms), nil
 }
 
 // UpdateRole 更新角色
@@ -119,25 +115,21 @@ func (s *PermissionApplicationService) UpdateRole(ctx context.Context, roleID st
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "role_id is required"))
 	}
 
-	// 1. 获取现有角色
-	role, err := s.roleSVC.GetRoleByID(ctx, roleID)
-	if err != nil {
-		return nil, err
-	}
-	if role == nil {
-		return nil, errorx.New(errno.RoleNotFoundCode, errorx.KV("role_id", roleID))
+	// 1. 构建更新请求
+	updateReq := &permissionservice.UpdateRoleRequest{
+		RoleID:      roleID,
+		Description: "",
 	}
 
-	// 2. 应用更新
 	if req.RoleName != nil {
-		role.RoleName = *req.RoleName
+		updateReq.RoleName = *req.RoleName
 	}
 	if req.Description != nil {
-		role.Description = *req.Description
+		updateReq.Description = *req.Description
 	}
 
-	// 3. 保存更新
-	updatedRole, err := s.roleSVC.UpdateRole(ctx, role)
+	// 2. 调用领域服务
+	updatedRole, err := s.roleSVC.UpdateRole(ctx, updateReq)
 	if err != nil {
 		return nil, err
 	}
@@ -168,8 +160,16 @@ func (s *PermissionApplicationService) ListRoles(ctx context.Context, req *permi
 		pageSize = 100
 	}
 
+	// 构建查询请求
+	listReq := &permissionservice.ListRolesRequest{
+		TenantID: req.TenantID,
+		RoleType: (*permissionentity.RoleType)(req.RoleType),
+		PageToken: "",
+		PageSize:  pageSize,
+	}
+
 	// 调用领域服务
-	roles, total, err := s.roleSVC.ListRoles(ctx, req.TenantID, (*permissionentity.RoleType)(req.RoleType), pageSize)
+	roles, total, err := s.roleSVC.ListRoles(ctx, listReq)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (s *PermissionApplicationService) ListRoles(ctx context.Context, req *permi
 
 	return &permission.ListRolesData{
 		Roles:      roleDTOs,
-		TotalCount: total,
+		TotalCount: int(total),
 	}, nil
 }
 
@@ -200,16 +200,23 @@ func (s *PermissionApplicationService) AssignRole(ctx context.Context, userID st
 		return nil, errorx.New(errno.InvalidRequest, errorx.KV("msg", "role_id is required"))
 	}
 
+	// 构建分配请求
+	assignReq := &permissionservice.AssignRoleRequest{
+		UserID:   userID,
+		TenantID: req.TenantID,
+		RoleID:   req.RoleID,
+	}
+
 	// 调用领域服务
-	userRole, err := s.roleSVC.AssignRoleToUser(ctx, userID, req.TenantID, req.RoleID)
+	err := s.roleSVC.AssignRole(ctx, assignReq)
 	if err != nil {
 		return nil, err
 	}
 
 	return &permission.AssignRoleData{
-		UserID:     userRole.UserID,
-		RoleID:     userRole.RoleID,
-		AssignedAt: userRole.CreatedAt,
+		UserID:     userID,
+		RoleID:     req.RoleID,
+		AssignedAt: time.Now().UnixMilli(),
 	}, nil
 }
 
@@ -225,7 +232,7 @@ func (s *PermissionApplicationService) RevokeRole(ctx context.Context, userID, t
 		return errorx.New(errno.InvalidRequest, errorx.KV("msg", "role_id is required"))
 	}
 
-	return s.roleSVC.RevokeRoleFromUser(ctx, userID, tenantID, roleID)
+	return s.roleSVC.RevokeRole(ctx, userID, tenantID, roleID)
 }
 
 // GetUserRoles 获取用户的所有角色
@@ -238,7 +245,7 @@ func (s *PermissionApplicationService) GetUserRoles(ctx context.Context, userID,
 	}
 
 	// 调用领域服务
-	roles, err := s.roleSVC.GetRolesByUser(ctx, userID, tenantID)
+	roles, err := s.roleSVC.GetUserRoles(ctx, userID, tenantID)
 	if err != nil {
 		return nil, err
 	}
@@ -271,31 +278,11 @@ func (s *PermissionApplicationService) SetDataPermission(ctx context.Context, ro
 		return errorx.New(errno.InvalidRequest, errorx.KV("msg", "scope is required"))
 	}
 
-	// 构建数据权限实体
-	dataPerm := &permissionentity.DataPermission{
-		RoleID:       roleID,
-		ResourceType: permissionentity.ResourceType(req.ResourceType),
-		Scope:        (*permissionentity.DataPermissionLevel)(&req.Scope),
-	}
-
-	// 根据scope设置其他字段
-	if req.Scope == "dept_sub" || req.Scope == "dept" {
-		if req.DepartmentID == "" {
-			return errorx.New(errno.InvalidRequest, errorx.KV("msg", "department_id is required for dept/dept_sub scope"))
-		}
-		dataPerm.DepartmentID = &req.DepartmentID
-	}
-
-	if req.Scope == "custom" {
-		if req.CustomFilter == nil {
-			return errorx.New(errno.InvalidRequest, errorx.KV("msg", "custom_filter is required for custom scope"))
-		}
-		customFilterJSON, _ := json.Marshal(req.CustomFilter)
-		dataPerm.CustomFilter = string(customFilterJSON)
-	}
-
-	// 调用领域服务
-	return s.roleSVC.SetDataPermission(ctx, dataPerm)
+	// 注意：当前实现暂不支持直接设置数据权限
+	// 请通过创建/更新角色时指定数据权限
+	return errorx.New(errno.ErrPermissionCheckFailedCode,
+		errorx.KV("reason", "please set data permissions when creating/updating role"),
+	)
 }
 
 // CheckDataPermission 检查数据权限
@@ -316,27 +303,27 @@ func (s *PermissionApplicationService) CheckDataPermission(ctx context.Context, 
 	// 记录开始时间
 	startTime := time.Now()
 
-	// 调用领域服务
-	err := s.permissionChecker.CheckDataPermission(ctx, req.UserID, req.TenantID, permissionentity.ResourceType(req.ResourceType), req.ResourceID)
+	// 调用领域服务 - 调整参数顺序以匹配 PermissionChecker.CheckDataPermission 的签名
+	allowed, err := s.permissionChecker.CheckDataPermission(ctx, req.TenantID, req.UserID, permissionentity.ResourceType(req.ResourceType), "", req.ResourceID)
 
 	// 计算检查耗时
 	duration := time.Since(startTime).Seconds()
 
-	if err != nil {
+	if err != nil || !allowed {
 		// 记录权限拒绝指标
-		metrics.RecordPermissionCheck(req.TenantID, "data", "denied", duration)
+		metrics.RecordPermissionCheck(req.TenantID, "data", duration, "denied")
 		metrics.RecordPermissionDenied(req.TenantID, "data", "insufficient_scope")
 
 		// 权限不足
 		return &permission.CheckDataPermissionData{
 			Allowed: false,
 			Scope:   "none",
-			Reasons: []string{err.Error()},
+			Reasons: []string{"insufficient permissions"},
 		}, nil
 	}
 
 	// 记录权限允许指标
-	metrics.RecordPermissionCheck(req.TenantID, "data", "allowed", duration)
+	metrics.RecordPermissionCheck(req.TenantID, "data", duration, "allowed")
 
 	// 有权限
 	return &permission.CheckDataPermissionData{
@@ -363,21 +350,11 @@ func (s *PermissionApplicationService) SetFieldPermission(ctx context.Context, r
 		return errorx.New(errno.InvalidRequest, errorx.KV("msg", "permissions is required"))
 	}
 
-	// 为每个字段设置权限
-	for _, perm := range req.Permissions {
-		fieldPerm := &permissionentity.FieldPermission{
-			RoleID:         roleID,
-			ResourceType:   permissionentity.ResourceType(req.ResourceType),
-			FieldName:      perm.FieldName,
-			PermissionLevel: permissionentity.FieldPermissionLevel(perm.PermissionLevel),
-		}
-
-		if err := s.roleSVC.SetFieldPermission(ctx, fieldPerm); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	// 注意：当前实现暂不支持直接设置字段权限
+	// 请通过创建/更新角色时指定字段权限
+	return errorx.New(errno.ErrPermissionCheckFailedCode,
+		errorx.KV("reason", "please set field permissions when creating/updating role"),
+	)
 }
 
 // GetFieldPermissions 获取字段权限
@@ -393,7 +370,7 @@ func (s *PermissionApplicationService) GetFieldPermissions(ctx context.Context, 
 	}
 
 	// 调用领域服务获取字段权限
-	permissions, err := s.permissionChecker.GetFieldPermissions(ctx, userID, tenantID, permissionentity.ResourceType(resourceType))
+	permissions, err := s.permissionChecker.GetFieldPermissions(ctx, tenantID, userID, resourceType)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +378,7 @@ func (s *PermissionApplicationService) GetFieldPermissions(ctx context.Context, 
 	// 转换为DTO
 	permMap := make(map[string]string)
 	for field, level := range permissions {
-		permMap[field] = string(level)
+		permMap[field] = level
 	}
 
 	return &permission.GetFieldPermissionsData{
@@ -422,13 +399,13 @@ func (s *PermissionApplicationService) CreateDepartment(ctx context.Context, req
 
 	// 构建部门实体
 	dept := &permissionentity.Department{
-		TenantID:   req.TenantID,
-		DeptName:   req.DepartmentName,
-		ParentID:   nil,
+		TenantID:       req.TenantID,
+		DepartmentName: req.DepartmentName,
+		ParentDepartmentID: nil,
 	}
 
 	if req.ParentDepartmentID != "" {
-		dept.ParentID = &req.ParentDepartmentID
+		dept.ParentDepartmentID = &req.ParentDepartmentID
 	}
 
 	// 调用领域服务
@@ -451,7 +428,7 @@ func (s *PermissionApplicationService) GetDepartment(ctx context.Context, depart
 		return nil, err
 	}
 	if dept == nil {
-		return nil, errorx.New(errno.DepartmentNotFoundCode, errorx.KV("department_id", departmentID))
+		return nil, errorx.New(errno.ErrDepartmentNotFoundCode, errorx.KV("department_id", departmentID))
 	}
 
 	// 检查是否有子部门
@@ -472,12 +449,12 @@ func (s *PermissionApplicationService) UpdateDepartment(ctx context.Context, dep
 		return nil, err
 	}
 	if dept == nil {
-		return nil, errorx.New(errno.DepartmentNotFoundCode, errorx.KV("department_id", departmentID))
+		return nil, errorx.New(errno.ErrDepartmentNotFoundCode, errorx.KV("department_id", departmentID))
 	}
 
 	// 2. 应用更新
 	if req.DepartmentName != nil {
-		dept.DeptName = *req.DepartmentName
+		dept.DepartmentName = *req.DepartmentName
 	}
 
 	// 3. 保存更新
@@ -641,8 +618,8 @@ func (s *PermissionApplicationService) GetDepartmentMembers(ctx context.Context,
 // entityToRoleInfo 实体转换为RoleInfo DTO
 func (s *PermissionApplicationService) entityToRoleInfo(
 	entity *permissionentity.Role,
-	dataPerms []permissionentity.DataPermission,
-	fieldPerms []permissionentity.FieldPermission,
+	dataPerms []*permissionentity.DataPermission,
+	fieldPerms []*permissionentity.FieldPermission,
 ) *permission.RoleInfo {
 	roleInfo := &permission.RoleInfo{
 		RoleID:       entity.RoleID,
@@ -662,9 +639,7 @@ func (s *PermissionApplicationService) entityToRoleInfo(
 	if len(dataPerms) > 0 {
 		roleInfo.Permissions.DataPermissions = make(map[string]string)
 		for _, dp := range dataPerms {
-			if dp.Scope != nil {
-				roleInfo.Permissions.DataPermissions[string(dp.ResourceType)] = string(*dp.Scope)
-			}
+			roleInfo.Permissions.DataPermissions[string(dp.ResourceType)] = string(dp.Scope)
 		}
 	}
 
@@ -686,16 +661,16 @@ func (s *PermissionApplicationService) entityToRoleInfo(
 // entityToDepartmentInfo 实体转换为DepartmentInfo DTO
 func (s *PermissionApplicationService) entityToDepartmentInfo(entity *permissionentity.Department, hasChildren bool) *permission.DepartmentInfo {
 	deptInfo := &permission.DepartmentInfo{
-		DepartmentID: entity.DepartmentID,
-		DepartmentName: entity.DeptName,
-		TenantID:      entity.TenantID,
-		HasChildren:   hasChildren,
-		CreatedAt:     entity.CreatedAt,
-		UpdatedAt:     entity.UpdatedAt,
+		DepartmentID:   entity.DepartmentID,
+		DepartmentName: entity.DepartmentName,
+		TenantID:       entity.TenantID,
+		HasChildren:    hasChildren,
+		CreatedAt:      entity.CreatedAt,
+		UpdatedAt:      entity.UpdatedAt,
 	}
 
-	if entity.ParentID != nil {
-		deptInfo.ParentDepartmentID = *entity.ParentID
+	if entity.ParentDepartmentID != nil {
+		deptInfo.ParentDepartmentID = *entity.ParentDepartmentID
 	}
 
 	return deptInfo

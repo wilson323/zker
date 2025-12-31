@@ -1,0 +1,61 @@
+	github.com/coze-dev/coze-studio/backend/pkg/contextutil		coverage: 0.0% of statements
+ok  	github.com/coze-dev/coze-studio/backend/pkg/conv	(cached)	coverage: 100.0% of statements
+# github.com/coze-dev/coze-studio/backend/domain/permission/repository
+domain\permission\repository\user_repository_impl.go:142:64: undefined: repository
+ok  	github.com/coze-dev/coze-studio/backend/pkg/ctxcache	8.513s	coverage: 60.0% of statements
+ok  	github.com/coze-dev/coze-studio/backend/pkg/encrypt	(cached)	coverage: 86.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/envkey		coverage: 0.0% of statements
+ok  	github.com/coze-dev/coze-studio/backend/pkg/errorx	6.431s	coverage: 1.3% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/errorx/code		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/errorx/i18n		coverage: 0.0% of statements
+ok  	github.com/coze-dev/coze-studio/backend/pkg/errorx/internal	(cached)	coverage: 44.4% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/errorx/utils		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/execute		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/goutil		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/health		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/hertzutil/domain		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/i18n		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/interfaces		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/kvstore		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/conv		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/crypto		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/maps		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/ptr		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/sets		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/signal		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/slices		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/sqlutil		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/lang/ternary		coverage: 0.0% of statements
+ok  	github.com/coze-dev/coze-studio/backend/pkg/llmclient	(cached)	coverage: 100.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/logs		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/redis		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/saasapi		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/safego		coverage: 0.0% of statements
+--- FAIL: TestDecrypt_InvalidCiphertext (0.00s)
+    --- FAIL: TestDecrypt_InvalidCiphertext/Empty_string (0.00s)
+        encryption_test.go:198: error should contain "invalid ciphertext", got "ciphertext too short"
+--- FAIL: TestStripTags (0.00s)
+    --- FAIL: TestStripTags/移除script标签 (0.00s)
+        xss_test.go:223: StripTags() = alert(1)Hello, want Hello
+--- FAIL: TestTruncateText (0.00s)
+    --- FAIL: TestTruncateText/中文字符 (0.00s)
+        xss_test.go:267: TruncateText() = 这是一段很长的中文文, want 这是一段很长的中文
+FAIL
+coverage: 91.2% of statements
+FAIL	github.com/coze-dev/coze-studio/backend/pkg/security	0.787s
+	github.com/coze-dev/coze-studio/backend/pkg/sonic		coverage: 0.0% of statements
+	github.com/coze-dev/coze-studio/backend/pkg/taskgroup		coverage: 0.0% of statements
+FAIL	github.com/coze-dev/coze-studio/backend/pkg/tenantutil [build failed]
+--- FAIL: TestValidateURL (0.00s)
+    --- FAIL: TestValidateURL/IPv6_localhost_denied (0.00s)
+        parser_test.go:165: validateURL() error = <nil>, wantErr true
+    --- FAIL: TestValidateURL/empty_URL (0.00s)
+        parser_test.go:172: validateURL() error message = empty URL, want to contain invalid URL
+    --- FAIL: TestValidateURL/malformed_URL (0.00s)
+        parser_test.go:172: validateURL() error message = empty hostname, want to contain invalid URL
+FAIL
+coverage: 53.9% of statements
+FAIL	github.com/coze-dev/coze-studio/backend/pkg/urltobase64url	2.823s
+ok  	github.com/coze-dev/coze-studio/backend/types/errno	2.602s	coverage: 73.1% of statements
+	github.com/coze-dev/coze-studio/backend/types/errno/tool		coverage: 0.0% of statements
+FAIL

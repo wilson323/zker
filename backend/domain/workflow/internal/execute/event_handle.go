@@ -220,7 +220,7 @@ func handleEvent(ctx context.Context, event *Event, repo workflow.Repository,
 			} else if errors.Is(event.Err, context.Canceled) {
 				wfe = vo.CancelErr
 			} else {
-				wfe = vo.WrapError(errno.ErrWorkflowExecuteFail, event.Err, errorx.KV("cause", vo.UnwrapRootErr(event.Err).Error()))
+				wfe = vo.WrapError(errno.DeprecatedErrWorkflowExecuteFail, event.Err, errorx.KV("cause", vo.UnwrapRootErr(event.Err).Error()))
 			}
 		}
 
@@ -605,7 +605,7 @@ func handleEvent(ctx context.Context, event *Event, repo workflow.Repository,
 			} else if errors.Is(event.Err, context.Canceled) {
 				wfe = vo.CancelErr
 			} else {
-				wfe = vo.WrapError(errno.ErrWorkflowExecuteFail, event.Err, errorx.KV("cause", vo.UnwrapRootErr(event.Err).Error()))
+				wfe = vo.WrapError(errno.DeprecatedErrWorkflowExecuteFail, event.Err, errorx.KV("cause", vo.UnwrapRootErr(event.Err).Error()))
 			}
 		}
 

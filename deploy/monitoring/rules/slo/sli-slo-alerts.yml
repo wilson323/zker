@@ -1,0 +1,530 @@
+# SLO/SLI 告警规则
+# ZKER 多租户SaaS系统 - 服务质量监控
+# 版本: v1.0.0
+
+groups:
+  # ========================================
+  # 可用性 SLO (Availability)
+  # 目标: 99.9% (月度)
+  # ========================================
+  - name: slo_availability
+    interval: 1m
+    rules:
+      # API可用性SLI
+      - alert: SLOAvailabilityAPI
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{status!~"5.."}[30d]))
+            /
+            sum(rate(zker_api_requests_total[30d]))
+          ) < 0.999
+        for: 5m
+        labels:
+          severity: P0
+          slo_domain: availability
+          slo_target: 99.9
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "API可用性SLO违反"
+          description: "30天可用性: {{ $value | humanizePercentage }} (目标: 99.9%)"
+          sli_metric: "api_availability"
+          slo_target: "99.9%"
+          impact: "SLA违约风险"
+
+      # 数据库可用性SLI
+      - alert: SLOAvailabilityDatabase
+        expr: |
+          avg_over_time(mysql_up[30d]) < 0.999
+        for: 5m
+        labels:
+          severity: P0
+          slo_domain: availability
+          slo_target: 99.9
+          slo_window: 30d
+          team: dba
+        annotations:
+          summary: "数据库可用性SLO违反"
+          description: "30天可用性: {{ $value | humanizePercentage }} (目标: 99.9%)"
+          sli_metric: "database_availability"
+
+  # ========================================
+  # 延迟 SLO (Latency)
+  # 目标: P95 < 500ms, P99 < 1s
+  # ========================================
+  - name: slo_latency
+    interval: 1m
+    rules:
+      # API P95延迟SLI
+      - alert: SLOLatencyP95
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum(rate(zker_api_response_time_seconds_bucket[30d])) by (le)
+            )
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: P1
+          slo_domain: latency
+          slo_target: 500ms
+          slo_percentile: P95
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "API P95延迟SLO违反"
+          description: "30天P95延迟: {{ $value }}s (目标: 500ms)"
+          sli_metric: "api_latency_p95"
+
+      # API P99延迟SLI
+      - alert: SLOLatencyP99
+        expr: |
+          (
+            histogram_quantile(0.99,
+              sum(rate(zker_api_response_time_seconds_bucket[30d])) by (le)
+            )
+          ) > 1
+        for: 5m
+        labels:
+          severity: P1
+          slo_domain: latency
+          slo_target: 1s
+          slo_percentile: P99
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "API P99延迟SLO违反"
+          description: "30天P99延迟: {{ $value }}s (目标: 1s)"
+          sli_metric: "api_latency_p99"
+
+      # 数据库查询P95延迟SLI
+      - alert: SLOLatencyDatabaseP95
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum(rate(zker_db_query_duration_seconds_bucket[30d])) by (le)
+            )
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: P1
+          slo_domain: latency
+          slo_target: 50ms
+          slo_percentile: P95
+          slo_window: 30d
+          team: dba
+        annotations:
+          summary: "数据库查询P95延迟SLO违反"
+          description: "30天P95延迟: {{ $value }}s (目标: 50ms)"
+          sli_metric: "db_query_latency_p95"
+
+      # 工作流执行P95延迟SLI
+      - alert: SLOLatencyWorkflowP95
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum(rate(zker_workflow_execution_duration_seconds_bucket[30d])) by (le)
+            )
+          ) > 30
+        for: 5m
+        labels:
+          severity: P1
+          slo_domain: latency
+          slo_target: 30s
+          slo_percentile: P95
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "工作流执行P95延迟SLO违反"
+          description: "30天P95延迟: {{ $value }}s (目标: 30s)"
+          sli_metric: "workflow_latency_p95"
+
+  # ========================================
+  # 错误率 SLO (Error Rate)
+  # 目标: < 0.1%
+  # ========================================
+  - name: slo_error_rate
+    interval: 1m
+    rules:
+      # API错误率SLI
+      - alert: SLOErrorRateAPI
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{status=~"5.."}[30d]))
+            /
+            sum(rate(zker_api_requests_total[30d]))
+          ) > 0.001
+        for: 5m
+        labels:
+          severity: P0
+          slo_domain: error_rate
+          slo_target: 0.1
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "API错误率SLO违反"
+          description: "30天错误率: {{ $value | humanizePercentage }} (目标: 0.1%)"
+          sli_metric: "api_error_rate"
+
+      # Bot调用错误率SLI
+      - alert: SLOErrorRateBot
+        expr: |
+          (
+            sum(rate(zker_bot_invocations_total{status="error"}[30d]))
+            /
+            sum(rate(zker_bot_invocations_total[30d]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: P1
+          slo_domain: error_rate
+          slo_target: 1
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "Bot调用错误率SLO违反"
+          description: "30天错误率: {{ $value | humanizePercentage }} (目标: 1%)"
+          sli_metric: "bot_error_rate"
+
+  # ========================================
+  # 吞吐量 SLO (Throughput)
+  # 目标: QPS > 1000
+  # ========================================
+  - name: slo_throughput
+    interval: 1m
+    rules:
+      # API吞吐量SLI
+      - alert: SLOThroughputAPI
+        expr: |
+          sum(rate(zker_api_requests_total[5m])) < 1000
+        for: 15m
+        labels:
+          severity: P2
+          slo_domain: throughput
+          slo_target: 1000
+          slo_window: 实时
+          team: backend
+        annotations:
+          summary: "API吞吐量低于SLO目标"
+          description: "当前QPS: {{ $value }} (目标: 1000)"
+          sli_metric: "api_qps"
+
+      # 数据库QPS SLO
+      - alert: SLOThroughputDatabase
+        expr: |
+          sum(rate(mysql_global_status_questions[5m])) < 500
+        for: 15m
+        labels:
+          severity: P2
+          slo_domain: throughput
+          slo_target: 500
+          slo_window: 实时
+          team: dba
+        annotations:
+          summary: "数据库QPS低于SLO目标"
+          description: "当前QPS: {{ $value }} (目标: 500)"
+          sli_metric: "db_qps"
+
+  # ========================================
+  # 饱和度 SLO (Saturation)
+  # 目标: 资源使用率 < 80%
+  # ========================================
+  - name: slo_saturation
+    interval: 1m
+    rules:
+      # CPU饱和度SLI
+      - alert: SLOSaturationCPU
+        expr: |
+          100 - (avg by(instance)
+            (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 15m
+        labels:
+          severity: P2
+          slo_domain: saturation
+          slo_target: 80
+          slo_resource: cpu
+          team: ops
+        annotations:
+          summary: "CPU饱和度超过SLO目标"
+          description: "CPU使用率: {{ $value }}% (目标: <80%)"
+          sli_metric: "cpu_usage"
+
+      # 内存饱和度SLI
+      - alert: SLOSaturationMemory
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes
+                / node_memory_MemTotal_bytes)) * 100 > 80
+        for: 15m
+        labels:
+          severity: P2
+          slo_domain: saturation
+          slo_target: 80
+          slo_resource: memory
+          team: ops
+        annotations:
+          summary: "内存饱和度超过SLO目标"
+          description: "内存使用率: {{ $value }}% (目标: <80%)"
+          sli_metric: "memory_usage"
+
+      # 数据库连接饱和度SLI
+      - alert: SLOSaturationDatabaseConnections
+        expr: |
+          zker_db_connections_active
+          /
+          zker_db_connections_max > 0.8
+        for: 15m
+        labels:
+          severity: P1
+          slo_domain: saturation
+          slo_target: 80
+          slo_resource: db_connections
+          team: dba
+        annotations:
+          summary: "数据库连接饱和度超过SLO目标"
+          description: "连接池使用率: {{ $value | humanizePercentage }} (目标: <80%)"
+          sli_metric: "db_connection_usage"
+
+  # ========================================
+  # 用户体验 SLO (User Experience)
+  # 目标: 页面加载 < 2s
+  # ========================================
+  - name: slo_user_experience
+    interval: 1m
+    rules:
+      # 前端首屏加载SLI
+      - alert: SLOUserExperienceFCP
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum(rate(zker_frontend_fcp_seconds_bucket[7d])) by (le)
+            )
+          ) > 2
+        for: 5m
+        labels:
+          severity: P2
+          slo_domain: user_experience
+          slo_target: 2s
+          slo_metric: FCP
+          slo_window: 7d
+          team: frontend
+        annotations:
+          summary: "前端首屏加载SLO违反"
+          description: "7天P95 FCP: {{ $value }}s (目标: 2s)"
+          sli_metric: "frontend_fcp_p95"
+
+      # 前端交互延迟SLI
+      - alert: SLOUserExperienceInteraction
+        expr: |
+          (
+            histogram_quantile(0.95,
+              sum(rate(zker_frontend_interaction_delay_seconds_bucket[7d])) by (le)
+            )
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: P2
+          slo_domain: user_experience
+          slo_target: 100ms
+          slo_metric: InteractionDelay
+          slo_window: 7d
+          team: frontend
+        annotations:
+          summary: "前端交互延迟SLO违反"
+          description: "7天P95交互延迟: {{ $value }}s (目标: 100ms)"
+          sli_metric: "frontend_interaction_p95"
+
+  # ========================================
+  # 业务 SLI (Business Metrics)
+  # ========================================
+  - name: slo_business
+    interval: 5m
+    rules:
+      # 用户活跃度SLI
+      - alert: SLOBusinessDAUDeclining
+        expr: |
+          (
+            sum(increase(zker_user_active_daily[1d]))
+            /
+            sum(zker_users_total)
+          ) < 0.2
+        for: 1d
+        labels:
+          severity: P2
+          slo_domain: business
+          slo_target: 20%
+          slo_metric: DAU_ratio
+          team: product
+        annotations:
+          summary: "日活跃用户比例低于SLO目标"
+          description: "DAU比例: {{ $value | humanizePercentage }} (目标: 20%)"
+          sli_metric: "dau_ratio"
+
+      # Bot使用率SLI
+      - alert: SLOBusinessBotUsage
+        expr: |
+          (
+            sum(increase(zker_bot_invocations_total[7d]))
+            /
+            sum(zker_bots_total{status="active"})
+          ) < 10
+        for: 3d
+        labels:
+          severity: P2
+          slo_domain: business
+          slo_target: 10
+          slo_metric: bot_invocations_per_week
+          team: product
+        annotations:
+          summary: "Bot使用率低于SLO目标"
+          description: "每周调用次数: {{ $value }} (目标: 10次/Bot/周)"
+          sli_metric: "bot_usage_rate"
+
+  # ========================================
+  # 错误预算告警 (Error Budget)
+  # ========================================
+  - name: slo_error_budget
+    interval: 1m
+    rules:
+      # 可用性错误预算告警
+      - alert: SLOErrorBudgetAvailability
+        expr: |
+          (
+            (1 - 0.999) -  # 误差预算: 0.1%
+            (
+              sum(rate(zker_api_requests_total{status=~"5.."}[30d]))
+              /
+              sum(rate(zker_api_requests_total[30d]))
+            )
+          ) < 0
+        for: 5m
+        labels:
+          severity: P0
+          slo_domain: error_budget
+          slo_target: 0.1
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "可用性误差预算已耗尽"
+          description: "误差预算剩余: {{ $value | humanizePercentage }}"
+          impact: "SLA违约，立即停止非关键发布"
+
+      # 延迟误差预算告警
+      - alert: SLOErrorBudgetLatency
+        expr: |
+          (
+            0.95 -  # 95%请求需满足延迟SLO
+            (
+              sum(rate(zker_api_response_time_seconds_bucket{le="1.0"}[30d]))
+              /
+              sum(rate(zker_api_response_time_seconds_count[30d]))
+            )
+          ) < 0
+        for: 5m
+        labels:
+          severity: P0
+          slo_domain: error_budget
+          slo_target: 95
+          slo_window: 30d
+          team: backend
+        annotations:
+          summary: "延迟误差预算已耗尽"
+          description: "满足延迟目标的请求比例低于95%"
+          impact: "SLA违约风险"
+
+  # ========================================
+  # SLO 趋势告警 (提前预警)
+  # ========================================
+  - name: slo_trend
+    interval: 5m
+    rules:
+      # 可用性趋势告警
+      - alert: SLOTrendAvailabilityDeclining
+        expr: |
+          (
+            predict_linear(
+              (
+                sum(rate(zker_api_requests_total{status!~"5.."}[1h]))
+                /
+                sum(rate(zker_api_requests_total[1h]))
+              )[1h:5m], 86400
+            )
+          ) < 0.999
+        for: 30m
+        labels:
+          severity: P1
+          slo_domain: trend
+          slo_target: 99.9
+          prediction_horizon: 24h
+          team: backend
+        annotations:
+          summary: "可用性趋势预警"
+          description: "预测24小时后可用性将低于99.9%"
+          action: "立即调查并修复"
+
+      # 延迟趋势告警
+      - alert: SLOTrendLatencyIncreasing
+        expr: |
+          (
+            predict_linear(
+              histogram_quantile(0.95,
+                sum(rate(zker_api_response_time_seconds_bucket[1h])) by (le)
+              )[1h:5m], 3600
+            )
+          ) > 0.5
+        for: 30m
+        labels:
+          severity: P1
+          slo_domain: trend
+          slo_target: 500ms
+          prediction_horizon: 1h
+          team: backend
+        annotations:
+          summary: "延迟趋势预警"
+          description: "预测1小时后P95延迟将超过500ms"
+          action: "立即优化性能"
+
+  # ========================================
+  # SLA 违规告警 (合同级别)
+  # ========================================
+  - name: sla_violations
+    interval: 1m
+    rules:
+      # 旗舰版SLA违规
+      - alert: SLAViolationEnterprise
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{tenant_plan="enterprise", status!~"5.."}[30d]))
+            /
+            sum(rate(zker_api_requests_total{tenant_plan="enterprise"}[30d]))
+          ) < 0.9999
+        for: 5m
+        labels:
+          severity: P0
+          sla_tier: enterprise
+          sla_target: 99.99
+          financial_impact: high
+          team: management
+        annotations:
+          summary: "企业版SLA违规"
+          description: "企业版可用性: {{ $value | humanizePercentage }} (SLA: 99.99%)"
+          impact: "财务影响: 可能触发SLA赔偿"
+
+      # 专业版SLA违规
+      - alert: SLAViolationProfessional
+        expr: |
+          (
+            sum(rate(zker_api_requests_total{tenant_plan="professional", status!~"5.."}[30d]))
+            /
+            sum(rate(zker_api_requests_total{tenant_plan="professional"}[30d]))
+          ) < 0.999
+        for: 5m
+        labels:
+          severity: P1
+          sla_tier: professional
+          sla_target: 99.9
+          financial_impact: medium
+          team: management
+        annotations:
+          summary: "专业版SLA违规"
+          description: "专业版可用性: {{ $value | humanizePercentage }} (SLA: 99.9%)"
+          impact: "财务影响: 可能触发服务抵用"

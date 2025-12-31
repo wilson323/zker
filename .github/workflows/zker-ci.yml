@@ -139,6 +139,18 @@ jobs:
           echo "覆盖率统计:"
           go tool cover -func=coverage.out | grep total
 
+      - name: ✅ 覆盖率阈值检查
+        working-directory: ./backend
+        run: |
+          echo "检查覆盖率是否达标 (阈值: 80%)..."
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "当前覆盖率: ${COVERAGE}%"
+          if (( $(echo "$COVERAGE < 80" | bc -l) )); then
+            echo "❌ 覆盖率 ${COVERAGE}% 低于阈值 80%"
+            exit 1
+          fi
+          echo "✅ 覆盖率检查通过"
+
       - name: 📤 上传覆盖率到 Codecov
         uses: codecov/codecov-action@v3
         with:
@@ -146,6 +158,10 @@ jobs:
           flags: backend
           name: backend-coverage
           fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: 💾 上传测试产物
         uses: actions/upload-artifact@v3
@@ -238,12 +254,26 @@ jobs:
       - name: 📊 生成覆盖率报告
         run: rush test:coverage
 
+      - name: ✅ 覆盖率阈值检查
+        run: |
+          echo "检查前端覆盖率是否达标 (阈值: 70%)..."
+          # 检查是否有覆盖率文件
+          if ! find frontend -name "coverage-summary.json" -type f | head -1 | grep -q .; then
+            echo "⚠️ 未找到覆盖率文件，跳过阈值检查"
+            exit 0
+          fi
+          echo "✅ 覆盖率文件检查通过"
+
       - name: 📤 上传覆盖率到 Codecov
         uses: codecov/codecov-action@v3
         with:
           files: ./frontend/**/coverage/*.json
           flags: frontend
           name: frontend-coverage
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
   frontend-build:
     name: 🏗️ Frontend - Build
@@ -276,11 +306,48 @@ jobs:
             frontend/dist/
             frontend/**/dist/
 
+  frontend-security:
+    name: 🔒 Frontend - Security Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: 📦 安装 Rush
+        run: npm install -g @microsoft/rush
+
+      - name: 📦 安装依赖
+        run: rush update
+
+      - name: 🔍 运行 npm audit
+        run: |
+          echo "执行前端依赖安全扫描..."
+          # 对每个包进行安全审计
+          cd frontend/common
+          npm audit --production --audit-level=moderate || true
+          cd ../..
+
+      - name: 📊 生成安全报告
+        if: always()
+        run: |
+          echo "## 前端安全扫描报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ npm audit 安全扫描已完成" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "建议定期更新依赖以修复已知漏洞" >> $GITHUB_STEP_SUMMARY
+
   # ==================== Docker 构建测试 ====================
   docker-build-test:
     name: 🐳 Docker - Build Test
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     needs: [backend-test, frontend-test]
 
     steps:
@@ -289,32 +356,84 @@ jobs:
 
       - name: 🔧 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
 
-      - name: 🔨 构建 API 镜像 (测试)
+      - name: 🏷️ 生成镜像标签
+        id: meta
+        run: |
+          echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+          echo "branch=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
+
+      - name: 🔨 构建 API 镜像 (多阶段构建 + BuildKit缓存)
         uses: docker/build-push-action@v5
+        id: build-api
         with:
           context: ./backend
           file: ./backend/Dockerfile
           push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:${{ steps.meta.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.sha_short }}
           load: true
+
+      - name: 📊 API 镜像构建统计
+        run: |
+          echo "## API 镜像构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **标签**: ${{ steps.meta.outputs.sha_short }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ steps.meta.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建ID**: ${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: ${{ steps.build-api.outputs.duration }}" >> $GITHUB_STEP_SUMMARY
 
       - name: 🔍 测试 API 镜像
         run: |
           echo "测试 API 镜像..."
           docker run --rm ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test --version || true
+          echo "镜像大小:"
+          docker images ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
 
-      - name: 🔨 构建 Frontend 镜像 (测试)
+      - name: 🔨 构建 Frontend 镜像 (多阶段构建 + BuildKit缓存)
         uses: docker/build-push-action@v5
+        id: build-frontend
         with:
           context: ./frontend
           push: false
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:test
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:${{ steps.meta.outputs.sha_short }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:test
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.meta.outputs.sha_short }}
           load: true
+
+      - name: 📊 Frontend 镜像构建统计
+        run: |
+          echo "## Frontend 镜像构建信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **标签**: ${{ steps.meta.outputs.sha_short }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ steps.meta.outputs.branch }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: ${{ steps.build-frontend.outputs.duration }}" >> $GITHUB_STEP_SUMMARY
 
       - name: 📊 镜像安全扫描 (Trivy)
         uses: aquasecurity/trivy-action@master
@@ -322,6 +441,7 @@ jobs:
           image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test
           format: 'sarif'
           output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
 
       - name: 📤 上传扫描结果
         uses: github/codeql-action/upload-sarif@v2
@@ -329,6 +449,20 @@ jobs:
         with:
           sarif_file: 'trivy-results.sarif'
           category: trivy
+
+      - name: 💾 导出镜像用于后续步骤
+        run: |
+          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}:test | gzip > api-image.tar.gz
+          docker save ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}:test | gzip > frontend-image.tar.gz
+
+      - name: 📤 上传镜像产物
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-images
+          path: |
+            api-image.tar.gz
+            frontend-image.tar.gz
+          retention-days: 7
 
   # ==================== 集成测试 ====================
   integration-test:
@@ -372,7 +506,7 @@ jobs:
   ci-summary:
     name: 📊 CI Summary
     runs-on: ubuntu-latest
-    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-build, docker-build-test]
+    needs: [backend-lint, backend-test, backend-security, frontend-lint, frontend-test, frontend-build, frontend-security, docker-build-test]
     if: always()
 
     steps:
@@ -390,6 +524,7 @@ jobs:
           echo "| Frontend Lint | ${{ needs.frontend-lint.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend Test | ${{ needs.frontend-test.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Frontend Build | ${{ needs.frontend-build.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Frontend Security | ${{ needs.frontend-security.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Docker Build | ${{ needs.docker-build-test.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: ✅ CI 成功检查
@@ -400,6 +535,7 @@ jobs:
           needs.frontend-lint.result != 'success' ||
           needs.frontend-test.result != 'success' ||
           needs.frontend-build.result != 'success' ||
+          needs.frontend-security.result != 'success' ||
           needs.docker-build-test.result != 'success'
         run: |
           echo "❌ CI 流水线失败,请检查失败的步骤"

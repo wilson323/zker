@@ -37,6 +37,9 @@ const (
 	ErrWorkflowDeleteFailedCode        = 203000007 // 删除工作流失败
 	ErrWorkflowUpdateFailedCode        = 203000008 // 更新工作流失败
 	ErrWorkflowPermissionDeniedCode    = 203000009 // 工作流权限不足
+	ErrWorkflowConflictParamCode       = 203000010 // 参数冲突：project_id和bot_id不能同时设置
+	ErrWorkflowSpaceIDRequiredCode     = 203000011 // space_id必填
+	ErrWorkflowSchemaRequiredCode      = 203000012 // Schema必填
 
 	// Node相关 (203 010 000 ~ 203 019 999)
 	ErrNodeNotFoundCode               = 203010001 // 节点不存在
@@ -175,18 +178,146 @@ const (
 	ErrOpenAPIWorkflowTimeout       = 6023
 )
 
-// 便捷错误变量
+// 便捷错误变量（用于错误处理）
 var (
-	ErrWorkflowNotFound         = errorx.New(ErrWorkflowNotFoundCode)
-	ErrWorkflowAlreadyExists    = errorx.New(ErrWorkflowAlreadyExistsCode)
-	ErrWorkflowInvalidParam     = errorx.New(ErrWorkflowInvalidParamCode)
-	ErrWorkflowNotPublished     = errorx.New(ErrWorkflowNotPublishedCode)
-	ErrNodeNotFound             = errorx.New(ErrNodeNotFoundCode)
-	ErrNodeExecuteFailed        = errorx.New(ErrNodeExecuteFailedCode)
-	ErrExecutionFailed          = errorx.New(ErrExecutionFailedCode)
-	ErrExecutionTimeout         = errorx.New(ErrExecutionTimeoutCode)
-	ErrVariableNotFound         = errorx.New(ErrVariableNotFoundCode)
-	ErrVersionNotFound          = errorx.New(ErrVersionNotFoundCode)
+	// Workflow基础错误 (203 000 000 ~ 203 009 999)
+	ErrWorkflowNotFound            = errorx.New(ErrWorkflowNotFoundCode)
+	ErrWorkflowAlreadyExists       = errorx.New(ErrWorkflowAlreadyExistsCode)
+	ErrWorkflowInvalidParam        = errorx.New(ErrWorkflowInvalidParamCode)
+	ErrWorkflowNameTooLong         = errorx.New(ErrWorkflowNameTooLongCode)
+	ErrWorkflowNotPublished        = errorx.New(ErrWorkflowNotPublishedCode)
+	ErrWorkflowAlreadyPublished    = errorx.New(ErrWorkflowAlreadyPublishedCode)
+	ErrWorkflowDeleteFailed        = errorx.New(ErrWorkflowDeleteFailedCode)
+	ErrWorkflowUpdateFailed        = errorx.New(ErrWorkflowUpdateFailedCode)
+	ErrWorkflowPermissionDenied    = errorx.New(ErrWorkflowPermissionDeniedCode)
+	ErrWorkflowConflictParam       = errorx.New(ErrWorkflowConflictParamCode)
+	ErrWorkflowSpaceIDRequired     = errorx.New(ErrWorkflowSpaceIDRequiredCode)
+	ErrWorkflowSchemaRequired      = errorx.New(ErrWorkflowSchemaRequiredCode)
+
+	// Node相关 (203 010 000 ~ 203 019 999)
+	ErrNodeNotFound          = errorx.New(ErrNodeNotFoundCode)
+	ErrNodeInvalidParam      = errorx.New(ErrNodeInvalidParamCode)
+	ErrNodeConfigInvalid     = errorx.New(ErrNodeConfigInvalidCode)
+	ErrNodeExecuteFailed     = errorx.New(ErrNodeExecuteFailedCode)
+	ErrNodeTimeout           = errorx.New(ErrNodeTimeoutCode)
+	ErrNodeCreateFailed      = errorx.New(ErrNodeCreateFailedCode)
+	ErrNodeDeleteFailed      = errorx.New(ErrNodeDeleteFailedCode)
+	ErrNodeUpdateFailed      = errorx.New(ErrNodeUpdateFailedCode)
+	ErrNodeOutputParseFailed = errorx.New(ErrNodeOutputParseFailedCode)
+	ErrNodeTypeNotSupported  = errorx.New(ErrNodeTypeNotSupportedCode)
+
+	// Edge相关 (203 020 000 ~ 203 029 999)
+	ErrEdgeNotFound       = errorx.New(ErrEdgeNotFoundCode)
+	ErrEdgeInvalidParam   = errorx.New(ErrEdgeInvalidParamCode)
+	ErrEdgeConfigInvalid  = errorx.New(ErrEdgeConfigInvalidCode)
+	ErrEdgeCreateFailed   = errorx.New(ErrEdgeCreateFailedCode)
+	ErrEdgeDeleteFailed   = errorx.New(ErrEdgeDeleteFailedCode)
+	ErrEdgeCycleDetected  = errorx.New(ErrEdgeCycleDetectedCode)
+	ErrEdgeSourceNotFound = errorx.New(ErrEdgeSourceNotFoundCode)
+	ErrEdgeTargetNotFound = errorx.New(ErrEdgeTargetNotFoundCode)
+
+	// 执行相关 (203 030 000 ~ 203 039 999)
+	ErrExecutionNotFound         = errorx.New(ErrExecutionNotFoundCode)
+	ErrExecutionAlreadyCompleted = errorx.New(ErrExecutionAlreadyCompletedCode)
+	ErrExecutionFailed           = errorx.New(ErrExecutionFailedCode)
+	ErrExecutionTimeout          = errorx.New(ErrExecutionTimeoutCode)
+	ErrExecutionCancelled        = errorx.New(ErrExecutionCancelledCode)
+	ErrExecutionStatusInvalid    = errorx.New(ErrExecutionStatusInvalidCode)
+	ErrExecutionCreateFailed     = errorx.New(ErrExecutionCreateFailedCode)
+	ErrExecutionRetryExceeded    = errorx.New(ErrExecutionRetryExceededCode)
+	ErrExecutionQuotaExceeded    = errorx.New(ErrExecutionQuotaExceededCode)
+
+	// 变量相关 (203 040 000 ~ 203 049 999)
+	ErrVariableNotFound     = errorx.New(ErrVariableNotFoundCode)
+	ErrVariableInvalidParam = errorx.New(ErrVariableInvalidParamCode)
+	ErrVariableTypeMismatch = errorx.New(ErrVariableTypeMismatchCode)
+	ErrVariableReadOnly     = errorx.New(ErrVariableReadOnlyCode)
+	ErrVariableCreateFailed = errorx.New(ErrVariableCreateFailedCode)
+	ErrVariableDeleteFailed = errorx.New(ErrVariableDeleteFailedCode)
+	ErrVariableUpdateFailed = errorx.New(ErrVariableUpdateFailedCode)
+
+	// 触发器相关 (203 050 000 ~ 203 059 999)
+	ErrTriggerNotFound     = errorx.New(ErrTriggerNotFoundCode)
+	ErrTriggerInvalidParam = errorx.New(ErrTriggerInvalidParamCode)
+	ErrTriggerConfigInvalid = errorx.New(ErrTriggerConfigInvalidCode)
+	ErrTriggerCreateFailed  = errorx.New(ErrTriggerCreateFailedCode)
+	ErrTriggerDeleteFailed  = errorx.New(ErrTriggerDeleteFailedCode)
+	ErrTriggerExecuteFailed = errorx.New(ErrTriggerExecuteFailedCode)
+
+	// 版本管理 (203 060 000 ~ 203 069 999)
+	ErrVersionNotFound       = errorx.New(ErrVersionNotFoundCode)
+	ErrVersionAlreadyExists  = errorx.New(ErrVersionAlreadyExistsCode)
+	ErrVersionInvalidParam   = errorx.New(ErrVersionInvalidParamCode)
+	ErrVersionNameInvalid    = errorx.New(ErrVersionNameInvalidCode)
+	ErrVersionCreateFailed   = errorx.New(ErrVersionCreateFailedCode)
+	ErrVersionDeleteFailed   = errorx.New(ErrVersionDeleteFailedCode)
+	ErrVersionRollbackFailed = errorx.New(ErrVersionRollbackFailedCode)
+	ErrVersionConflict       = errorx.New(ErrVersionConflictCode)
+
+	// 调试相关 (203 070 000 ~ 203 079 999)
+	ErrDebugModeFailed      = errorx.New(ErrDebugModeFailedCode)
+	ErrBreakpointInvalid    = errorx.New(ErrBreakpointInvalidCode)
+	ErrBreakpointSetFailed  = errorx.New(ErrBreakpointSetFailedCode)
+	ErrStepExecutionFailed  = errorx.New(ErrStepExecutionFailedCode)
+	ErrVariableWatchFailed  = errorx.New(ErrVariableWatchFailedCode)
+
+	// 导入导出 (203 080 000 ~ 203 089 999)
+	ErrImportFailed           = errorx.New(ErrImportFailedCode)
+	ErrExportFailed           = errorx.New(ErrExportFailedCode)
+	ErrInvalidFormat          = errorx.New(ErrInvalidFormatCode)
+	ErrSchemaValidationFailed = errorx.New(ErrSchemaValidationFailedCode)
+	ErrSerializationFailed    = errorx.New(ErrSerializationFailedCode)
+
+	// 已弃用错误码的便捷别名（向后兼容）
+	// TODO: 逐步迁移到新的203段错误码，移除这些别名
+	ErrVariablesAPIFail                        = errorx.New(DeprecatedErrVariablesAPIFail)
+	ErrPluginIDNotFound                        = errorx.New(DeprecatedErrPluginIDNotFound)
+	ErrPluginAPIErr                            = errorx.New(DeprecatedErrPluginAPIErr)
+	ErrTOSError                                = errorx.New(DeprecatedErrTOSError)
+	ErrSchemaConversionFail                    = errorx.New(DeprecatedErrSchemaConversionFail)
+	ErrMissingRequiredParam                    = errorx.New(DeprecatedErrMissingRequiredParam)
+	ErrInvalidParameter                        = errorx.New(DeprecatedErrInvalidParameter)
+	ErrSerializationDeserializationFail        = errorx.New(DeprecatedErrSerializationDeserializationFail)
+	ErrNodeOutputParseFail                     = errorx.New(DeprecatedErrNodeOutputParseFail)
+	ErrInputFieldMissing                       = errorx.New(DeprecatedErrInputFieldMissing)
+	ErrLLMStructuredOutputParseFail            = errorx.New(DeprecatedErrLLMStructuredOutputParseFail)
+	ErrConversationNodesNotAvailable           = errorx.New(DeprecatedErrConversationNodesNotAvailable)
+	ErrConversationNodeOperationFail           = errorx.New(DeprecatedErrConversationNodeOperationFail)
+	ErrAuthorizationRequired                   = errorx.New(DeprecatedErrAuthorizationRequired)
+	ErrOnlyDefaultConversationAllowInAgentScenario = errorx.New(DeprecatedErrOnlyDefaultConversationAllowInAgentScenario)
+	ErrInterruptNotSupported                   = errorx.New(DeprecatedErrInterruptNotSupported) // @deprecated 使用 DeprecatedErrInterruptNotSupported
+	ErrCreateNodeFail                          = errorx.New(DeprecatedErrCreateNodeFail)     // @deprecated 使用 ErrNodeCreateFailedCode (203010006)
+	ErrDatabaseError                           = errorx.New(DeprecatedErrDatabaseError)       // @deprecated
+	ErrRedisError                              = errorx.New(DeprecatedErrRedisError)          // @deprecated
+	ErrWorkflowCanceledByUser                  = errorx.New(DeprecatedErrWorkflowCanceledByUser) // @deprecated 使用 ErrExecutionCancelledCode (203030005)
+
+	// 新增错误码变量（用于向后兼容）
+	ErrWorkflowExecuteFail              = errorx.New(DeprecatedErrWorkflowExecuteFail)              // @deprecated 使用 ErrExecutionFailedCode (203030003)
+	ErrChatFlowRoleOperationFail        = errorx.New(DeprecatedErrChatFlowRoleOperationFail)        // @deprecated
+	ErrWorkflowOperationFail            = errorx.New(DeprecatedErrWorkflowOperationFail)            // @deprecated
+	ErrConversationOfAppOperationFail   = errorx.New(DeprecatedErrConversationOfAppOperationFail)   // @deprecated
+	ErrConversationNotFoundForOperation = errorx.New(DeprecatedErrConversationNotFoundForOperation) // @deprecated
+
+	// 补充缺失的已废弃错误码便捷变量（向后兼容）
+	// 720xxx段
+	ErrArrIndexOutOfRange             = errorx.New(DeprecatedErrArrIndexOutOfRange)           // @deprecated
+	ErrQuestionOptionsEmpty           = errorx.New(DeprecatedErrQuestionOptionsEmpty)         // @deprecated
+	ErrWorkflowTimeoutDeprecated      = errorx.New(DeprecatedErrWorkflowTimeout)              // @deprecated 使用 ErrExecutionTimeoutCode (203030004) - 注：与新版 ErrWorkflowTimeout 避免命名冲突
+	ErrInternalBadRequest             = errorx.New(DeprecatedErrInternalBadRequest)           // @deprecated
+	ErrWorkflowCompileFail            = errorx.New(DeprecatedErrWorkflowCompileFail)          // @deprecated
+	ErrConversationNameIsDuplicated   = errorx.New(DeprecatedErrConversationNameIsDuplicated) // @deprecated
+	ErrConversationOfAppNotFound      = errorx.New(DeprecatedErrConversationOfAppNotFound)    // @deprecated
+	ErrConversationNodeInvalidOperation = errorx.New(DeprecatedErrConversationNodeInvalidOperation) // @deprecated
+
+	// 777xxx段
+	ErrWorkflowSpecifiedVersionNotFound = errorx.New(DeprecatedErrWorkflowSpecifiedVersionNotFound) // @deprecated 使用 ErrVersionNotFoundCode (203060001)
+	ErrNodeTimeoutDeprecated            = errorx.New(DeprecatedErrNodeTimeout)                       // @deprecated 使用 ErrNodeTimeoutCode (203010005) - 注：与新版 ErrNodeTimeout 避免命名冲突
+	ErrIndexingNilArray                 = errorx.New(DeprecatedErrIndexingNilArray)                  // @deprecated
+	ErrWorkflowSnapshotNotFound         = errorx.New(DeprecatedErrWorkflowSnapshotNotFound)          // @deprecated
+	ErrNotifyWorkflowResourceChangeErr  = errorx.New(DeprecatedErrNotifyWorkflowResourceChangeErr)   // @deprecated
+	ErrInvalidVersionNameDeprecated     = errorx.New(DeprecatedErrInvalidVersionName)                // @deprecated 使用 ErrVersionNameInvalidCode (203060004) - 注：与新版 ErrVersionNameInvalid 避免命名冲突
+	ErrToolIDNotFound                   = errorx.New(DeprecatedErrToolIDNotFound)                    // @deprecated
+	ErrMessageNodeOperationFail         = errorx.New(DeprecatedErrMessageNodeOperationFail)          // @deprecated
 )
 
 func init() {
@@ -246,6 +377,24 @@ func init() {
 	code.Register(
 		ErrWorkflowPermissionDeniedCode,
 		"Permission denied for workflow: {workflow_id}, user_id: {user_id}",
+		code.WithAffectStability(false),
+	)
+
+	code.Register(
+		ErrWorkflowConflictParamCode,
+		"project_id and bot_id cannot be set at the same time",
+		code.WithAffectStability(false),
+	)
+
+	code.Register(
+		ErrWorkflowSpaceIDRequiredCode,
+		"space id is required",
+		code.WithAffectStability(false),
+	)
+
+	code.Register(
+		ErrWorkflowSchemaRequiredCode,
+		"validate tree schema is required",
 		code.WithAffectStability(false),
 	)
 

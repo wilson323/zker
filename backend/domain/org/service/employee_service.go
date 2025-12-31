@@ -18,13 +18,13 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // EmployeeService 员工管理服务
@@ -138,26 +138,30 @@ func (s *EmployeeService) CreateEmployee(ctx context.Context, req *CreateEmploye
 	// 1. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, req.OrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 	if org.TenantID != req.TenantID {
-		return nil, errno.ErrTenantMismatch
+		return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 	}
 
 	// 2. 如果有部门，验证部门存在
 	if req.DeptID != nil && *req.DeptID != "" {
 		dept, err := s.deptRepo.GetByID(ctx, *req.DeptID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get department: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 		}
 		if dept == nil {
-			return nil, errno.ErrDeptNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 		}
 		if dept.OrgID != req.OrgID {
-			return nil, errno.ErrDeptOrgMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrDeptOrgMismatch)
 		}
 	}
 
@@ -165,50 +169,56 @@ func (s *EmployeeService) CreateEmployee(ctx context.Context, req *CreateEmploye
 	if req.PositionID != nil && *req.PositionID != "" {
 		position, err := s.posRepo.GetByID(ctx, *req.PositionID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get position: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 		}
 		if position == nil {
-			return nil, errno.ErrPositionNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 		}
 		if position.TenantID != req.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 	}
 
 	// 4. 验证工号唯一性
 	exists, err := s.empRepo.ExistsByCode(ctx, req.TenantID, req.EmpCode, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to check emp code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check emp code"),
+            )
 	}
 	if exists {
-		return nil, errno.ErrEmpCodeAlreadyExists
+		return nil, errorx.NewByErrorCode(errno.ErrEmpCodeAlreadyExists)
 	}
 
 	// 5. 验证邮箱唯一性（如果提供）
 	if req.Email != nil && *req.Email != "" {
 		if !s.isValidEmail(*req.Email) {
-			return nil, errno.ErrInvalidEmail
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidEmail)
 		}
 		exists, err := s.empRepo.ExistsByEmail(ctx, req.TenantID, *req.Email, "")
 		if err != nil {
-			return nil, fmt.Errorf("failed to check email: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check email"),
+            )
 		}
 		if exists {
-			return nil, errno.ErrEmailAlreadyExists
+			return nil, errorx.NewByErrorCode(errno.ErrEmailAlreadyExists)
 		}
 	}
 
 	// 6. 验证手机号格式（如果提供）
 	if req.Phone != nil && *req.Phone != "" {
 		if !s.isValidPhone(*req.Phone) {
-			return nil, errno.ErrInvalidPhone
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidPhone)
 		}
 	}
 
 	// 7. 验证身份证号格式（如果提供）
 	if req.IDCard != nil && *req.IDCard != "" {
 		if !s.isValidIDCard(*req.IDCard) {
-			return nil, errno.ErrInvalidIDCard
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidIDCard)
 		}
 	}
 
@@ -266,7 +276,9 @@ func (s *EmployeeService) CreateEmployee(ctx context.Context, req *CreateEmploye
 
 	// 11. 创建员工
 	if err := s.empRepo.Create(ctx, emp); err != nil {
-		return nil, fmt.Errorf("failed to create employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create employee"),
+            )
 	}
 
 	return emp, nil
@@ -275,15 +287,17 @@ func (s *EmployeeService) CreateEmployee(ctx context.Context, req *CreateEmploye
 // GetEmployee 获取员工详情
 func (s *EmployeeService) GetEmployee(ctx context.Context, empID string) (*entity.Employee, error) {
 	if empID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emp, err := s.empRepo.GetByID(ctx, empID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	return emp, nil
@@ -294,23 +308,27 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 	// 1. 获取员工
 	emp, err := s.empRepo.GetByID(ctx, req.EmpID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 2. 如果有部门，验证部门存在且属于同一组织
 	if req.DeptID != nil && *req.DeptID != "" {
 		dept, err := s.deptRepo.GetByID(ctx, *req.DeptID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get department: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 		}
 		if dept == nil {
-			return nil, errno.ErrDeptNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 		}
 		if dept.OrgID != emp.OrgID {
-			return nil, errno.ErrDeptOrgMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrDeptOrgMismatch)
 		}
 		emp.DeptID = req.DeptID
 	}
@@ -319,13 +337,15 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 	if req.PositionID != nil && *req.PositionID != "" {
 		position, err := s.posRepo.GetByID(ctx, *req.PositionID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get position: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 		}
 		if position == nil {
-			return nil, errno.ErrPositionNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 		}
 		if position.TenantID != emp.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 		emp.PositionID = req.PositionID
 	}
@@ -340,22 +360,24 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 	}
 	if req.Phone != nil {
 		if *req.Phone != "" && !s.isValidPhone(*req.Phone) {
-			return nil, errno.ErrInvalidPhone
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidPhone)
 		}
 		emp.Phone = req.Phone
 	}
 	if req.Email != nil {
 		if *req.Email != "" {
 			if !s.isValidEmail(*req.Email) {
-				return nil, errno.ErrInvalidEmail
+				return nil, errorx.NewByErrorCode(errno.ErrInvalidEmail)
 			}
 			// 检查邮箱是否被其他人使用
 			exists, err := s.empRepo.ExistsByEmail(ctx, emp.TenantID, *req.Email, emp.EmpID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to check email: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check email"),
+            )
 			}
 			if exists {
-				return nil, errno.ErrEmailAlreadyExists
+				return nil, errorx.NewByErrorCode(errno.ErrEmailAlreadyExists)
 			}
 		}
 		emp.Email = req.Email
@@ -376,7 +398,7 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 	// 7. 更新个人信息
 	if req.IDCard != nil {
 		if *req.IDCard != "" && !s.isValidIDCard(*req.IDCard) {
-			return nil, errno.ErrInvalidIDCard
+			return nil, errorx.NewByErrorCode(errno.ErrInvalidIDCard)
 		}
 		emp.IDCard = req.IDCard
 	}
@@ -395,7 +417,9 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 
 	// 9. 保存更新
 	if err := s.empRepo.Update(ctx, emp); err != nil {
-		return nil, fmt.Errorf("failed to update employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update employee"),
+            )
 	}
 
 	return emp, nil
@@ -404,26 +428,36 @@ func (s *EmployeeService) UpdateEmployee(ctx context.Context, req *UpdateEmploye
 // DeleteEmployee 删除员工（软删除）
 func (s *EmployeeService) DeleteEmployee(ctx context.Context, empID string) error {
 	if empID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取员工
 	emp, err := s.empRepo.GetByID(ctx, empID)
 	if err != nil {
-		return fmt.Errorf("failed to get employee: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return errno.ErrEmployeeNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "EmployeeNotFound"),
+                )
 	}
 
 	// 2. 在职员工不能删除，需要先离职
 	if emp.IsActive() {
-		return errno.ErrCannotDeleteActiveEmployee
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotDeleteActiveEmployee"),
+                )
 	}
 
 	// 3. 软删除员工
 	if err := s.empRepo.Delete(ctx, empID); err != nil {
-		return fmt.Errorf("failed to delete employee: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete employee"),
+            )
 	}
 
 	return nil
@@ -432,26 +466,34 @@ func (s *EmployeeService) DeleteEmployee(ctx context.Context, empID string) erro
 // UpdateEmployeeStatus 更新员工状态
 func (s *EmployeeService) UpdateEmployeeStatus(ctx context.Context, empID string, status entity.EmployeeStatus) error {
 	if empID == "" || status == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取员工
 	emp, err := s.empRepo.GetByID(ctx, empID)
 	if err != nil {
-		return fmt.Errorf("failed to get employee: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 2. 状态转换验证
 	if !s.isValidStatusTransition(emp.EmployeeStatus, status) {
-		return errno.ErrInvalidStatusTransition
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidStatusTransition"),
+                )
 	}
 
 	// 3. 更新状态
 	if err := s.empRepo.UpdateStatus(ctx, empID, status); err != nil {
-		return fmt.Errorf("failed to update employee status: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update employee status"),
+            )
 	}
 
 	return nil
@@ -484,12 +526,14 @@ func (s *EmployeeService) isValidStatusTransition(oldStatus, newStatus entity.Em
 // ListEmployees 分页查询员工列表
 func (s *EmployeeService) ListEmployees(ctx context.Context, filter *repository.EmployeeFilter) ([]*entity.Employee, int64, error) {
 	if filter.TenantID == "" {
-		return nil, 0, errno.ErrInvalidParam
+		return nil, 0, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emps, total, err := s.empRepo.List(ctx, filter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list employees: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list employees"),
+            )
 	}
 
 	return emps, total, nil
@@ -498,15 +542,17 @@ func (s *EmployeeService) ListEmployees(ctx context.Context, filter *repository.
 // GetEmployeeByCode 根据工号获取员工
 func (s *EmployeeService) GetEmployeeByCode(ctx context.Context, tenantID, code string) (*entity.Employee, error) {
 	if tenantID == "" || code == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emp, err := s.empRepo.GetByCode(ctx, tenantID, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee by code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee by code"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	return emp, nil
@@ -515,12 +561,14 @@ func (s *EmployeeService) GetEmployeeByCode(ctx context.Context, tenantID, code 
 // GetEmployeeByUserID 根据用户ID获取员工
 func (s *EmployeeService) GetEmployeeByUserID(ctx context.Context, userID string) (*entity.Employee, error) {
 	if userID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emp, err := s.empRepo.GetByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee by user id: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee by user id"),
+            )
 	}
 
 	return emp, nil
@@ -529,12 +577,14 @@ func (s *EmployeeService) GetEmployeeByUserID(ctx context.Context, userID string
 // GetEmployeesByDepartment 获取部门的所有员工
 func (s *EmployeeService) GetEmployeesByDepartment(ctx context.Context, deptID string) ([]*entity.Employee, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emps, err := s.empRepo.GetByDepartmentID(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees by department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees by department"),
+            )
 	}
 
 	return emps, nil
@@ -543,12 +593,14 @@ func (s *EmployeeService) GetEmployeesByDepartment(ctx context.Context, deptID s
 // GetEmployeesByOrganization 获取组织的所有员工
 func (s *EmployeeService) GetEmployeesByOrganization(ctx context.Context, orgID string) ([]*entity.Employee, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emps, err := s.empRepo.GetByOrgID(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees by organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees by organization"),
+            )
 	}
 
 	return emps, nil
@@ -557,7 +609,7 @@ func (s *EmployeeService) GetEmployeesByOrganization(ctx context.Context, orgID 
 // SearchEmployees 搜索员工（按姓名、工号、手机号、邮箱）
 func (s *EmployeeService) SearchEmployees(ctx context.Context, tenantID, keyword string, limit int) ([]*entity.Employee, error) {
 	if tenantID == "" || keyword == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	if limit <= 0 || limit > 100 {
@@ -566,7 +618,9 @@ func (s *EmployeeService) SearchEmployees(ctx context.Context, tenantID, keyword
 
 	emps, err := s.empRepo.Search(ctx, tenantID, keyword, limit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "search employees"),
+            )
 	}
 
 	return emps, nil
@@ -575,12 +629,14 @@ func (s *EmployeeService) SearchEmployees(ctx context.Context, tenantID, keyword
 // GetEmployeesByPinyin 按拼音首字母查询员工
 func (s *EmployeeService) GetEmployeesByPinyin(ctx context.Context, tenantID, pinyin string) ([]*entity.Employee, error) {
 	if tenantID == "" || pinyin == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emps, err := s.empRepo.GetByPinyin(ctx, tenantID, pinyin)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees by pinyin: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees by pinyin"),
+            )
 	}
 
 	return emps, nil

@@ -77,7 +77,7 @@ func (h *SDKGeneratorHandler) ListSDKs(ctx context.Context, c *app.RequestContex
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -126,7 +126,7 @@ func (h *SDKGeneratorHandler) GenerateSDK(ctx context.Context, c *app.RequestCon
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -139,7 +139,7 @@ func (h *SDKGeneratorHandler) GenerateSDK(ctx context.Context, c *app.RequestCon
 
 	// 验证语言是否支持
 	if !h.isValidLanguage(req.Language) {
-		httputil.BuildErrorResp(c, berrno.ErrSDKLanguageInvalid.Code, berrno.ErrSDKLanguageInvalid.Message, berrno.ErrSDKLanguageInvalid.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKLanguageInvalid.Int32Code(), berrno.ErrSDKLanguageInvalid.Message(), berrno.ErrSDKLanguageInvalid.MessageZH(), nil)
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *SDKGeneratorHandler) GetSDK(ctx context.Context, c *app.RequestContext)
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -188,7 +188,7 @@ func (h *SDKGeneratorHandler) GetSDK(ctx context.Context, c *app.RequestContext)
 
 	// 验证租户隔离
 	if sdk == nil || sdk.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, berrno.ErrSDKNotFound.Message, berrno.ErrSDKNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), berrno.ErrSDKNotFound.Message(), berrno.ErrSDKNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -207,7 +207,7 @@ func (h *SDKGeneratorHandler) PublishSDK(ctx context.Context, c *app.RequestCont
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -219,7 +219,7 @@ func (h *SDKGeneratorHandler) PublishSDK(ctx context.Context, c *app.RequestCont
 	}
 
 	if sdk == nil || sdk.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, berrno.ErrSDKNotFound.Message, berrno.ErrSDKNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), berrno.ErrSDKNotFound.Message(), berrno.ErrSDKNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -248,7 +248,7 @@ func (h *SDKGeneratorHandler) DeleteSDK(ctx context.Context, c *app.RequestConte
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -260,13 +260,13 @@ func (h *SDKGeneratorHandler) DeleteSDK(ctx context.Context, c *app.RequestConte
 	}
 
 	if sdk == nil || sdk.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, berrno.ErrSDKNotFound.Message, berrno.ErrSDKNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), berrno.ErrSDKNotFound.Message(), berrno.ErrSDKNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查SDK是否已发布（已发布的SDK不能删除，只能归档）
 	if sdk.IsPublished() {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, "Published SDK cannot be deleted", "已发布的SDK不能删除", map[string]interface{}{
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), "Published SDK cannot be deleted", "已发布的SDK不能删除", map[string]interface{}{
 			"sdk_id":    sdkID,
 			"status":    sdk.Status,
 			"suggestion": "Use archive operation instead",
@@ -298,7 +298,7 @@ func (h *SDKGeneratorHandler) DownloadSDK(ctx context.Context, c *app.RequestCon
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -310,7 +310,7 @@ func (h *SDKGeneratorHandler) DownloadSDK(ctx context.Context, c *app.RequestCon
 	}
 
 	if sdk == nil || sdk.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, berrno.ErrSDKNotFound.Message, berrno.ErrSDKNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), berrno.ErrSDKNotFound.Message(), berrno.ErrSDKNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -336,7 +336,7 @@ func (h *SDKGeneratorHandler) GetSDKCode(ctx context.Context, c *app.RequestCont
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -349,7 +349,7 @@ func (h *SDKGeneratorHandler) GetSDKCode(ctx context.Context, c *app.RequestCont
 
 	// 验证租户隔离
 	if sdk == nil || sdk.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Code, berrno.ErrSDKNotFound.Message, berrno.ErrSDKNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrSDKNotFound.Int32Code(), berrno.ErrSDKNotFound.Message(), berrno.ErrSDKNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -374,7 +374,7 @@ func (h *SDKGeneratorHandler) GetProjectSDKs(ctx context.Context, c *app.Request
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 

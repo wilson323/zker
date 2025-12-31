@@ -205,3 +205,14 @@ func (r *apiKeyRepository) GetExpiringKeys(ctx context.Context, tenantID string)
 
 	return apiKeys, err
 }
+
+// GetAllActive 获取所有激活的API密钥（用于密钥验证）
+func (r *apiKeyRepository) GetAllActive(ctx context.Context) ([]*entity.APIKey, error) {
+	var apiKeys []*entity.APIKey
+	err := r.db.WithContext(ctx).
+		Where("status = ?", entity.APIKeyStatusActive).
+		Where("deleted_at IS NULL").
+		Find(&apiKeys).Error
+
+	return apiKeys, err
+}

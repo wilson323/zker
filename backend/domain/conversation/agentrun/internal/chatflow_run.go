@@ -49,7 +49,7 @@ func (art *AgentRuntime) ChatflowRun(ctx context.Context, imagex imagex.ImageX) 
 	wfID, _ := strconv.ParseInt(art.GetAgentInfo().LayoutInfo.WorkflowId, 10, 64)
 
 	if wfID == 0 {
-		mh.handlerErr(ctx, errorx.New(errno.ErrAgentRunWorkflowNotFound))
+		mh.handlerErr(ctx, errorx.New(errno.DeprecatedErrAgentRunWorkflowNotFound))
 		return
 	}
 	var wfStreamer *schema.StreamReader[*crossworkflow.WorkflowMessage]

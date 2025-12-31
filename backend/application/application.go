@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/coze-dev/coze-studio/backend/application/botstore"
 	"github.com/coze-dev/coze-studio/backend/application/permission"
 	"github.com/coze-dev/coze-studio/backend/application/tenant"
 
@@ -72,6 +73,8 @@ import (
 	variablesImpl "github.com/coze-dev/coze-studio/backend/crossdomain/variables/impl"
 	crossworkflow "github.com/coze-dev/coze-studio/backend/crossdomain/workflow"
 	workflowImpl "github.com/coze-dev/coze-studio/backend/crossdomain/workflow/impl"
+	crossbotstore "github.com/coze-dev/coze-studio/backend/crossdomain/botstore"
+	crossbotstoreImpl "github.com/coze-dev/coze-studio/backend/crossdomain/botstore/impl"
 	"github.com/coze-dev/coze-studio/backend/infra/checkpoint"
 	"github.com/coze-dev/coze-studio/backend/infra/document/progressbar"
 	progressBarImpl "github.com/coze-dev/coze-studio/backend/infra/document/progressbar/impl/progressbar"
@@ -80,6 +83,8 @@ import (
 	"github.com/coze-dev/coze-studio/backend/infra/sqlparser"
 	sqlparserImpl "github.com/coze-dev/coze-studio/backend/infra/sqlparser/impl/sqlparser"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
+
+	coze "github.com/coze-dev/coze-studio/backend/api/handler/coze"
 )
 
 type eventbusImpl struct {
@@ -168,6 +173,16 @@ func Init(ctx context.Context) (err error) {
 	crossupload.SetDefaultSVC(uploadImpl.InitDomainService(basicServices.uploadSVC.UploadSVC))
 
 	crossapp.SetDefaultSVC(appImpl.InitDomainService(complexServices.appSVC.DomainSVC))
+
+	// 初始化Bot商店服务
+	if err := initBotStoreService(basicServices); err != nil {
+		return fmt.Errorf("Init - initBotStoreService failed, err: %v", err)
+	}
+
+	// 初始化数字员工服务
+	if err := initDigitalEmployeeService(basicServices); err != nil {
+		return fmt.Errorf("Init - initDigitalEmployeeService failed, err: %v", err)
+	}
 
 	return nil
 }
@@ -404,4 +419,51 @@ func (p *primaryServices) toConversationComponents(singleAgentSVC *singleagent.S
 		ImageX:               infra.ImageXClient,
 		SingleAgentDomainSVC: singleAgentSVC.DomainSVC,
 	}
+}
+
+// initBotStoreService 初始化Bot商店服务
+func initBotStoreService(basicServices *basicServices) error {
+	if err := botstore.InitBotStoreService(basicServices.infra.DB); err != nil {
+		return err
+	}
+
+	// 获取Bot商店服务
+	botStoreSVC := botstore.GetBotStoreService()
+
+	// 设置跨域服务
+	crossbotstore.SetDefaultSVC(crossbotstoreImpl.InitDomainService(
+		botStoreSVC.Publisher,
+		botStoreSVC.Browser,
+		botStoreSVC.Reviewer,
+	))
+
+	// 初始化API Handler
+	coze.InitBotStoreServices(
+		botStoreSVC.Publisher,
+		botStoreSVC.Browser,
+		botStoreSVC.Reviewer,
+	)
+
+	return nil
+}
+
+// initDigitalEmployeeService 初始化数字员工服务
+func initDigitalEmployeeService(basicServices *basicServices) error {
+	digitalEmployee "github.com/coze-dev/coze-studio/backend/application/digital_employee"
+
+	// 初始化数字员工服务
+	digitalEmployeeSVC, err := digitalEmployee.InitService(context.Background(), &digitalEmployee.ServiceComponents{
+		DB: basicServices.infra.DB,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to initialize digital employee service: %w", err)
+	}
+
+	// TODO: 设置跨域服务（如果需要）
+	// crossdigital_employee.SetDefaultSVC(...)
+
+	// TODO: 初始化API Handler
+	// coze.InitDigitalEmployeeServices(digitalEmployeeSVC)
+
+	return nil
 }

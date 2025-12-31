@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	upload "github.com/coze-dev/coze-studio/backend/api/model/file/upload"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	uploadSVC "github.com/coze-dev/coze-studio/backend/application/upload"
 
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ptr"
@@ -37,17 +38,17 @@ func CommonUpload(ctx context.Context, c *app.RequestContext) {
 	var req upload.CommonUploadRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	fullUrl := string(c.Request.URI().FullURI())
 
 	resp, err := uploadSVC.SVC.UploadFileCommon(ctx, &req, fullUrl)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ApplyUploadAction .
@@ -57,7 +58,7 @@ func ApplyUploadAction(ctx context.Context, c *app.RequestContext) {
 	var req upload.ApplyUploadActionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp := new(upload.ApplyUploadActionResponse)
@@ -65,16 +66,16 @@ func ApplyUploadAction(ctx context.Context, c *app.RequestContext) {
 	if ptr.From(req.Action) == "ApplyImageUpload" {
 		resp, err = uploadSVC.SVC.ApplyImageUpload(ctx, &req, string(host))
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	} else if ptr.From(req.Action) == "CommitImageUpload" {
 		resp, err = uploadSVC.SVC.CommitImageUpload(ctx, &req, string(host))
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

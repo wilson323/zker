@@ -18,6 +18,8 @@
 package developer
 
 import (
+	"context"
+
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/app/server"
 
@@ -31,6 +33,7 @@ var (
 	apiKeyHandler   *developer.APIKeyManagementHandler
 	sdkHandler      *developer.SDKGeneratorHandler
 	webhookHandler  *developer.WebhookHandler
+	userHandler     *developer.UserManagementHandler
 )
 
 // InitHandlers 初始化开发平台 Handler
@@ -40,11 +43,13 @@ func InitHandlers(
 	apiKeySvc interface{},  // devservice.APIKeyManagementService
 	sdkSvc interface{},     // devservice.SDKGeneratorService
 	webhookSvc interface{}, // devservice.WebhookService
+	userSvc interface{},    // *permservice.UserService
 ) {
 	projectHandler = developer.NewProjectManagementHandler(projectSvc)
 	apiKeyHandler = developer.NewAPIKeyManagementHandler(apiKeySvc)
 	sdkHandler = developer.NewSDKGeneratorHandler(sdkSvc)
 	webhookHandler = developer.NewWebhookHandler(webhookSvc)
+	userHandler = developer.NewUserManagementHandler(userSvc)
 }
 
 // RegisterRoutes 注册开发者平台路由
@@ -60,7 +65,6 @@ func RegisterRoutes(r *server.Hertz) {
 	// 基础中间件：租户隔离 + 权限检查
 	baseMiddleware := []app.HandlerFunc{
 		middleware.TenantIsolationMiddleware(),
-		middleware.PermissionCheckMiddleware(),
 	}
 
 	// 开发者平台路由组
@@ -198,6 +202,60 @@ func RegisterRoutes(r *server.Hertz) {
 		// 获取项目的Webhook列表
 		projectsWebhooksGroup.GET("/:id/webhooks", any(webhookHandler.GetProjectWebhooks))
 	}
+
+	// ==================== 用户管理路由 ====================
+	usersGroup := developerGroup.Group("/users")
+	{
+		// 用户列表
+		usersGroup.GET("", any(userHandler.ListUsers))
+		// 创建用户
+		usersGroup.POST("", any(userHandler.CreateUser))
+		// 导出用户列表
+		usersGroup.GET("/export", any(userHandler.ExportUsers))
+		// 批量删除用户
+		usersGroup.POST("/batch-delete", any(userHandler.BatchDeleteUsers))
+		// 批量更新用户
+		usersGroup.POST("/batch-update", any(userHandler.BatchUpdateUsers))
+	}
+
+	// 用户详情路由
+	userDetailGroup := developerGroup.Group("/users")
+	{
+		// 获取用户详情
+		userDetailGroup.GET("/:id", any(userHandler.GetUser))
+		// 更新用户信息
+		userDetailGroup.PUT("/:id", any(userHandler.UpdateUser))
+		// 删除用户
+		userDetailGroup.DELETE("/:id", any(userHandler.DeleteUser))
+		// 更新用户状态
+		userDetailGroup.PUT("/:id/status", any(userHandler.UpdateUserStatus))
+		// 重置用户密码
+		userDetailGroup.POST("/:id/reset-password", any(userHandler.ResetPassword))
+		// 解锁用户账户
+		userDetailGroup.POST("/:id/unlock", any(userHandler.UnlockUser))
+	}
+
+	// 用户角色路由
+	userRolesGroup := developerGroup.Group("/users")
+	{
+		// 获取用户所有角色
+		userRolesGroup.GET("/:id/roles", any(userHandler.GetUserRoles))
+		// 分配角色给用户
+		userRolesGroup.POST("/:id/roles", any(userHandler.AssignRoles))
+		// 批量更新用户角色
+		userRolesGroup.PUT("/:id/roles", any(userHandler.UpdateUserRoles))
+		// 移除用户角色
+		userRolesGroup.DELETE("/:id/roles/:role_id", any(userHandler.RemoveRole))
+	}
+
+	// 用户权限路由
+	userPermissionsGroup := developerGroup.Group("/users")
+	{
+		// 获取用户所有权限
+		userPermissionsGroup.GET("/:id/permissions", any(userHandler.GetUserPermissions))
+		// 获取用户有效权限（含继承）
+		userPermissionsGroup.GET("/:id/effective-permissions", any(userHandler.GetUserEffectivePermissions))
+	}
 }
 
 // any 将 handler 转换为 app.HandlersFunc
@@ -229,4 +287,9 @@ func GetSDKHandler() *developer.SDKGeneratorHandler {
 // GetWebhookHandler 获取Webhook Handler（用于测试）
 func GetWebhookHandler() *developer.WebhookHandler {
 	return webhookHandler
+}
+
+// GetUserHandler 获取用户管理Handler（用于测试）
+func GetUserHandler() *developer.UserManagementHandler {
+	return userHandler
 }

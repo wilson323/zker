@@ -19,12 +19,10 @@ package middleware
 import (
 	"context"
 	"encoding/json"
-	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"go.uber.org/zap"
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/service"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
@@ -39,8 +37,8 @@ var (
 	permissionCache    cache.PermissionCache
 )
 
-// InitEnhancedPermissionMiddleware 初始化增强权限中间件依赖
-func InitEnhancedPermissionMiddleware(
+// InitDataPermissionMiddleware 初始化数据权限中间件依赖
+func InitDataPermissionMiddleware(
 	dpc service.DataPermissionChecker,
 	fpc service.FieldPermissionChecker,
 	pc cache.PermissionCache,
@@ -72,12 +70,13 @@ type DataPermissionFilterConfig struct {
 func DataPermissionFilter(config DataPermissionFilterConfig) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// 1. 获取user_id
-		userID := c.GetHeader("X-User-ID")
-		if userID == "" {
+		userIDBytes := c.GetHeader("X-User-ID")
+		if len(userIDBytes) == 0 {
 			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
 			c.Abort()
 			return
 		}
+		userID := string(userIDBytes)
 
 		// 2. 检查是否跳过过滤
 		if config.SkipFilter != nil && config.SkipFilter(c) {
@@ -159,11 +158,12 @@ func DataPermissionFilter(config DataPermissionFilterConfig) app.HandlerFunc {
 func FieldPermissionMask(resourceType string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// 1. 获取user_id
-		userID := c.GetHeader("X-User-ID")
-		if userID == "" {
+		userIDBytes := c.GetHeader("X-User-ID")
+		if len(userIDBytes) == 0 {
 			c.Next(ctx)
 			return
 		}
+		userID := string(userIDBytes)
 
 		// 2. 执行Handler
 		c.Next(ctx)
@@ -224,12 +224,13 @@ func FieldPermissionMask(resourceType string) app.HandlerFunc {
 func ValidateFieldPermissions(resourceType string) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
 		// 1. 获取user_id
-		userID := c.GetHeader("X-User-ID")
-		if userID == "" {
+		userIDBytes := c.GetHeader("X-User-ID")
+		if len(userIDBytes) == 0 {
 			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
 			c.Abort()
 			return
 		}
+		userID := string(userIDBytes)
 
 		// 2. 解析请求数据
 		var requestData map[string]interface{}
@@ -271,12 +272,13 @@ func ValidateFieldPermissions(resourceType string) app.HandlerFunc {
 //	r.GET("/api/bots/all", middleware.RequireDataPermissionLevel(service.ALL), handler.ListAllBots)
 func RequireDataPermissionLevel(requiredLevel service.DataPermissionLevel) app.HandlerFunc {
 	return func(ctx context.Context, c *app.RequestContext) {
-		userID := c.GetHeader("X-User-ID")
-		if userID == "" {
+		userIDBytes := c.GetHeader("X-User-ID")
+		if len(userIDBytes) == 0 {
 			c.JSON(consts.StatusUnauthorized, responseWithError(berrno.ErrUnauthorizedCode))
 			c.Abort()
 			return
 		}
+		_ = string(userIDBytes) // userID available for future use
 
 		// 获取用户权限级别（简化示例）
 		userLevel := service.SELF // 默认权限级别
@@ -325,10 +327,10 @@ func getDataPermissionLevelFromRole(ctx context.Context, userID, resourceType st
 // ==========================================
 
 // responseWithError 返回错误响应
-func responseWithError(errno *berrno.Errno, kv ...interface{}) map[string]interface{} {
+func responseWithError(errnoCode int32, kv ...interface{}) map[string]interface{} {
 	resp := map[string]interface{}{
-		"code":    errno.Code,
-		"message": errno.Message,
+		"code":    errnoCode,
+		"message": berrno.ErrMsgByCode(errnoCode),
 	}
 
 	if len(kv) > 0 {

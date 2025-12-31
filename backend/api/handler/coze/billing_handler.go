@@ -187,7 +187,7 @@ func (h *BillingHandler) GenerateInvoice(c *gin.Context) {
 		"duration_ms": time.Since(startTime).Milliseconds(),
 	}).Info("[BillingHandler] Invoice generated")
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Invoice generated successfully",
 		Data:    response,
@@ -212,7 +212,7 @@ func (h *BillingHandler) GetInvoice(c *gin.Context) {
 
 	// 2. 获取发票详情（通过InvoiceService）
 	// TODO: 需要在InvoiceService中添加GetInvoiceWithDetails方法
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Invoice retrieved",
 		Data:    gin.H{"invoice_id": invoiceID},
@@ -240,7 +240,7 @@ func (h *BillingHandler) ListInvoices(c *gin.Context) {
 	// 2. 查询发票列表
 	// TODO: 需要在InvoiceService中添加ListInvoicesByTenant方法
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Invoices retrieved",
 		Data:    gin.H{"tenant_id": tenantID, "page": page, "page_size": pageSize},
@@ -279,7 +279,7 @@ func (h *BillingHandler) GenerateInvoicePDF(c *gin.Context) {
 		"pdf_path":   pdfPath,
 	}).Info("[BillingHandler] Invoice PDF generated")
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "PDF generated successfully",
 		Data:    gin.H{"pdf_path": pdfPath},
@@ -329,7 +329,7 @@ func (h *BillingHandler) SendInvoiceEmail(c *gin.Context) {
 		"recipient_email": req.RecipientEmail,
 	}).Info("[BillingHandler] Invoice email sent")
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Email sent successfully",
 	})
@@ -385,7 +385,7 @@ func (h *BillingHandler) CreatePayment(c *gin.Context) {
 		"duration_ms":   time.Since(startTime).Milliseconds(),
 	}).Info("[BillingHandler] Payment created")
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Payment created successfully",
 		Data:    resp,
@@ -427,7 +427,7 @@ func (h *BillingHandler) QueryPaymentStatus(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Payment status retrieved",
 		Data:    payment,
@@ -538,7 +538,7 @@ func (h *BillingHandler) CalculateBill(c *gin.Context) {
 		"subscription_fee": subscriptionBill.TotalAmount.String(),
 	}).Info("[BillingHandler] Bill calculated")
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Bill calculated successfully",
 		Data:    subscriptionBill,
@@ -554,7 +554,7 @@ func (h *BillingHandler) GetBillingStatus(c *gin.Context) {
 
 	// TODO: 实现获取计费状态的逻辑
 
-	c.JSON(http.StatusOK, APIResponse{
+	httputil.BuildSuccessResp(c, APIResponse{
 		Code:    200,
 		Message: "Billing status retrieved",
 		Data:    gin.H{"tenant_id": tenantID, "status": "active"},

@@ -25,6 +25,8 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // IntegrationExample 集成示例
@@ -66,7 +68,9 @@ func (e *IntegrationExample) Example1_SimplePermissionCheck(ctx context.Context,
 	// 方法1：使用CheckAccess
 	hasAccess, err := e.dataPermChecker.CheckAccess(ctx, userID, botID, SELF, "bots")
 	if err != nil {
-		return false, fmt.Errorf("check access failed: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check access failed"),
+            )
 	}
 
 	if !hasAccess {
@@ -76,7 +80,9 @@ func (e *IntegrationExample) Example1_SimplePermissionCheck(ctx context.Context,
 	// 方法2：生成过滤条件（用于列表查询）
 	filter, err := e.dataPermChecker.Filter(ctx, userID, SELF, "bots")
 	if err != nil {
-		return false, fmt.Errorf("generate filter failed: %w", err)
+		return false, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "generate filter failed"),
+            )
 	}
 
 	// 应用过滤条件
@@ -102,7 +108,9 @@ func (e *IntegrationExample) Example2_FieldPermissionMask(ctx context.Context, u
 	for _, bot := range bots {
 		maskedBot, err := e.fieldPermChecker.MaskSensitiveFields(ctx, userID, bot)
 		if err != nil {
-			return fmt.Errorf("mask fields failed: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "mask fields failed"),
+            )
 		}
 
 		fmt.Printf("Original: %+v\n", bot)
@@ -129,7 +137,9 @@ func (e *IntegrationExample) Example3_CreateRoleWithPermissions(ctx context.Cont
 	}
 
 	if err := e.roleRepo.Create(ctx, role); err != nil {
-		return fmt.Errorf("create role failed: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "create role failed"),
+            )
 	}
 
 	// 2. 配置Bot数据权限（本部门及子部门）
@@ -141,7 +151,9 @@ func (e *IntegrationExample) Example3_CreateRoleWithPermissions(ctx context.Cont
 	}
 
 	if err := e.dataPermRepo.Create(ctx, botDataPerm); err != nil {
-		return fmt.Errorf("create bot data permission failed: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "create bot data permission failed"),
+            )
 	}
 
 	// 3. 配置字段权限
@@ -171,7 +183,9 @@ func (e *IntegrationExample) Example3_CreateRoleWithPermissions(ctx context.Cont
 
 	for _, perm := range fieldPerms {
 		if err := e.fieldPermRepo.Create(ctx, perm); err != nil {
-			return fmt.Errorf("create field permission failed: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "create field permission failed"),
+            )
 		}
 	}
 
@@ -193,7 +207,9 @@ func (e *IntegrationExample) Example4_AssignRoleToUser(ctx context.Context, user
 	}
 
 	if err := e.userRoleRepo.Create(ctx, userRole); err != nil {
-		return fmt.Errorf("assign role failed: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "assign role failed"),
+            )
 	}
 
 	fmt.Printf("角色分配成功: user=%s, role=%s\n", userID, roleID)
@@ -223,7 +239,9 @@ func (e *IntegrationExample) Example5_CustomDataPermission(ctx context.Context, 
 	}
 
 	if err := e.dataPermRepo.Create(ctx, customPerm); err != nil {
-		return fmt.Errorf("create custom permission failed: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "create custom permission failed"),
+            )
 	}
 
 	fmt.Println("自定义数据权限创建成功")
@@ -246,7 +264,9 @@ func (e *IntegrationExample) Example6_CompleteWorkflow(ctx context.Context, user
 	// 获取角色ID
 	role, err := e.roleRepo.GetByCode(ctx, tenantID, "dept_manager")
 	if err != nil {
-		return fmt.Errorf("get role failed: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("reason", "get role failed"),
+            )
 	}
 
 	// 2. 分配角色给用户

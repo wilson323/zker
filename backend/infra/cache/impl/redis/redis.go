@@ -91,6 +91,16 @@ func (r *redisImpl) HSet(ctx context.Context, key string, values ...interface{})
 	return r.client.HSet(ctx, key, values...)
 }
 
+// Ping implements cache.Cmdable.
+func (r *redisImpl) Ping(ctx context.Context) cache.StatusCmd {
+	return r.client.Ping(ctx)
+}
+
+// Scan implements cache.Cmdable.
+func (r *redisImpl) Scan(ctx context.Context, cursor uint64, match string, count int64) cache.ScanCmd {
+	return &scanCmdAdapter{cmd: r.client.Scan(ctx, cursor, match, count)}
+}
+
 // Incr implements cache.Cmdable.
 func (r *redisImpl) Incr(ctx context.Context, key string) cache.IntCmd {
 	return r.client.Incr(ctx, key)
@@ -176,6 +186,36 @@ func (c *cmderImpl) Err() error {
 	return c.cmder.Err()
 }
 
+// scanCmdAdapter 适配 Redis ScanCmd 到 cache.ScanCmd
+type scanCmdAdapter struct {
+	cmd *redis.ScanCmd
+}
+
+func (s *scanCmdAdapter) Err() error {
+	return s.cmd.Err()
+}
+
+func (s *scanCmdAdapter) Iterator() cache.ScanIterator {
+	return &scanIteratorAdapter{iter: s.cmd.Iterator()}
+}
+
+// scanIteratorAdapter 适配 Redis ScanIterator 到 cache.ScanIterator
+type scanIteratorAdapter struct {
+	iter *redis.ScanIterator
+}
+
+func (s *scanIteratorAdapter) Next(ctx context.Context) bool {
+	return s.iter.Next(ctx)
+}
+
+func (s *scanIteratorAdapter) Val() string {
+	return s.iter.Val()
+}
+
+func (s *scanIteratorAdapter) Err() error {
+	return s.iter.Err()
+}
+
 // Exists implements cache.Pipeliner.
 func (p *pipelineImpl) Exists(ctx context.Context, keys ...string) cache.IntCmd {
 	return p.p.Exists(ctx, keys...)
@@ -199,6 +239,16 @@ func (p *pipelineImpl) HGetAll(ctx context.Context, key string) cache.MapStringS
 // HSet implements cache.Pipeliner.
 func (p *pipelineImpl) HSet(ctx context.Context, key string, values ...interface{}) cache.IntCmd {
 	return p.p.HSet(ctx, key, values...)
+}
+
+// Ping implements cache.Pipeliner.
+func (p *pipelineImpl) Ping(ctx context.Context) cache.StatusCmd {
+	return p.p.Ping(ctx)
+}
+
+// Scan implements cache.Pipeliner.
+func (p *pipelineImpl) Scan(ctx context.Context, cursor uint64, match string, count int64) cache.ScanCmd {
+	return &scanCmdAdapter{cmd: p.p.Scan(ctx, cursor, match, count)}
 }
 
 // Incr implements cache.Pipeliner.

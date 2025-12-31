@@ -1,0 +1,322 @@
+# ZKER 计费系统告警规则
+# 版本: v1.0.0
+# 说明: Prometheus AlertManager 告警规则定义 - 计费系统专用
+
+groups:
+  # ==================== Token计量告警 ====================
+  - name: token_metering_alerts
+    interval: 30s
+    rules:
+      # Token记录速率异常
+      - alert: HighTokenRecordRate
+        expr: rate(billing_token_records_total[5m]) > 1000
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token记录速率过高"
+          description: "租户 {{ $labels.tenant_id }} 的Token记录速率超过1000次/5分钟，当前值: {{ $value }}次/秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/high_record_rate"
+
+      # Token记录耗时过长
+      - alert: TokenRecordSlow
+        expr: histogram_quantile(0.95, rate(billing_token_record_duration_seconds_bucket[5m])) > 0.5
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token记录耗时过长"
+          description: "操作 {{ $labels.operation }} 的P95耗时超过500ms，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/slow_record"
+
+      # Token记录失败率过高
+      - alert: HighTokenRecordFailureRate
+        expr: (rate(billing_token_log_db_operations_total{result="failure"}[5m]) / rate(billing_token_log_db_operations_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token记录失败率过高"
+          description: "数据库操作 {{ $labels.operation }} 失败率超过5%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/record_failure"
+
+  # ==================== 定价引擎告警 ====================
+  - name: pricing_engine_alerts
+    interval: 30s
+    rules:
+      # 定价计算错误率过高
+      - alert: HighPricingErrorRate
+        expr: (rate(billing_pricing_errors_total[5m]) / rate(billing_pricing_calculations_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "定价计算错误率过高"
+          description: "模型 {{ $labels.model_provider }}/{{ $labels.model_name }} 定价计算错误率超过5%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/pricing_error"
+
+      # 定价计算耗时过长
+      - alert: PricingCalculationSlow
+        expr: histogram_quantile(0.95, rate(billing_pricing_calculation_duration_seconds_bucket[5m])) > 0.01
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "定价计算耗时过长"
+          description: "模型 {{ $labels.model_provider }} 定价计算P95耗时超过10ms，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/slow_pricing"
+
+      # 定价模型缺失
+      - alert: PricingModelNotFound
+        expr: rate(billing_pricing_errors_total{error_type="model_not_found"}[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          category: billing
+          team: backend
+        annotations:
+          summary: "定价模型缺失"
+          description: "模型 {{ $labels.model_provider }}/{{ $labels.model_name }} 在定价表中不存在"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/model_not_found"
+
+  # ==================== 预算告警 ====================
+  - name: budget_alerts
+    interval: 1m
+    rules:
+      # 预算即将超支 (80%)
+      - alert: BudgetNearLimit
+        expr: billing_budget_usage_percent > 80
+        for: 1m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "预算即将耗尽"
+          description: "租户 {{ $labels.tenant_id }} 的{{ $labels.budget_type }}预算使用率超过80%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/budget_near_limit"
+
+      # 预算严重警告 (95%)
+      - alert: BudgetCritical
+        expr: billing_budget_usage_percent > 95
+        for: 1m
+        labels:
+          severity: critical
+          category: billing
+          team: backend
+        annotations:
+          summary: "预算即将耗尽"
+          description: "租户 {{ $labels.tenant_id }} 的{{ $labels.budget_type }}预算使用率超过95%，当前值: {{ $value }}%，请立即充值"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/budget_critical"
+
+      # 预算已超支 (100%)
+      - alert: BudgetExceeded
+        expr: billing_budget_usage_percent >= 100
+        for: 0m
+        labels:
+          severity: emergency
+          category: billing
+          team: backend
+        annotations:
+          summary: "预算已超支"
+          description: "租户 {{ $labels.tenant_id }} 的{{ $labels.budget_type }}预算使用率达到或超过100%，当前值: {{ $value }}%，服务已暂停"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/budget_exceeded"
+
+      # 预算检查失败
+      - alert: BudgetCheckFailed
+        expr: rate(billing_budget_checks_total{triggered="true"}[5m]) / rate(billing_budget_checks_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "预算检查频繁失败"
+          description: "租户 {{ $labels.tenant_id }} 预算检查失败率超过50%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/budget_check_failed"
+
+      # 预算告警过多
+      - alert: TooManyBudgetAlerts
+        expr: sum(increase(billing_budget_alerts_total[1h])) > 100
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "预算告警过多"
+          description: "最近1小时预算告警数量超过100次，当前值: {{ $value }}，可能需要优化告警阈值"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/too_many_alerts"
+
+  # ==================== 成本告警 ====================
+  - name: cost_alerts
+    interval: 5m
+    rules:
+      # 单租户成本突增
+      - alert: TenantCostSpike
+        expr: (rate(billing_cost_total[1h]) offset 1h) / (rate(billing_cost_total[1h])) > 2
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "租户成本突增"
+          description: "租户 {{ $labels.tenant_id }} 最近1小时成本较前1小时增长超过2倍"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/cost_spike"
+
+      # 模型成本过高
+      - alert: HighModelCost
+        expr: sum(rate(billing_cost_total[1h])) by (model_provider) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "模型成本过高"
+          description: "模型提供商 {{ $labels.model_provider }} 每小时成本超过1000元，当前值: {{ $value }}元/小时"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/high_model_cost"
+
+      # 总收入异常
+      - alert: RevenueDrop
+        expr: (billing_total_revenue{period="daily"} offset 1d) / billing_total_revenue{period="daily"} > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "收入异常下降"
+          description: "今日收入较昨日下降超过50%，请检查是否有计费故障"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/revenue_drop"
+
+  # ==================== 汇总统计告警 ====================
+  - name: summary_alerts
+    interval: 1m
+    rules:
+      # 汇总更新失败率过高
+      - alert: SummaryUpdateFailure
+        expr: (rate(billing_summary_update_total{result="failure"}[5m]) / rate(billing_summary_update_total[5m])) * 100 > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "汇总更新失败率过高"
+          description: "租户 {{ $labels.tenant_id }} 汇总更新失败率超过10%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/summary_failure"
+
+      # 汇总更新积压
+      - alert: SummaryUpdateBacklog
+        expr: time() - max(billing_daily_cost_gauge) > 7200
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "汇总更新积压"
+          description: "每日汇总数据超过2小时未更新，请检查汇总任务"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/summary_backlog"
+
+  # ==================== 通知告警 ====================
+  - name: notification_alerts
+    interval: 1m
+    rules:
+      # 告警通知发送失败率过高
+      - alert: AlertNotificationFailure
+        expr: (rate(billing_alert_notification_total{result="failure"}[5m]) / rate(billing_alert_notification_total[5m])) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "告警通知发送失败率过高"
+          description: "通道 {{ $labels.channel }} 通知发送失败率超过20%，当前值: {{ $value }}%"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/notification_failure"
+
+      # 告警通知发送耗时过长
+      - alert: AlertNotificationSlow
+        expr: histogram_quantile(0.95, rate(billing_alert_notification_duration_seconds_bucket[5m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "告警通知发送耗时过长"
+          description: "通道 {{ $labels.channel }} P95发送耗时超过10秒，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/slow_notification"
+
+  # ==================== 业务健康度告警 ====================
+  - name: business_health_alerts
+    interval: 5m
+    rules:
+      # 活跃租户数异常下降
+      - alert: ActiveTenantsDrop
+        expr: (billing_active_tenants offset 1h) / billing_active_tenants > 1.5
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "活跃租户数异常下降"
+          description: "活跃租户数较1小时前下降超过50%，当前值: {{ $value }}"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/tenants_drop"
+
+      # 缓存命中率过低
+      - alert: LowCacheHitRate
+        expr: sum(rate(billing_cached_requests_total[5m])) / sum(rate(billing_token_records_total[5m])) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token缓存命中率过低"
+          description: "Token请求缓存命中率低于20%，当前值: {{ $value }}%，可能影响性能"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/low_cache_hit"
+
+  # ==================== 数据库告警 ====================
+  - name: billing_db_alerts
+    interval: 30s
+    rules:
+      # Token日志数据库操作耗时过长
+      - alert: TokenLogDBSlow
+        expr: histogram_quantile(0.95, rate(billing_token_log_db_operation_duration_seconds_bucket[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token日志数据库操作耗时过长"
+          description: "操作 {{ $labels.operation }} P95耗时超过200ms，当前值: {{ $value }}秒"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/db_slow"
+
+      # Token日志数据库操作失败
+      - alert: TokenLogDBFailure
+        expr: rate(billing_token_log_db_operations_total{result="failure"}[5m]) > 10
+        for: 2m
+        labels:
+          severity: critical
+          category: billing
+          team: backend
+        annotations:
+          summary: "Token日志数据库操作失败频繁"
+          description: "操作 {{ $labels.operation }} 失败率超过10次/5秒，请立即检查数据库"
+          runbook_url: "https://docs.coze-studio.com/runbooks/billing/db_failure"

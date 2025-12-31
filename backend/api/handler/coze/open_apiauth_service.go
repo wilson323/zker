@@ -25,6 +25,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/permission/openapiauth"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	openapiauthApp "github.com/coze-dev/coze-studio/backend/application/openauth"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ptr"
@@ -39,23 +40,23 @@ func GetPersonalAccessTokenAndPermission(ctx context.Context, c *app.RequestCont
 	var req openapiauth.GetPersonalAccessTokenAndPermissionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ID == 0 {
-		invalidParamRequestResponse(c, "id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "id is required", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := openapiauthApp.OpenAuthApplication.GetPersonalAccessTokenAndPermission(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "OpenAuthApplicationService.GetPersonalAccessTokenAndPermission failed, err=%v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeletePersonalAccessTokenAndPermission .
@@ -65,23 +66,23 @@ func DeletePersonalAccessTokenAndPermission(ctx context.Context, c *app.RequestC
 	var req openapiauth.DeletePersonalAccessTokenAndPermissionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.ID <= 0 {
-		invalidParamRequestResponse(c, "id is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "id is required", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := openapiauthApp.OpenAuthApplication.DeletePersonalAccessTokenAndPermission(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "OpenAuthApplication.DeletePersonalAccessTokenAndPermission failed, err=%v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListPersonalAccessTokens .
@@ -91,7 +92,7 @@ func ListPersonalAccessTokens(ctx context.Context, c *app.RequestContext) {
 	var req openapiauth.ListPersonalAccessTokensRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -105,11 +106,11 @@ func ListPersonalAccessTokens(ctx context.Context, c *app.RequestContext) {
 	resp, err := openapiauthApp.OpenAuthApplication.ListPersonalAccessTokens(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "OpenAuthApplication.ListPersonalAccessTokens failed, err=%v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreatePersonalAccessTokenAndPermission .
@@ -119,23 +120,23 @@ func CreatePersonalAccessTokenAndPermission(ctx context.Context, c *app.RequestC
 	var req openapiauth.CreatePersonalAccessTokenAndPermissionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if err = checkCPATParams(ctx, &req); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := openapiauthApp.OpenAuthApplication.CreatePersonalAccessToken(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "OpenAuthApplicationService.CreatePersonalAccessToken failed, err=%v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // checkCPATParams Check parameters for creating personal access tokens
@@ -154,16 +155,16 @@ func UpdatePersonalAccessTokenAndPermission(ctx context.Context, c *app.RequestC
 	var req openapiauth.UpdatePersonalAccessTokenAndPermissionRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := openapiauthApp.OpenAuthApplication.UpdatePersonalAccessTokenAndPermission(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "OpenAuthApplication.UpdatePersonalAccessTokenAndPermission failed, err=%v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

@@ -25,7 +25,6 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/entity"
-	knowRepo "github.com/coze-dev/coze-studio/backend/domain/memory/knowledge/repository"
 	"github.com/coze-dev/coze-studio/backend/domain/memory/internal/dal"
 	"github.com/coze-dev/coze-studio/backend/infra/llm"
 	vectordb "github.com/coze-dev/coze-studio/backend/infra/vectordb"

@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/coze-dev/coze-studio/backend/domain/permission/entity"
+	userentity "github.com/coze-dev/coze-studio/backend/domain/user/entity"
 )
 
 // RoleRepository 角色仓储接口
@@ -65,6 +66,11 @@ type DataPermissionRepository interface {
 	// GetByRoleAndResource 根据角色ID和资源类型获取数据权限
 	GetByRoleAndResource(ctx context.Context, roleID string, resourceType entity.ResourceType) (*entity.DataPermission, error)
 
+	// GetByRolesAndResource 根据多个角色ID和资源类型批量获取数据权限（性能优化）
+	// 用途：替代循环查询，避免N+1问题
+	// 性能提升：N次查询 → 1次查询
+	GetByRolesAndResource(ctx context.Context, roleIDs []string, resourceType entity.ResourceType) ([]*entity.DataPermission, error)
+
 	// GetByRole 获取角色的所有数据权限
 	GetByRole(ctx context.Context, roleID string) ([]*entity.DataPermission, error)
 
@@ -88,6 +94,11 @@ type FieldPermissionRepository interface {
 
 	// GetByRoleAndResource 根据角色ID和资源类型获取字段权限列表
 	GetByRoleAndResource(ctx context.Context, roleID string, resourceType string) ([]*entity.FieldPermission, error)
+
+	// GetByRolesAndResource 根据多个角色ID和资源类型批量获取字段权限列表（性能优化）
+	// 用途：替代循环查询，避免N+1问题
+	// 性能提升：N次查询 → 1次查询
+	GetByRolesAndResource(ctx context.Context, roleIDs []string, resourceType string) ([]*entity.FieldPermission, error)
 
 	// GetByRole 获取角色的所有字段权限
 	GetByRole(ctx context.Context, roleID string) ([]*entity.FieldPermission, error)
@@ -248,4 +259,42 @@ type HistoryFilter struct {
 	PageSize      int
 	Before        int64 // 查询指定时间之前的记录
 	After         int64 // 查询指定时间之后的记录
+}
+
+// UserRepository 用户仓储接口（用于RBAC用户管理）
+// 注意：这个接口扩展了backend/domain/user/repository的UserRepository，增加了RBAC需要的方法
+type UserRepository interface {
+	// Create 创建用户
+	Create(ctx context.Context, user *userentity.User) error
+
+	// GetByID 根据ID获取用户
+	GetByID(ctx context.Context, userID int64) (*userentity.User, error)
+
+	// GetByEmail 根据租户ID和邮箱获取用户
+	GetByEmail(ctx context.Context, tenantID, email string) (*userentity.User, error)
+
+	// GetByUniqueName 根据租户ID和唯一名称获取用户
+	GetByUniqueName(ctx context.Context, tenantID, uniqueName string) (*userentity.User, error)
+
+	// Update 更新用户
+	Update(ctx context.Context, user *userentity.User) error
+
+	// Delete 软删除用户
+	Delete(ctx context.Context, userID int64) error
+
+	// List 分页查询用户列表
+	List(ctx context.Context, filter *UserFilter) ([]*userentity.User, int64, error)
+
+	// GetByIDs 根据ID列表批量获取用户
+	GetByIDs(ctx context.Context, userIDs []int64) ([]*userentity.User, error)
+}
+
+// UserFilter 用户查询过滤器
+type UserFilter struct {
+	TenantID  string
+	Keyword   string // 搜索关键词（姓名、邮箱）
+	RoleID    string // 按角色筛选
+	Status    string // 按状态筛选（active/inactive）
+	PageToken string
+	PageSize  int
 }

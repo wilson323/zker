@@ -18,12 +18,12 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // VirtualOrganizationService 虚拟组织服务
@@ -53,16 +53,22 @@ func NewVirtualOrganizationService(
 func (s *VirtualOrganizationService) CreateVirtualOrg(ctx context.Context, org *entity.VirtualOrganization) error {
 	// 1. 验证参数
 	if org.TenantID == "" || org.Name == "" || org.Type == "" || org.OwnerID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 2. 验证所有者存在
 	emp, err := s.empRepo.GetByUserID(ctx, org.OwnerID)
 	if err != nil {
-		return fmt.Errorf("failed to get owner: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get owner"),
+            )
 	}
 	if emp == nil {
-		return errno.ErrEmployeeNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "EmployeeNotFound"),
+                )
 	}
 
 	// 3. 生成虚拟组织ID
@@ -73,7 +79,9 @@ func (s *VirtualOrganizationService) CreateVirtualOrg(ctx context.Context, org *
 
 	// 4. 创建虚拟组织
 	if err := s.orgRepo.Create(ctx, org); err != nil {
-		return fmt.Errorf("failed to create virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create virtual org"),
+            )
 	}
 
 	// 5. 添加所有者为成员
@@ -84,7 +92,9 @@ func (s *VirtualOrganizationService) CreateVirtualOrg(ctx context.Context, org *
 		JoinedAt:     time.Now().UnixMilli(),
 	}
 	if err := s.memberRepo.AddMember(ctx, member); err != nil {
-		return fmt.Errorf("failed to add owner as member: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "add owner as member"),
+            )
 	}
 
 	return nil
@@ -95,17 +105,23 @@ func (s *VirtualOrganizationService) UpdateVirtualOrg(ctx context.Context, virtu
 	// 1. 获取现有组织
 	existing, err := s.orgRepo.GetByID(ctx, virtualOrgID)
 	if err != nil {
-		return fmt.Errorf("failed to get virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if existing == nil {
-		return errno.ErrVirtualOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "VirtualOrgNotFound"),
+                )
 	}
 
 	// 2. 更新
 	org.VirtualOrgID = virtualOrgID
 	org.UpdatedAt = time.Now().UnixMilli()
 	if err := s.orgRepo.Update(ctx, org); err != nil {
-		return fmt.Errorf("failed to update virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update virtual org"),
+            )
 	}
 
 	return nil
@@ -116,20 +132,28 @@ func (s *VirtualOrganizationService) DeleteVirtualOrg(ctx context.Context, virtu
 	// 1. 获取现有组织
 	existing, err := s.orgRepo.GetByID(ctx, virtualOrgID)
 	if err != nil {
-		return fmt.Errorf("failed to get virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if existing == nil {
-		return errno.ErrVirtualOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "VirtualOrgNotFound"),
+                )
 	}
 
 	// 2. 删除所有成员
 	if err := s.memberRepo.RemoveMember(ctx, virtualOrgID, ""); err != nil {
-		return fmt.Errorf("failed to remove members: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "remove members"),
+            )
 	}
 
 	// 3. 删除组织
 	if err := s.orgRepo.Delete(ctx, virtualOrgID); err != nil {
-		return fmt.Errorf("failed to delete virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete virtual org"),
+            )
 	}
 
 	return nil
@@ -138,15 +162,17 @@ func (s *VirtualOrganizationService) DeleteVirtualOrg(ctx context.Context, virtu
 // GetVirtualOrg 获取虚拟组织
 func (s *VirtualOrganizationService) GetVirtualOrg(ctx context.Context, id string) (*entity.VirtualOrganization, error) {
 	if id == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	org, err := s.orgRepo.GetByID(ctx, id)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get virtual org: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrVirtualOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrVirtualOrgNotFound)
 	}
 
 	return org, nil
@@ -155,7 +181,7 @@ func (s *VirtualOrganizationService) GetVirtualOrg(ctx context.Context, id strin
 // ListVirtualOrgs 列出虚拟组织
 func (s *VirtualOrganizationService) ListVirtualOrgs(ctx context.Context, tenantID string, orgType *entity.VirtualOrgType) ([]*entity.VirtualOrganization, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	var orgs []*entity.VirtualOrganization
@@ -168,7 +194,9 @@ func (s *VirtualOrganizationService) ListVirtualOrgs(ctx context.Context, tenant
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to list virtual orgs: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list virtual orgs"),
+            )
 	}
 
 	return orgs, nil
@@ -179,25 +207,35 @@ func (s *VirtualOrganizationService) AddMember(ctx context.Context, orgID, userI
 	// 1. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to get virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if org == nil {
-		return errno.ErrVirtualOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "VirtualOrgNotFound"),
+                )
 	}
 
 	// 2. 验证用户存在
 	emp, err := s.empRepo.GetByUserID(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get employee: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return errno.ErrEmployeeNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "EmployeeNotFound"),
+                )
 	}
 
 	// 3. 检查是否已是成员
 	existing, err := s.memberRepo.GetMember(ctx, orgID, userID)
 	if err == nil && existing != nil {
-		return errno.ErrAlreadyMember
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "AlreadyMember"),
+            )
 	}
 
 	// 4. 添加成员
@@ -208,7 +246,9 @@ func (s *VirtualOrganizationService) AddMember(ctx context.Context, orgID, userI
 		JoinedAt:     time.Now().UnixMilli(),
 	}
 	if err := s.memberRepo.AddMember(ctx, member); err != nil {
-		return fmt.Errorf("failed to add member: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "add member"),
+            )
 	}
 
 	return nil
@@ -219,24 +259,34 @@ func (s *VirtualOrganizationService) RemoveMember(ctx context.Context, orgID, us
 	// 1. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to get virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if org == nil {
-		return errno.ErrVirtualOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "VirtualOrgNotFound"),
+                )
 	}
 
 	// 2. 不能移除所有者
 	member, err := s.memberRepo.GetMember(ctx, orgID, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get member: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get member"),
+            )
 	}
 	if member.Role == entity.VirtualOrgRoleOwner {
-		return errno.ErrCannotRemoveOwner
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "CannotRemoveOwner"),
+            )
 	}
 
 	// 3. 移除成员
 	if err := s.memberRepo.RemoveMember(ctx, orgID, userID); err != nil {
-		return fmt.Errorf("failed to remove member: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "remove member"),
+            )
 	}
 
 	return nil
@@ -247,20 +297,28 @@ func (s *VirtualOrganizationService) UpdateMemberRole(ctx context.Context, orgID
 	// 1. 验证成员存在
 	member, err := s.memberRepo.GetMember(ctx, orgID, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get member: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get member"),
+            )
 	}
 	if member == nil {
-		return errno.ErrMemberNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "MemberNotFound"),
+            )
 	}
 
 	// 2. 不能修改所有者角色
 	if member.Role == entity.VirtualOrgRoleOwner {
-		return errno.ErrCannotChangeOwnerRole
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "CannotChangeOwnerRole"),
+            )
 	}
 
 	// 3. 更新角色
 	if err := s.memberRepo.UpdateMemberRole(ctx, orgID, userID, role); err != nil {
-		return fmt.Errorf("failed to update member role: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update member role"),
+            )
 	}
 
 	return nil
@@ -269,12 +327,14 @@ func (s *VirtualOrganizationService) UpdateMemberRole(ctx context.Context, orgID
 // ListMembers 列出成员
 func (s *VirtualOrganizationService) ListMembers(ctx context.Context, orgID string) ([]*entity.VirtualOrgMember, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	members, err := s.memberRepo.ListMembers(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list members: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list members"),
+            )
 	}
 
 	return members, nil
@@ -285,10 +345,14 @@ func (s *VirtualOrganizationService) AddTag(ctx context.Context, orgID, tag stri
 	// 1. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return fmt.Errorf("failed to get virtual org: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get virtual org"),
+            )
 	}
 	if org == nil {
-		return errno.ErrVirtualOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "VirtualOrgNotFound"),
+                )
 	}
 
 	// 2. 添加标签
@@ -297,7 +361,9 @@ func (s *VirtualOrganizationService) AddTag(ctx context.Context, orgID, tag stri
 		TagName:      tag,
 	}
 	if err := s.tagRepo.AddTag(ctx, tagEntity); err != nil {
-		return fmt.Errorf("failed to add tag: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "add tag"),
+            )
 	}
 
 	return nil
@@ -306,7 +372,9 @@ func (s *VirtualOrganizationService) AddTag(ctx context.Context, orgID, tag stri
 // RemoveTag 移除标签
 func (s *VirtualOrganizationService) RemoveTag(ctx context.Context, orgID, tag string) error {
 	if err := s.tagRepo.RemoveTag(ctx, orgID, tag); err != nil {
-		return fmt.Errorf("failed to remove tag: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "remove tag"),
+            )
 	}
 	return nil
 }
@@ -314,12 +382,14 @@ func (s *VirtualOrganizationService) RemoveTag(ctx context.Context, orgID, tag s
 // ListTags 列出标签
 func (s *VirtualOrganizationService) ListTags(ctx context.Context, orgID string) ([]*entity.VirtualOrgTag, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	tags, err := s.tagRepo.ListTags(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list tags: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list tags"),
+            )
 	}
 
 	return tags, nil

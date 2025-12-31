@@ -21,6 +21,7 @@ import (
 
 	"github.com/cloudwego/eino/compose"
 
+	"github.com/coze-dev/coze-studio/backend/api/model/app/bot_common"
 	workflow3 "github.com/coze-dev/coze-studio/backend/api/model/workflow"
 	crossplugin "github.com/coze-dev/coze-studio/backend/crossdomain/plugin"
 	"github.com/coze-dev/coze-studio/backend/crossdomain/plugin/consts"
@@ -35,11 +36,20 @@ import (
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
+// convertPluginFromVOToBotCommon 将 vo.PluginFrom 转换为 bot_common.PluginFrom
+func convertPluginFromVOToBotCommon(src *vo.PluginFrom) *bot_common.PluginFrom {
+	if src == nil {
+		return nil
+	}
+	v := bot_common.PluginFrom(*src)
+	return &v
+}
+
 func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntity,
 	toolID int64, cfg workflowModel.ExecuteConfig) (map[string]any, error) {
 	args, err := sonic.MarshalString(input)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 
 	var uID string
@@ -56,7 +66,7 @@ func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntit
 		ExecScene:       consts.ExecSceneOfWorkflow,
 		ArgumentsInJson: args,
 		ExecDraftTool:   pe.PluginVersion == nil || *pe.PluginVersion == "0",
-		PluginFrom:      pe.PluginFrom,
+		PluginFrom:      convertPluginFromVOToBotCommon(pe.PluginFrom),
 	}
 	execOpts := []model.ExecuteToolOpt{
 		model.WithInvalidRespProcessStrategy(consts.InvalidResponseProcessStrategyOfReturnDefault),
@@ -71,7 +81,7 @@ func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntit
 		if extra, ok := compose.IsInterruptRerunError(err); ok {
 			pluginTIE, ok := extra.(*model.ToolInterruptEvent)
 			if !ok {
-				return nil, vo.WrapError(errno.ErrPluginAPIErr, fmt.Errorf("expects ToolInterruptEvent, got %T", extra))
+				return nil, vo.WrapError(errno.DeprecatedErrPluginAPIErr, fmt.Errorf("expects ToolInterruptEvent, got %T", extra))
 			}
 
 			var eventType workflow3.EventType
@@ -79,13 +89,13 @@ func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntit
 			case consts.InterruptEventTypeOfToolNeedOAuth:
 				eventType = workflow3.EventType_WorkflowOauthPlugin
 			default:
-				return nil, vo.WrapError(errno.ErrPluginAPIErr,
+				return nil, vo.WrapError(errno.DeprecatedErrPluginAPIErr,
 					fmt.Errorf("unsupported interrupt event type: %s", pluginTIE.Event))
 			}
 
 			id, err := workflow.GetRepository().GenID(ctx)
 			if err != nil {
-				return nil, vo.WrapError(errno.ErrIDGenError, err)
+				return nil, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 			}
 
 			ie := &entity2.InterruptEvent{
@@ -96,7 +106,7 @@ func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntit
 
 			// temporarily replace interrupt with real error, until frontend can handle plugin oauth interrupt
 			interruptData := ie.InterruptData
-			return nil, vo.NewError(errno.ErrAuthorizationRequired, errorx.KV("extra", interruptData))
+			return nil, vo.NewError(errno.DeprecatedErrAuthorizationRequired, errorx.KV("extra", interruptData))
 		}
 		return nil, err
 	}
@@ -104,7 +114,7 @@ func ExecutePlugin(ctx context.Context, input map[string]any, pe *vo.PluginEntit
 	var output map[string]any
 	err = sonic.UnmarshalString(r.TrimmedResp, &output)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 	}
 
 	return output, nil

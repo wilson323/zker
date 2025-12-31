@@ -23,11 +23,9 @@ import (
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	"go.uber.org/zap"
 
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
-	"github.com/coze-dev/coze-studio/backend/domain/tenant/service"
+	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
 	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
 	pkgerrorx "github.com/coze-dev/coze-studio/backend/pkg/errorx"
@@ -64,7 +62,7 @@ const (
 
 var (
 	// 全局依赖（在应用启动时注入）
-	tenantService *service.TenantService
+	tenantService tenantservice.TenantService
 	redisCache    cache.Cmdable
 
 	// 不需要租户隔离的路径
@@ -82,7 +80,7 @@ var (
 //
 // **示例**：
 //   middleware.InitTenantMiddleware(tenantService, redisClient)
-func InitTenantMiddleware(ts *service.TenantService, rc cache.Cmdable) {
+func InitTenantMiddleware(ts tenantservice.TenantService, rc cache.Cmdable) {
 	tenantService = ts
 	redisCache = rc
 }
@@ -120,7 +118,18 @@ func TenantIsolationMiddleware() app.HandlerFunc {
 		// 3. 验证租户（✅ 已启用）
 		if err := validateTenant(c, tenantID); err != nil {
 			logs.CtxErrorf(c, "[TenantIsolation] validate tenant failed: %v", err)
-			httputil.Error(ctx, err.Error(), consts.StatusForbidden)
+			// 使用Forbidden错误码的HTTP Status码返回错误
+			ctx.SetStatusCode(berrno.Forbidden.HTTPStatus())
+			ctx.SetContentType("application/json")
+			ctx.JSON(berrno.Forbidden.HTTPStatus(), map[string]interface{}{
+				"code":        berrno.ErrTenantSuspendedCode,
+				"message":     err.Error(),
+				"message_zh":  err.Error(),
+				"message_en":  err.Error(),
+				"request_id":  ctx.Query("request_id"),
+				"tenant_id":   tenantID,
+				"timestamp":   time.Now().Format(time.RFC3339),
+			})
 			return
 		}
 
@@ -153,13 +162,14 @@ func extractTenantID(c context.Context, ctx *app.RequestContext) (string, error)
 	}
 
 	// 2. 从Session获取（✅ 已启用）
-	if session, ok := ctxcache.Get[*entity.Session](c, consts.SessionDataKeyInCtx); ok {
-		if session.HasTenantID() {
-			return session.TenantID, nil
-		}
-		// 兼容旧Session（没有tenant_id）
-		// 继续尝试其他来源
-	}
+	// 注意：当前Session在user/entity包中，但tenant隔离中间件不应依赖user包
+	// TODO: 需要重新设计Session架构或将tenant_id移至独立模块
+	// 暂时跳过Session获取，直接使用Header或默认值
+	// if session, ok := ctxcache.Get[*entity.Session](c, typesconsts.SessionDataKeyInCtx); ok {
+	// 	if session.HasTenantID() {
+	// 		return session.TenantID, nil
+	// 	}
+	// }
 
 	// 3. 从JWT Token获取（TODO: JWT改造后启用）
 	// if claims := getJWTClaims(ctx); claims != nil && claims.TenantID != "" {
@@ -169,7 +179,7 @@ func extractTenantID(c context.Context, ctx *app.RequestContext) (string, error)
 	// 4. 严格模式检查
 	if EnableStrictTenantIsolation {
 		logs.CtxErrorf(c, "[TenantIsolation] strict mode enabled but no tenant_id found")
-		return "", pkgerrorx.New(berrno.ErrMissingTenantID)
+		return "", pkgerrorx.New(berrno.ErrMissingTenantIDCode)
 	}
 
 	// 5. 兼容模式：使用默认租户ID（数据迁移后移除）
@@ -204,9 +214,10 @@ func validateTenant(c context.Context, tenantID string) error {
 		cachedTenant, err := getTenantFromCache(c, tenantID)
 		if err == nil && cachedTenant != nil {
 			if !cachedTenant.IsActive() {
-				return pkgerrorx.New(berrno.ErrTenantSuspended).WithZap(
-					zap.String("tenant_id", tenantID),
-					zap.String("status", string(cachedTenant.Status)),
+				logs.CtxErrorf(c, "[ValidateTenant] tenant suspended: %s, status: %s", tenantID, cachedTenant.Status)
+				return pkgerrorx.New(berrno.ErrTenantSuspendedCode,
+					pkgerrorx.KV("tenant_id", tenantID),
+					pkgerrorx.KV("status", string(cachedTenant.Status)),
 				)
 			}
 			return nil
@@ -218,28 +229,30 @@ func validateTenant(c context.Context, tenantID string) error {
 	tenant, err := tenantService.GetTenant(c, tenantID)
 	if err != nil {
 		// 转换为统一错误码
-		return pkgerrorx.Wrap(err, berrno.ErrTenantNotFound).WithZap(
-			zap.String("tenant_id", tenantID),
-		)
+		logs.CtxErrorf(c, "[ValidateTenant] failed to get tenant: %v", err)
+		return pkgerrorx.Wrapf(err, "failed to get tenant: %s", tenantID)
 	}
 	if tenant == nil {
-		return pkgerrorx.New(berrno.ErrTenantNotFound).WithZap(
-			zap.String("tenant_id", tenantID),
+		logs.CtxErrorf(c, "[ValidateTenant] tenant not found: %s", tenantID)
+		return pkgerrorx.New(berrno.ErrTenantNotFoundCode,
+			pkgerrorx.KV("tenant_id", tenantID),
 		)
 	}
 
 	// 3. 验证状态
 	if !tenant.IsActive() {
-		return pkgerrorx.New(berrno.ErrTenantSuspended).WithZap(
-			zap.String("tenant_id", tenantID),
-			zap.String("status", string(tenant.Status)),
+		logs.CtxErrorf(c, "[ValidateTenant] tenant suspended: %s, status: %s", tenantID, tenant.Status)
+		return pkgerrorx.New(berrno.ErrTenantSuspendedCode,
+			pkgerrorx.KV("tenant_id", tenantID),
+			pkgerrorx.KV("status", string(tenant.Status)),
 		)
 	}
 
 	// 4. 检查是否已删除
 	if tenant.IsDeleted() {
-		return pkgerrorx.New(berrno.ErrTenantDeleted).WithZap(
-			zap.String("tenant_id", tenantID),
+		logs.CtxErrorf(c, "[ValidateTenant] tenant deleted: %s", tenantID)
+		return pkgerrorx.New(berrno.ErrTenantDeletedCode,
+			pkgerrorx.KV("tenant_id", tenantID),
 		)
 	}
 
@@ -285,7 +298,7 @@ func setTenantToCache(c context.Context, tenant *entity.Tenant, ttl time.Duratio
 
 // shouldSkipTenantIsolation 检查是否需要跳过租户隔离
 func shouldSkipTenantIsolation(ctx *app.RequestContext) bool {
-	path := string(ctx.GetRequest().URI().Path)
+	path := string(ctx.GetRequest().URI().Path())
 
 	// 检查精确匹配
 	for skipPath := range noTenantIsolationPath {
@@ -358,16 +371,15 @@ func RequireTenantID() app.HandlerFunc {
 func TenantIDToInt64(tenantID string) (int64, error) {
 	// 如果是UUID格式，返回错误
 	if len(tenantID) == 36 {
-		return 0, pkgerrorx.New(berrno.ErrInvalidTenantID,
-			zap.String("tenant_id", tenantID),
-			zap.String("reason", "UUID format cannot convert to int64"))
+		return 0, pkgerrorx.New(berrno.ErrInvalidTenantIDCode,
+			pkgerrorx.KV("tenant_id", tenantID),
+			pkgerrorx.KV("reason", "UUID format cannot convert to int64"))
 	}
 
 	// 尝试转换为int64
 	id, err := strconv.ParseInt(tenantID, 10, 64)
 	if err != nil {
-		return 0, pkgerrorx.Wrap(err, berrno.ErrInvalidTenantID,
-			zap.String("tenant_id", tenantID))
+		return 0, pkgerrorx.Wrapf(err, "invalid tenant_id: %s", tenantID)
 	}
 	return id, nil
 }

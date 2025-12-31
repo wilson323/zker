@@ -26,7 +26,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
-	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/pkg/contextutil"
 	"github.com/coze-dev/coze-studio/backend/domain/tenant/service"
 	"github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/user/entity"
@@ -103,7 +103,7 @@ func BenchmarkGetTenantIDFromContext(b *testing.B) {
 	b.ReportAllocs()
 
 	for i := 0; i < b.N; i++ {
-		_ = middleware.GetTenantIDFromContext(ctx)
+		_ = contextutil.GetTenantIDFromContext(ctx)
 	}
 }
 
@@ -462,7 +462,7 @@ func BenchmarkFullRequestFlow(b *testing.B) {
 		middlewareFunc(ctx, requestCtx)
 
 		// 3. 从context获取tenant_id
-		tenantID := middleware.GetTenantIDFromContext(ctx)
+		tenantID := contextutil.GetTenantIDFromContext(ctx)
 
 		// 4. 创建错误（模拟业务逻辑）
 		if tenantID == "" {

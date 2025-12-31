@@ -23,7 +23,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"gorm.io/gorm"
 
-	"github.com/coze-dev/coze-studio/backend/api/middleware"
+	"github.com/coze-dev/coze-studio/backend/pkg/contextutil"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/domain/org/service"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
@@ -88,7 +88,7 @@ func CreateEmployee(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 从context获取tenant_id（租户隔离中间件已注入）
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"code":    http.StatusUnauthorized,
@@ -148,7 +148,7 @@ func GetEmployee(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 租户隔离检查：确保只能查看本租户的员工
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if emp.TenantID != tenantID {
 		c.JSON(http.StatusForbidden, map[string]interface{}{
 			"code":    http.StatusForbidden,
@@ -221,7 +221,7 @@ func UpdateEmployee(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 租户隔离检查
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if emp.TenantID != tenantID {
 		c.JSON(http.StatusForbidden, map[string]interface{}{
 			"code":    http.StatusForbidden,
@@ -352,7 +352,7 @@ func UpdateEmployeeStatus(ctx context.Context, c *app.RequestContext) {
 //   - page_size: 分页大小（默认20）
 //   - page_token: 分页令牌
 func ListEmployees(ctx context.Context, c *app.RequestContext) {
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"code":    http.StatusUnauthorized,
@@ -422,7 +422,7 @@ func ListEmployees(ctx context.Context, c *app.RequestContext) {
 // **权限**：需要查看权限
 // **业务规则**：工号在租户内唯一
 func GetEmployeeByCode(ctx context.Context, c *app.RequestContext) {
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"code":    http.StatusUnauthorized,
@@ -490,7 +490,7 @@ func GetEmployeeByUserID(ctx context.Context, c *app.RequestContext) {
 	}
 
 	// 租户隔离检查
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if emp.TenantID != tenantID {
 		c.JSON(http.StatusForbidden, map[string]interface{}{
 			"code":    http.StatusForbidden,
@@ -591,7 +591,7 @@ func GetEmployeesByOrganization(ctx context.Context, c *app.RequestContext) {
 //
 // **示例**：/api/v1/employees/search?keyword=张三&limit=20
 func SearchEmployees(ctx context.Context, c *app.RequestContext) {
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"code":    http.StatusUnauthorized,
@@ -647,7 +647,7 @@ func SearchEmployees(ctx context.Context, c *app.RequestContext) {
 // **权限**：需要查看权限
 // **示例**：/api/v1/employees/pinyin/zs (查找"张三"、"张山"等)
 func GetEmployeesByPinyin(ctx context.Context, c *app.RequestContext) {
-	tenantID := middleware.GetTenantIDFromContext(ctx)
+	tenantID := contextutil.GetTenantIDFromContext(ctx)
 	if tenantID == "" {
 		c.JSON(http.StatusUnauthorized, map[string]interface{}{
 			"code":    http.StatusUnauthorized,

@@ -21,8 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	"gorm.io/gorm"
-
 	"github.com/coze-dev/coze-studio/backend/infra/database"
 	rediscli "github.com/coze-dev/coze-studio/backend/infra/storage/redis"
 )

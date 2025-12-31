@@ -288,6 +288,7 @@ func (dao *KnowledgeDocumentSliceDAO) IncrementHitCount(ctx context.Context, sli
 	return err
 }
 
+// GetSliceHitByKnowledgeID 获取单个知识库的slice hit总数
 func (dao *KnowledgeDocumentSliceDAO) GetSliceHitByKnowledgeID(ctx context.Context, knowledgeID int64) (int64, error) {
 	if knowledgeID == 0 {
 		return 0, errors.New("knowledgeID cannot be empty")
@@ -299,6 +300,49 @@ func (dao *KnowledgeDocumentSliceDAO) GetSliceHitByKnowledgeID(ctx context.Conte
 		return 0, err
 	}
 	return ptr.From(totalSliceHit), nil
+}
+
+// MGetSliceHitByKnowledgeIDs 批量获取多个知识库的slice hit总数
+// ✅ Performance Optimization: Batch query to avoid N+1 queries
+// Before: N queries (one per knowledge) → 100 knowledge = 100 queries
+// After: 1 query (WHERE knowledge_id IN (...)) → 100x improvement
+func (dao *KnowledgeDocumentSliceDAO) MGetSliceHitByKnowledgeIDs(ctx context.Context, knowledgeIDs []int64) (map[int64]int64, error) {
+	if len(knowledgeIDs) == 0 {
+		return make(map[int64]int64), nil
+	}
+
+	s := dao.Query.KnowledgeDocumentSlice
+
+	type SliceHitResult struct {
+		KnowledgeID int64
+		TotalHit    int64
+	}
+
+	var results []SliceHitResult
+	err := s.WithContext(ctx).
+		Select(s.KnowledgeID, s.Hit.Sum().
+			As("total_hit")).
+		Where(s.KnowledgeID.In(knowledgeIDs...)).
+		Group(s.KnowledgeID).
+		Scan(&results)
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建knowledgeID -> totalHit的映射
+	hitMap := make(map[int64]int64, len(knowledgeIDs))
+	for _, result := range results {
+		hitMap[result.KnowledgeID] = result.TotalHit
+	}
+
+	// 对于没有slice的knowledge，设置为0
+	for _, knowledgeID := range knowledgeIDs {
+		if _, exists := hitMap[knowledgeID]; !exists {
+			hitMap[knowledgeID] = 0
+		}
+	}
+
+	return hitMap, nil
 }
 
 func (dao *KnowledgeDocumentSliceDAO) GetLastSequence(ctx context.Context, documentID int64) (float64, error) {

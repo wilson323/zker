@@ -24,6 +24,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/conversation/message"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	application "github.com/coze-dev/coze-studio/backend/application/conversation"
 	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
@@ -36,22 +37,22 @@ func GetMessageList(ctx context.Context, c *app.RequestContext) {
 	var req message.GetMessageListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if checkErr := checkMLParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.GetMessageList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func checkMLParams(ctx context.Context, req *message.GetMessageListRequest) error {
@@ -69,21 +70,21 @@ func DeleteMessage(ctx context.Context, c *app.RequestContext) {
 	var req message.DeleteMessageRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	if checkErr := checkDMParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.DeleteMessage(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func checkDMParams(_ context.Context, req *message.DeleteMessageRequest) error {
@@ -101,21 +102,21 @@ func BreakMessage(ctx context.Context, c *app.RequestContext) {
 	var req message.BreakMessageRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if checkErr := checkBMParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationSVC.BreakMessage(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func checkBMParams(_ context.Context, req *message.BreakMessageRequest) error {
@@ -136,17 +137,17 @@ func GetApiMessageList(ctx context.Context, c *app.RequestContext) {
 	var req message.ListMessageApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.OpenapiMessageSVC.GetApiMessageList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListChatMessageApi .
@@ -156,15 +157,15 @@ func ListChatMessageApi(ctx context.Context, c *app.RequestContext) {
 	var req message.ListChatMessageApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := application.ConversationOpenAPISVC.ListChatMessageApi(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

@@ -18,11 +18,11 @@ package service
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // DirectoryService 通讯录服务
@@ -89,17 +89,25 @@ type EmployeeListItem struct {
 // GetOrganizationDirectory 获取组织架构目录
 func (s *DirectoryService) GetOrganizationDirectory(ctx context.Context, tenantID string) (*OrganizationTreeNode, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取所有组织
 	orgs, err := s.orgRepo.GetByTenantID(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organizations: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organizations"),
+            )
 	}
 
 	// 2. 构建组织树并统计员工数
-	return s.buildOrgDirectory(ctx, orgs, ""), nil
+	tree, err := s.buildOrgDirectory(ctx, orgs, "")
+	if err != nil {
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+			errorx.KV("operation", "build org directory"),
+		)
+	}
+	return tree, nil
 }
 
 // buildOrgDirectory 构建组织目录树
@@ -133,7 +141,9 @@ func (s *DirectoryService) buildOrgDirectory(ctx context.Context, orgs []*entity
 			// 统计员工数
 			empCount, err := s.countEmployeesByOrg(ctx, org.OrgID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to count employees: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "count employees"),
+            )
 			}
 
 			// 递归构建子节点
@@ -177,7 +187,9 @@ func (s *DirectoryService) buildOrgDirectory(ctx context.Context, orgs []*entity
 	org := children[0]
 	empCount, err := s.countEmployeesByOrg(ctx, org.OrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "count employees"),
+            )
 	}
 
 	node := &OrganizationTreeNode{
@@ -203,17 +215,25 @@ func (s *DirectoryService) buildOrgDirectory(ctx context.Context, orgs []*entity
 // GetDepartmentDirectory 获取部门目录
 func (s *DirectoryService) GetDepartmentDirectory(ctx context.Context, tenantID string) (*DepartmentTreeNode, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取所有部门
 	depts, err := s.deptRepo.GetByTenantID(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get departments: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get departments"),
+            )
 	}
 
 	// 2. 构建部门树并统计员工数
-	return s.buildDeptDirectory(ctx, depts, ""), nil
+	tree, err := s.buildDeptDirectory(ctx, depts, "")
+	if err != nil {
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+			errorx.KV("operation", "build dept directory"),
+		)
+	}
+	return tree, nil
 }
 
 // buildDeptDirectory 构建部门目录树
@@ -247,7 +267,9 @@ func (s *DirectoryService) buildDeptDirectory(ctx context.Context, depts []*enti
 			// 统计员工数
 			empCount, err := s.countEmployeesByDept(ctx, dept.DeptID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to count employees: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "count employees"),
+            )
 			}
 
 			// 递归构建子节点
@@ -301,7 +323,9 @@ func (s *DirectoryService) buildDeptDirectory(ctx context.Context, depts []*enti
 	dept := children[0]
 	empCount, err := s.countEmployeesByDept(ctx, dept.DeptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to count employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "count employees"),
+            )
 	}
 
 	// 获取负责人信息
@@ -338,22 +362,26 @@ func (s *DirectoryService) buildDeptDirectory(ctx context.Context, depts []*enti
 // GetDepartmentEmployees 获取部门员工列表
 func (s *DirectoryService) GetDepartmentEmployees(ctx context.Context, deptID string) ([]*EmployeeListItem, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取部门信息
 	dept, err := s.deptRepo.GetByID(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 	}
 	if dept == nil {
-		return nil, errno.ErrDeptNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 	}
 
 	// 2. 获取员工
 	emps, err := s.empRepo.GetByDepartmentID(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees"),
+            )
 	}
 
 	// 3. 转换为列表项
@@ -363,22 +391,26 @@ func (s *DirectoryService) GetDepartmentEmployees(ctx context.Context, deptID st
 // GetOrganizationEmployees 获取组织员工列表
 func (s *DirectoryService) GetOrganizationEmployees(ctx context.Context, orgID string) ([]*EmployeeListItem, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取组织信息
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 
 	// 2. 获取员工
 	emps, err := s.empRepo.GetByOrgID(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees"),
+            )
 	}
 
 	// 3. 转换为列表项
@@ -388,7 +420,7 @@ func (s *DirectoryService) GetOrganizationEmployees(ctx context.Context, orgID s
 // SearchEmployees 搜索员工（用于通讯录搜索）
 func (s *DirectoryService) SearchEmployees(ctx context.Context, tenantID, keyword string, limit int) ([]*EmployeeListItem, error) {
 	if tenantID == "" || keyword == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	if limit <= 0 || limit > 100 {
@@ -398,7 +430,9 @@ func (s *DirectoryService) SearchEmployees(ctx context.Context, tenantID, keywor
 	// 1. 搜索员工
 	emps, err := s.empRepo.Search(ctx, tenantID, keyword, limit)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "search employees"),
+            )
 	}
 
 	// 2. 转换为列表项
@@ -493,15 +527,17 @@ func (s *DirectoryService) countEmployeesByDept(ctx context.Context, deptID stri
 // GetEmployeeByCode 获取员工信息（用于通讯录）
 func (s *DirectoryService) GetEmployeeByCode(ctx context.Context, tenantID, code string) (*EmployeeListItem, error) {
 	if tenantID == "" || code == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	emp, err := s.empRepo.GetByCode(ctx, tenantID, code)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	items, err := s.convertToEmployeeListItems(ctx, []*entity.Employee{emp})
@@ -510,7 +546,7 @@ func (s *DirectoryService) GetEmployeeByCode(ctx context.Context, tenantID, code
 	}
 
 	if len(items) == 0 {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	return items[0], nil

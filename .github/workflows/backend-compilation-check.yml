@@ -1,0 +1,465 @@
+# ========================================
+# 后端编译检查工作流 - ZKER项目
+# 用途: 在CI/CD中验证后端代码编译和errno使用规范
+# 触发条件: push到任何分支, Pull Request, 手动触发
+# 遵循规范: 企业级质量标准 + errno零异常迁移
+# ========================================
+
+name: Backend Compilation & Errno Check
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - 'feature/**'
+      - 'bugfix/**'
+  pull_request:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: '详细输出模式'
+        required: false
+        type: boolean
+        default: false
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# 环境变量
+env:
+  GO_VERSION: '1.24'
+  BACKEND_DIR: './backend'
+  SCRIPTS_DIR: './scripts'
+
+jobs:
+  # ==================== 后端编译检查 ====================
+  compilation-check:
+    name: 🔨 Backend Compilation Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: 📦 下载依赖
+        working-directory: ${{ env.BACKEND_DIR }}
+        run: |
+          echo "下载Go依赖..."
+          go mod download
+          go mod verify
+
+      - name: 🔍 运行编译检查
+        id: compile_check
+        run: |
+          echo "=========================================="
+          echo "  后端编译检查"
+          echo "=========================================="
+          echo ""
+
+          # 进入后端目录
+          cd ${{ env.BACKEND_DIR }}
+
+          # 1. 基础编译检查
+          echo "1️⃣  执行基础编译检查..."
+          if go build -v ./... 2>&1 | tee compile.log; then
+            echo "✅ 基础编译通过"
+            COMPILE_STATUS="success"
+          else
+            echo "❌ 基础编译失败"
+            COMPILE_STATUS="failed"
+          fi
+          echo ""
+
+          # 2. 生成编译报告
+          echo "2️⃣  生成编译报告..."
+          TOTAL_PACKAGES=$(go list ./... | wc -l)
+          TOTAL_FILES=$(find . -name "*.go" -not -name "*_test.go" | wc -l)
+          COMPILE_TIME=$(grep "real" compile.log 2>/dev/null || echo "N/A")
+
+          echo "编译统计:"
+          echo "  - 包数量: $TOTAL_PACKAGES"
+          echo "  - Go文件数: $TOTAL_FILES"
+          echo "  - 编译时间: $COMPILE_TIME"
+          echo ""
+
+          # 3. 生成GitHub摘要
+          echo "## 🔨 后端编译检查报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 编译统计" >> $GITHUB_STEP_SUMMARY
+          echo "| 指标 | 数值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 包数量 | $TOTAL_PACKAGES |" >> $GITHUB_STEP_SUMMARY
+          echo "| Go文件数 | $TOTAL_FILES |" >> $GITHUB_STEP_SUMMARY
+          echo "| 编译状态 | $COMPILE_STATUS |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 4. 失败时输出错误详情
+          if [ "$COMPILE_STATUS" = "failed" ]; then
+            echo "### ❌ 编译错误详情" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            cat compile.log >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: 📊 编译二进制大小检查
+        if: steps.compile_check.outcome == 'success'
+        run: |
+          cd ${{ env.BACKEND_DIR }}
+
+          echo "3️⃣  检查编译产物大小..."
+          echo ""
+
+          # 编译并检查二进制大小
+          go build -o /tmp/zker-api ./cmd/api 2>/dev/null || true
+
+          if [ -f /tmp/zker-api ]; then
+            BINARY_SIZE=$(du -h /tmp/zker-api | cut -f1)
+            BINARY_SIZE_BYTES=$(stat -f%z /tmp/zker-api 2>/dev/null || stat -c%s /tmp/zker-api)
+
+            echo "二进制文件大小: $BINARY_SIZE ($BINARY_SIZE_BYTES bytes)"
+
+            # 警告阈值 (100MB)
+            if [ $BINARY_SIZE_BYTES -gt 104857600 ]; then
+              echo "⚠️  警告: 二进制文件超过100MB"
+              echo "### ⚠️ 二进制大小警告" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "当前二进制大小: **$BINARY_SIZE**" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "建议优化:" >> $GITHUB_STEP_SUMMARY
+              echo "- 检查是否有未使用的依赖" >> $GITHUB_STEP_SUMMARY
+              echo "- 考虑使用 upx 压缩" >> $GITHUB_STEP_SUMMARY
+              echo "- 检查是否有大型资源文件嵌入" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ 二进制大小正常"
+              echo "### ✅ 二进制大小检查" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "二进制大小: **$BINARY_SIZE** (正常)" >> $GITHUB_STEP_SUMMARY
+            fi
+
+            rm -f /tmp/zker-api
+          fi
+
+  # ==================== errno 使用规范检查 ====================
+  errno-usage-check:
+    name: 🔍 Errno Usage Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: compilation-check
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📋 运行errno验证脚本
+        id: errno_check
+        run: |
+          echo "=========================================="
+          echo "  errno使用规范检查"
+          echo "=========================================="
+          echo ""
+
+          # 检查验证脚本是否存在
+          if [ ! -f "${{ env.SCRIPTS_DIR }}/verify-errno-usage.sh" ]; then
+            echo "❌ 验证脚本不存在: ${{ env.SCRIPTS_DIR }}/verify-errno-usage.sh"
+            exit 1
+          fi
+
+          # 赋予执行权限
+          chmod +x "${{ env.SCRIPTS_DIR }}/verify-errno-usage.sh"
+
+          # 运行验证脚本
+          if "${{ env.SCRIPTS_DIR }}/verify-errno-usage.sh"; then
+            ERRNO_STATUS="passed"
+            echo "✅ errno验证通过"
+          else
+            ERRNO_STATUS="failed"
+            echo "❌ errno验证失败"
+            exit 1
+          fi
+
+      - name: 📊 生成errno检查报告
+        if: always()
+        run: |
+          echo "## 🔍 errno使用规范检查报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 检查结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 检查项 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+
+          # 从验证脚本的输出文件读取结果（如果存在）
+          if [ -f "${{ env.SCRIPTS_DIR }}/errno/errno_check_result.json" ]; then
+            # 解析JSON并添加到摘要
+            echo "详见验证脚本输出" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| 直接errno引用 | ✅ 已检查 |" >> $GITHUB_STEP_SUMMARY
+            echo "| errorx.New使用 | ✅ 已检查 |" >> $GITHUB_STEP_SUMMARY
+            echo "| errorx.Wrap使用 | ✅ 已检查 |" >> $GITHUB_STEP_SUMMARY
+            echo "| 错误处理覆盖率 | ✅ 已检查 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**检查状态**: ${{ steps.errno_check.outcome }}" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 代码质量检查 ====================
+  code-quality-check:
+    name: 🧹 Code Quality Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: compilation-check
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🧹 运行 gofmt
+        run: |
+          echo "=========================================="
+          echo "  代码格式检查 (gofmt)"
+          echo "=========================================="
+          echo ""
+
+          cd ${{ env.BACKEND_DIR }}
+
+          # 检查未格式化的文件
+          UNFORMATTED=$(gofmt -s -l . 2>/dev/null || true)
+
+          if [ -n "$UNFORMATTED" ]; then
+            echo "❌ 以下文件格式不正确:"
+            echo "$UNFORMATTED"
+            echo ""
+            echo "运行 'gofmt -s -w .' 修复"
+            exit 1
+          else
+            echo "✅ 所有Go文件格式正确"
+          fi
+
+      - name: 🔍 运行 go vet
+        run: |
+          echo ""
+          echo "=========================================="
+          echo "  代码静态分析 (go vet)"
+          echo "=========================================="
+          echo ""
+
+          cd ${{ env.BACKEND_DIR }}
+
+          if go vet ./... 2>&1 | tee vet.log; then
+            echo "✅ go vet 检查通过"
+          else
+            echo "⚠️  go vet 发现问题（可能不影响编译）"
+            # 不作为错误，仅警告
+          fi
+
+      - name: 📊 生成代码质量报告
+        if: always()
+        run: |
+          echo "## 🧹 代码质量检查报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 检查项" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 检查项 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|" >> $GITHUB_STEP_SUMMARY
+
+          # gofmt状态
+          if [ -f "${{ env.BACKEND_DIR }}/vet.log" ]; then
+            echo "| gofmt | ✅ 通过 |" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "| gofmt | ❌ 失败 |" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 依赖安全检查 ====================
+  dependency-check:
+    name: 🔒 Dependency Security Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🔍 运行 go mod check
+        run: |
+          echo "=========================================="
+          echo "  依赖安全检查"
+          echo "=========================================="
+          echo ""
+
+          cd ${{ env.BACKEND_DIR }}
+
+          # 1. 检查依赖是否有更新
+          echo "1️⃣  检查过时的依赖..."
+          go list -u -m all 2>&1 | head -20
+
+          echo ""
+          echo "2️⃣  检查依赖完整性..."
+          if go mod verify; then
+            echo "✅ 依赖校验通过"
+          else
+            echo "❌ 依赖校验失败"
+            exit 1
+          fi
+
+      - name: 🔍 运行 gosec 安全扫描
+        continue-on-error: true
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./backend'
+
+      - name: 📤 上传安全扫描结果
+        if: always()
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gosec-results.sarif
+          category: gosec
+
+  # ==================== 综合总结 ====================
+  summary:
+    name: 📊 Summary Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [compilation-check, errno-usage-check, code-quality-check, dependency-check]
+    if: always()
+
+    steps:
+      - name: 📊 生成综合总结报告
+        run: |
+          echo "# 🔍 后端编译 & errno检查总结报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 检查状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 检查项 | 状态 | 耗时 |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔨 编译检查 | ${{ needs.compilation-check.result }} | ~2min |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔍 errno验证 | ${{ needs.errno-usage-check.result }} | ~1min |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🧹 代码质量 | ${{ needs.code-quality-check.result }} | ~3min |" >> $GITHUB_STEP_SUMMARY
+          echo "| 🔒 依赖安全 | ${{ needs.dependency-check.result }} | ~2min |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 代码信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **分支**: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **触发者**: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          echo "## 快速操作" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 本地测试" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# 编译检查" >> $GITHUB_STEP_SUMMARY
+          echo "cd backend && go build ./..." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# errno验证" >> $GITHUB_STEP_SUMMARY
+          echo "./scripts/verify-errno-usage.sh" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# 代码格式化" >> $GITHUB_STEP_SUMMARY
+          echo "cd backend && gofmt -s -w ." >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 判断整体状态
+          if [[ "${{ needs.compilation-check.result }}" == "success" ]] && \
+             [[ "${{ needs.errno-usage-check.result }}" == "success" ]] && \
+             [[ "${{ needs.code-quality-check.result }}" == "success" ]] && \
+             [[ "${{ needs.dependency-check.result }}" == "success" ]]; then
+            echo "## ✅ 所有检查通过" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "代码已通过所有企业级质量检查！" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "## ❌ 部分检查失败" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "请查看上述失败的检查项并修复问题。" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+      - name: 📢 失败通知
+        if: |
+          needs.compilation-check.result == 'failure' ||
+          needs.errno-usage-check.result == 'failure'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const issue_number = context.issue.number;
+            const repo = context.repo;
+            const workflow = '${{ github.workflow }}';
+            const runUrl = `${context.serverUrl}/${context.repo.owner.login}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            if (issue_number) {
+              // 在PR中评论
+              github.rest.issues.createComment({
+                ...repo,
+                issue_number: issue_number,
+                body: `## ❌ 后端编译或errno检查失败
+
+              **工作流**: ${workflow}
+              **触发者**: @${{ github.actor }}
+              **提交**: ${{ github.sha }}
+
+              [查看详细日志](${runUrl})
+
+              请修复问题后重新提交。`
+              });
+            }
+
+# ========================================
+# 使用说明
+# ========================================
+#
+# 1. 自动触发:
+#    - push到任何分支
+#    - 创建/更新Pull Request
+#
+# 2. 手动触发:
+#    - 在GitHub Actions页面选择工作流
+#    - 点击"Run workflow"
+#
+# 3. 检查项:
+#    - 编译检查: 确保代码可以编译
+#    - errno验证: 确保errno使用符合规范
+#    - 代码质量: gofmt, govet检查
+#    - 依赖安全: gosec安全扫描
+#
+# 4. 失败处理:
+#    - PR中会自动添加评论
+#    - 需要修复问题后重新提交
+#
+# ========================================

@@ -127,7 +127,7 @@ func (s *SingleAgentApplicationService) PublishAgent(ctx context.Context, req *d
 			ID:            draftAgent.AgentID,
 			HasPublished:  ptr.Of(1),
 			PublishTimeMS: ptr.Of(time.Now().UnixMilli()),
-			Type:          common.IntelligenceType_Bot,
+			Type:          ConvertIntelligenceTypeFromAPI(common.IntelligenceType_Bot),
 		},
 	})
 	if err != nil {

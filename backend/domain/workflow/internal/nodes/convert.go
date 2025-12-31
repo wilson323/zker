@@ -82,7 +82,7 @@ func ConvertInputs(ctx context.Context, in map[string]any, tInfo map[string]*vo.
 		if !options.skipRequireCheck {
 			for n, t := range tInfo {
 				if t.Required {
-					return nil, nil, vo.NewError(errno.ErrMissingRequiredParam, errorx.KV("param", n))
+					return nil, nil, vo.NewError(errno.DeprecatedErrMissingRequiredParam, errorx.KV("param", n))
 				}
 			}
 		}
@@ -103,7 +103,7 @@ func ConvertInputs(ctx context.Context, in map[string]any, tInfo map[string]*vo.
 
 		converted, ws, err := Convert(ctx, v, k, t, opts...)
 		if err != nil {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, err)
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, err)
 		}
 
 		if ws != nil {
@@ -116,7 +116,7 @@ func ConvertInputs(ctx context.Context, in map[string]any, tInfo map[string]*vo.
 		for k, t := range tInfo {
 			if _, ok := out[k]; !ok {
 				if t.Required {
-					return nil, nil, vo.NewError(errno.ErrMissingRequiredParam, errorx.KV("param", k))
+					return nil, nil, vo.NewError(errno.DeprecatedErrMissingRequiredParam, errorx.KV("param", k))
 				}
 			}
 		}
@@ -236,7 +236,7 @@ func convert(ctx context.Context, in any, path string, t *vo.TypeInfo, options *
 		return convertToArray(ctx, in, path, t, options)
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unknown input type %s for path %s", t.Type, path))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unknown input type %s for path %s", t.Type, path))
 		}
 		logs.CtxErrorf(ctx, "unknown input type %s for path %s", t.Type, path)
 		return in, newWarnings(path, t.Type, errors.New("unknown input type")), nil
@@ -257,14 +257,14 @@ func convertToString(_ context.Context, in any, path string, options *convertOpt
 		s, err := sonic.MarshalString(in)
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 			}
 			return nil, newWarnings(path, vo.DataTypeString, err), nil
 		}
 		return s, nil, nil
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to string: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to string: %T", in))
 		}
 		return nil, newWarnings(path, vo.DataTypeString, fmt.Errorf("unsupported type to convert to string: %T", in)), nil
 	}
@@ -280,14 +280,14 @@ func convertToInt64(_ context.Context, in any, path string, options *convertOpti
 		i, err := strconv.ParseInt(in.(string), 10, 64)
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrInvalidParameter, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, err)
 			}
 			return nil, newWarnings(path, vo.DataTypeInteger, err), nil
 		}
 		return i, nil, nil
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to int64: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to int64: %T", in))
 		}
 		return nil, newWarnings(path, vo.DataTypeInteger, fmt.Errorf("unsupported type to convert to int64: %T", in)), nil
 	}
@@ -303,14 +303,14 @@ func convertToFloat64(_ context.Context, in any, path string, options *convertOp
 		f, err := strconv.ParseFloat(in.(string), 64)
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrInvalidParameter, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, err)
 			}
 			return nil, newWarnings(path, vo.DataTypeNumber, err), nil
 		}
 		return f, nil, nil
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to float64: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to float64: %T", in))
 		}
 		return nil, newWarnings(path, vo.DataTypeNumber, fmt.Errorf("unsupported type to convert to float64: %T", in)), nil
 	}
@@ -324,14 +324,14 @@ func convertToBool(_ context.Context, in any, path string, options *convertOptio
 		b, err := strconv.ParseBool(in.(string))
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrInvalidParameter, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, err)
 			}
 			return nil, newWarnings(path, vo.DataTypeBoolean, err), nil
 		}
 		return b, nil, nil
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to bool: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to bool: %T", in))
 		}
 		return nil, newWarnings(path, vo.DataTypeBoolean, fmt.Errorf("unsupported type to convert to bool: %T", in)), nil
 	}
@@ -347,13 +347,13 @@ func convertToObject(ctx context.Context, in any, path string, t *vo.TypeInfo, o
 		err := sonic.UnmarshalString(in.(string), &m)
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 			}
 			return nil, newWarnings(path, vo.DataTypeObject, err), nil
 		}
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to object: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to object: %T", in))
 		}
 		return nil, newWarnings(path, vo.DataTypeObject, fmt.Errorf("unsupported type to convert to object: %T", in)), nil
 	}
@@ -362,7 +362,7 @@ func convertToObject(ctx context.Context, in any, path string, t *vo.TypeInfo, o
 		if !options.skipRequireCheck {
 			for pn, pro := range t.Properties {
 				if pro.Required {
-					return nil, nil, vo.NewError(errno.ErrMissingRequiredParam,
+					return nil, nil, vo.NewError(errno.DeprecatedErrMissingRequiredParam,
 						errorx.KV("param", fmt.Sprintf("%s.%s", path, pn)))
 				}
 			}
@@ -396,7 +396,7 @@ func convertToObject(ctx context.Context, in any, path string, t *vo.TypeInfo, o
 		for k, t := range t.Properties {
 			if _, ok := out[k]; !ok {
 				if t.Required {
-					return nil, nil, vo.NewError(errno.ErrMissingRequiredParam,
+					return nil, nil, vo.NewError(errno.DeprecatedErrMissingRequiredParam,
 						errorx.KV("param", fmt.Sprintf("%s.%s", path, k)))
 				}
 			}
@@ -419,13 +419,13 @@ func convertToArray(ctx context.Context, in any, path string, t *vo.TypeInfo, op
 		err := sonic.UnmarshalString(v, &a)
 		if err != nil {
 			if options.failFast {
-				return nil, nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+				return nil, nil, vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 			}
 			return []any{}, newWarnings(path, vo.DataTypeArray, err), nil
 		}
 	default:
 		if options.failFast {
-			return nil, nil, vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("unsupported type to convert to array: %T", in))
+			return nil, nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, fmt.Errorf("unsupported type to convert to array: %T", in))
 		}
 		return []any{}, newWarnings(path, vo.DataTypeArray, fmt.Errorf("unsupported type to convert to array: %T", in)), nil
 	}

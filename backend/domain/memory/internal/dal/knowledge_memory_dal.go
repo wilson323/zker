@@ -226,6 +226,42 @@ func (dao *KnowledgeMemoryDAO) FindBySourceURI(
 	return dao.batchToEntity(daoModels), nil
 }
 
+// FindByVectorIDs 根据向量ID列表查找知识
+// 保持向量搜索结果的顺序返回
+func (dao *KnowledgeMemoryDAO) FindByVectorIDs(
+	ctx context.Context,
+	vectorIDs []string,
+) ([]*entity.KnowledgeMemory, error) {
+	if len(vectorIDs) == 0 {
+		return []*entity.KnowledgeMemory{}, nil
+	}
+
+	var daoModels []model.KnowledgeMemoryDAO
+	err := dao.db.WithContext(ctx).
+		Where("memory_id IN ?", vectorIDs).
+		Find(&daoModels).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建内存ID到实体的映射，用于保持vectorIDs的顺序
+	memoryMap := make(map[string]*entity.KnowledgeMemory, len(daoModels))
+	for i := range daoModels {
+		memory := dao.toEntity(&daoModels[i])
+		memoryMap[memory.MemoryID] = memory
+	}
+
+	// 按照vectorIDs的顺序返回结果
+	result := make([]*entity.KnowledgeMemory, 0, len(vectorIDs))
+	for _, vectorID := range vectorIDs {
+		if memory, exists := memoryMap[vectorID]; exists {
+			result = append(result, memory)
+		}
+	}
+
+	return result, nil
+}
+
 // toModel 转换为DAO Model
 func (dao *KnowledgeMemoryDAO) toModel(ent *entity.KnowledgeMemory) *model.KnowledgeMemoryDAO {
 	metadataJSON, _ := ent.GetMetadataJSON()

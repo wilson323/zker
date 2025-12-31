@@ -85,27 +85,27 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 
 	conversationName, ok := input["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversationName is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversationName is required"))
 	}
 
 	messageStr, ok := input["messageId"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("messageId is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("messageId is required"))
 	}
 
 	messageID, err := strconv.ParseInt(messageStr, 10, 64)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	newContent, ok := input["newContent"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("newContent is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("newContent is required"))
 	}
 
 	if appID == nil {
 		if conversationName != "Default" {
-			return nil, vo.WrapError(errno.ErrOnlyDefaultConversationAllowInAgentScenario, fmt.Errorf("only default conversation allow in agent scenario"))
+			return nil, vo.WrapError(errno.DeprecatedErrOnlyDefaultConversationAllowInAgentScenario, fmt.Errorf("only default conversation allow in agent scenario"))
 		}
 
 		if agentID == nil || execCtx.ExeCfg.ConversationID == nil {
@@ -114,7 +114,7 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 
 		_, err = crossmessage.DefaultSVC().Edit(ctx, &model.Message{ConversationID: *execCtx.ExeCfg.ConversationID, ID: messageID, Content: newContent})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		return successMap, err
 	}
@@ -125,7 +125,7 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 	}
 
 	if msg == nil {
-		return nil, vo.NewError(errno.ErrMessageNodeOperationFail, errorx.KV("cause", "message not found"))
+		return nil, vo.NewError(errno.DeprecatedErrMessageNodeOperationFail, errorx.KV("cause", "message not found"))
 	}
 
 	if msg.Content == newContent {
@@ -138,13 +138,13 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 		Version: ptr.Of(version),
 	})
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	if existed {
 		sts, existed, err := workflow.GetRepository().GetStaticConversationByTemplateID(ctx, env, userID, connectorID, t.TemplateID)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		if !existed {
@@ -153,7 +153,7 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 
 		_, err = crossmessage.DefaultSVC().Edit(ctx, &model.Message{ConversationID: sts.ConversationID, ID: messageID, Content: newContent})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		return successMap, nil
@@ -161,7 +161,7 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 	} else {
 		dyConversation, existed, err := workflow.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		if !existed {
@@ -170,7 +170,7 @@ func (e *EditMessage) Invoke(ctx context.Context, input map[string]any) (map[str
 
 		_, err = crossmessage.DefaultSVC().Edit(ctx, &model.Message{ConversationID: dyConversation.ConversationID, ID: messageID, Content: newContent})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		return successMap, nil

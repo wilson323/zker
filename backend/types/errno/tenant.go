@@ -14,14 +14,19 @@ const (
 	ErrTenantInvalidParamCode    = 2002001
 	ErrInvalidTenantIDCode       = 2002002
 	// 新增错误码常量
-	ErrTenantInactiveCode              = 2003002
-	ErrTenantQuotaExceededCode         = 2004001
-	ErrTenantInvalidNameCode           = 2002003
-	ErrTenantInvalidConfigCode         = 2002004
-	ErrTenantMigrationFailedCode       = 2005001
-	ErrTenantIsolationNotSupportedCode = 2002005
-	ErrTenantSubscriptionExpiredCode   = 2003003
-	ErrMissingTenantIDCode             = 2002999 // 租户ID缺失（严格租户隔离模式）
+	ErrTenantInactiveCode                = 2003002
+	ErrTenantQuotaExceededCode           = 2004001
+	ErrTenantInvalidNameCode             = 2002003
+	ErrTenantInvalidConfigCode           = 2002004
+	ErrTenantMigrationFailedCode         = 2005001
+	ErrTenantIsolationNotSupportedCode   = 2002005
+	ErrTenantSubscriptionExpiredCode     = 2003003
+	ErrMissingTenantIDCode               = 2002999 // 租户ID缺失（严格租户隔离模式）
+	ErrTenantMigrationRecordNotFoundCode = 2005002
+	ErrTenantMigrationAlreadyRolledBackCode = 2005003
+	ErrTenantMigrationNotCompleteCode    = 2005004
+	ErrCrossTenantAccessCode             = 2002041 // 跨租户访问
+	ErrCrossTenantUpdateCode             = 2002042 // 跨租户更新
 )
 
 var (
@@ -703,5 +708,21 @@ var (
 		messageZH:  "租户ID缺失",
 		messageEN:  "Tenant ID is required",
 		httpStatus: http.StatusUnauthorized,
+	}
+
+	// 跨租户访问错误
+	ErrCrossTenantAccess = &BaseErrorCode{
+		code:       "CROSS_TENANT_ACCESS",
+		message:    "Cross-tenant access denied",
+		messageZH:  "跨租户访问拒绝",
+		messageEN:  "Cross-tenant access denied",
+		httpStatus: http.StatusForbidden,
+	}
+	ErrCrossTenantUpdate = &BaseErrorCode{
+		code:       "CROSS_TENANT_UPDATE",
+		message:    "Cross-tenant update denied",
+		messageZH:  "跨租户更新拒绝",
+		messageEN:  "Cross-tenant update denied",
+		httpStatus: http.StatusForbidden,
 	}
 )

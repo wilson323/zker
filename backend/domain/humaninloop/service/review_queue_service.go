@@ -151,8 +151,10 @@ func (s *queueService) SortByPriority(tasks []*entity.CollaborationTask) []*enti
 // AdjustPriorityBySLA 根据SLA调整优先级
 func (s *queueService) AdjustPriorityBySLA(ctx context.Context) error {
 	// 1. 获取所有进行中的任务
+	// 注意：不能直接取常量的地址，需要先创建一个变量
+	inProgressStatus := entity.TaskStatusInProgress
 	filter := &repository.ListFilter{
-		Status: (*entity.TaskStatus)(&entity.TaskStatusInProgress),
+		Status: &inProgressStatus,
 	}
 
 	tasks, _, err := s.taskRepo.List(ctx, filter)

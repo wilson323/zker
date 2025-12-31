@@ -1,0 +1,341 @@
+# GitHub Actions - 架构合规性检查工作流
+# 用途: 自动化架构合规检查，确保DDD分层、循环依赖、测试覆盖率等符合企业级标准
+# 触发条件: PR到main/develop分支，push到main/develop分支
+# 遵循规范: ZKER企业级开发规范手册 v1.0
+
+name: Architecture Compliance Check
+
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches: [main, develop]
+  workflow_dispatch:  # 允许手动触发
+
+# 并发控制
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.24'
+  COVERAGE_THRESHOLD: 70  # 覆盖率阈值
+
+jobs:
+  # ==================== 架构合规性检查 ====================
+  architecture-check:
+    name: 🏗️ Architecture Compliance Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 完整历史，用于依赖分析
+
+      - name: 🔧 设置 Go 环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: 📦 安装依赖
+        working-directory: ./backend
+        run: |
+          go mod download
+          go mod verify
+
+      # 1️⃣ 编译检查
+      - name: 1️⃣ 编译检查 (Build Check)
+        working-directory: ./backend
+        run: |
+          echo "🔨 检查编译..."
+          if go build -v ./...; then
+            echo "✅ 编译成功"
+          else
+            echo "❌ 编译失败"
+            exit 1
+          fi
+
+      # 2️⃣ 循环依赖检测
+      - name: 2️⃣ 循环依赖检测 (Import Cycle Check)
+        id: cycle-check
+        working-directory: ./backend
+        run: |
+          echo "🔍 检查循环依赖..."
+
+          # 使用go list检测循环依赖
+          CYCLES=$(go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./... 2>&1 | grep "import cycle" || true)
+
+          if [ -n "$CYCLES" ]; then
+            echo "❌ 发现循环依赖："
+            echo "$CYCLES"
+            echo ""
+            echo "## ❌ 循环依赖检查失败" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$CYCLES" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "✅ 无循环依赖"
+          echo "## ✅ 循环依赖检查通过" >> $GITHUB_STEP_SUMMARY
+
+      # 3️⃣ 跨层依赖检测
+      - name: 3️⃣ 跨层依赖检测 (Layer Compliance Check)
+        id: layer-check
+        working-directory: ./backend
+        run: |
+          echo "🏗️ 检查DDD分层合规性..."
+
+          VIOLATIONS_FOUND=0
+
+          # 检查1: domain层不应依赖api/application
+          echo "检查domain层依赖..."
+          DOMAIN_VIOLATIONS=$(go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./domain/... 2>/dev/null | grep -E " (api/|application/)" || true)
+
+          if [ -n "$DOMAIN_VIOLATIONS" ]; then
+            echo "❌ domain层依赖外层："
+            echo "$DOMAIN_VIOLATIONS"
+            echo ""
+            echo "## ❌ Domain层依赖违规" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$DOMAIN_VIOLATIONS" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**错误**: domain层不应依赖api/application层" >> $GITHUB_STEP_SUMMARY
+            VIOLATIONS_FOUND=1
+          fi
+
+          # 检查2: bizpkg不应依赖api/model
+          echo "检查bizpkg层依赖..."
+          BIZPKG_VIOLATIONS=$(go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./bizpkg/... 2>/dev/null | grep " api/model/" || true)
+
+          if [ -n "$BIZPKG_VIOLATIONS" ]; then
+            echo "❌ bizpkg依赖api/model："
+            echo "$BIZPKG_VIOLATIONS"
+            echo ""
+            echo "## ❌ Bizpkg层依赖违规" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$BIZPKG_VIOLATIONS" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**错误**: bizpkg应使用crossdomain/model而非api/model" >> $GITHUB_STEP_SUMMARY
+            VIOLATIONS_FOUND=1
+          fi
+
+          # 检查3: application层不应依赖api层
+          echo "检查application层依赖..."
+          APP_VIOLATIONS=$(go list -f '{{.ImportPath}}: {{join .Imports " "}}' ./application/... 2>/dev/null | grep " api/" || true)
+
+          if [ -n "$APP_VIOLATIONS" ]; then
+            echo "❌ application层依赖api层："
+            echo "$APP_VIOLATIONS"
+            echo ""
+            echo "## ❌ Application层依赖违规" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$APP_VIOLATIONS" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            VIOLATIONS_FOUND=1
+          fi
+
+          if [ $VIOLATIONS_FOUND -eq 1 ]; then
+            echo ""
+            echo "❌ 分层合规检查失败，请修复后重新提交"
+            exit 1
+          fi
+
+          echo "✅ 分层合规检查通过"
+          echo "## ✅ DDD分层合规检查通过" >> $GITHUB_STEP_SUMMARY
+
+      # 4️⃣ 测试覆盖率检查
+      - name: 4️⃣ 测试覆盖率检查 (Test Coverage Check)
+        id: coverage-check
+        working-directory: ./backend
+        run: |
+          echo "🧪 运行测试并检查覆盖率..."
+
+          # 运行测试并生成覆盖率报告
+          go test -coverprofile=coverage.out -covermode=atomic ./... || {
+            echo "❌ 测试失败"
+            exit 1
+          }
+
+          # 检查总体覆盖率
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          COVERAGE_INT=${COVERAGE%.*}
+          echo "当前覆盖率: ${COVERAGE}%"
+
+          echo "## 📊 测试覆盖率报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **当前覆盖率**: ${COVERAGE}%" >> $GITHUB_STEP_SUMMARY
+          echo "- **覆盖率阈值**: ${{ env.COVERAGE_THRESHOLD }}%" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # 覆盖率必须≥70%
+          if [ "$COVERAGE_INT" -lt ${{ env.COVERAGE_THRESHOLD }} ]; then
+            echo "❌ 覆盖率 ${COVERAGE}% 低于门槛 ${{ env.COVERAGE_THRESHOLD }}%"
+            echo "❌ **覆盖率不足**" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          echo "✅ 覆盖率达标 (${COVERAGE}% ≥ ${{ env.COVERAGE_THRESHOLD }}%)"
+          echo "✅ **覆盖率达标**" >> $GITHUB_STEP_SUMMARY
+
+      # 5️⃣ 代码规范检查
+      - name: 5️⃣ 代码规范检查 (Lint Check)
+        id: lint-check
+        working-directory: ./backend
+        run: |
+          echo "📋 运行代码规范检查..."
+
+          # 检查golangci-lint是否安装
+          if ! command -v golangci-lint &> /dev/null; then
+            echo "安装golangci-lint..."
+            curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+          fi
+
+          golangci-lint run --timeout=10m --config=../.github/linters/.golangci.yml || {
+            echo "❌ 代码规范检查失败"
+            echo "## ❌ 代码规范检查失败" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "请运行 \`golangci-lint run --fix\` 修复问题" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          }
+
+          echo "✅ 代码规范检查通过"
+          echo "## ✅ 代码规范检查通过" >> $GITHUB_STEP_SUMMARY
+
+      # 6️⃣ 安全扫描
+      - name: 6️⃣ 安全扫描 (Security Scan)
+        id: security-check
+        working-directory: ./backend
+        run: |
+          echo "🔒 运行安全扫描..."
+
+          # 安装gosec
+          if ! command -v gosec &> /dev/null; then
+            echo "安装gosec..."
+            go install github.com/securego/gosec/v2/cmd/gosec@latest
+          fi
+
+          # 运行安全扫描（不因警告而失败）
+          gosec -quiet -fmt json -out gosec-report.json ./... || true
+
+          # 检查是否有高危漏洞
+          if [ -f gosec-report.json ]; then
+            HIGH_SEVERITY=$(cat gosec-report.json | grep -o '"Severity":"HIGH"' | wc -l)
+            if [ "$HIGH_SEVERITY" -gt 0 ]; then
+              echo "⚠️ 发现 $HIGH_SEVERITY 个高危安全问题"
+              echo "## ⚠️ 安全扫描发现高危问题" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "发现 **$HIGH_SEVERITY** 个高危安全问题" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "✅ 无高危安全问题"
+              echo "## ✅ 安全扫描通过（无高危问题）" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
+
+      # 7️⃣ 包大小检查
+      - name: 7️⃣ 包大小检查 (Package Size Check)
+        id: package-size-check
+        working-directory: ./backend
+        run: |
+          echo "📦 检查包大小..."
+
+          # 查找超过3000行的包
+          LARGE_PACKAGES=$(find . -name "*.go" -not -path "*/vendor/*" -not -path "*/.gen.go" | xargs wc -l 2>/dev/null | awk '$1 > 3000 { print $2 }' || true)
+
+          if [ -n "$LARGE_PACKAGES" ]; then
+            echo "⚠️ 以下文件超过3000行，建议拆分："
+            echo "$LARGE_PACKAGES"
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "## ⚠️ 包大小警告" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "$LARGE_PACKAGES" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**建议**: 拆分大型文件，保持单一职责" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ 包大小合理"
+            echo "## ✅ 包大小检查通过" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      # 8️⃣ 生成检查报告
+      - name: 8️⃣ 生成检查报告 (Generate Report)
+        if: always()
+        run: |
+          echo "📊 生成架构合规性报告..."
+
+          cat > architecture-report.md << 'EOF'
+          # 架构合规性检查报告
+
+          ## 检查信息
+          - **检查时间**: $(date)
+          - **提交SHA**: ${{ github.sha }}
+          - **分支**: ${{ github.ref_name }}
+          - **触发者**: ${{ github.actor }}
+
+          ## 检查结果
+
+          ### 1. 编译检查
+          ${{ steps.build-check.outcome == 'success' && '✅ 通过' || '❌ 失败' }}
+
+          ### 2. 循环依赖检查
+          ${{ steps.cycle-check.outcome == 'success' && '✅ 通过' || '❌ 失败' }}
+
+          ### 3. DDD分层合规检查
+          ${{ steps.layer-check.outcome == 'success' && '✅ 通过' || '❌ 失败' }}
+
+          ### 4. 测试覆盖率检查
+          ${{ steps.coverage-check.outcome == 'success' && '✅ 通过' || '❌ 失败' }}
+
+          ### 5. 代码规范检查
+          ${{ steps.lint-check.outcome == 'success' && '✅ 通过' || '❌ 失败' }}
+
+          ### 6. 安全扫描
+          ${{ steps.security-check.outcome == 'success' || 'skipped' && '✅ 通过' || '⚠️ 警告' }}
+
+          ### 7. 包大小检查
+          ${{ steps.package-size-check.outcome == 'success' && '✅ 通过' || '⚠️ 警告' }}
+
+          ## 总结
+
+          ${{ (steps.cycle-check.outcome == 'success' && steps.layer-check.outcome == 'success' && steps.coverage-check.outcome == 'success' && steps.lint-check.outcome == 'success') && '🎉 所有架构检查通过，符合企业级架构标准！' || '❌ 架构检查失败，请修复后重新提交' }}
+
+          ---
+
+          *本报告由ZKER架构合规检查系统自动生成*
+          EOF
+
+          cat architecture-report.md
+
+      # 9️⃣ 上传报告
+      - name: 9️⃣ 上传报告 (Upload Report)
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: architecture-report
+          path: backend/architecture-report.md
+          retention-days: 30
+
+      # 🔟 最终检查
+      - name: 🔟 最终检查 (Final Check)
+        if: |
+          steps.cycle-check.outcome != 'success' ||
+          steps.layer-check.outcome != 'success' ||
+          steps.coverage-check.outcome != 'success' ||
+          steps.lint-check.outcome != 'success'
+        run: |
+          echo "❌ 架构合规性检查失败"
+          echo ""
+          echo "失败的检查项："
+          echo ${{ steps.cycle-check.outcome != 'success' && '- 循环依赖检查' || '' }}
+          echo ${{ steps.layer-check.outcome != 'success' && '- DDD分层合规检查' || '' }}
+          echo ${{ steps.coverage-check.outcome != 'success' && '- 测试覆盖率检查' || '' }}
+          echo ${{ steps.lint-check.outcome != 'success' && '- 代码规范检查' || '' }}
+          echo ""
+          echo "请修复问题后重新提交"
+          exit 1

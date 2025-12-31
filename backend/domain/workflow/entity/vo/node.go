@@ -217,7 +217,7 @@ func WrapIfNeeded(code int, err error, opts ...errorx.Option) WorkflowError {
 var CancelErr = newCancel()
 
 func newCancel() WorkflowError {
-	e := errorx.New(errno.ErrWorkflowCanceledByUser, errorx.Extra("level", string(LevelCancel)))
+	e := errorx.New(errno.ErrExecutionCancelledCode, errorx.Extra("level", string(LevelCancel)))
 	var sErr errorx.StatusError
 	_ = errors.As(e, &sErr)
 	wfe := &wfErr{
@@ -229,7 +229,7 @@ func newCancel() WorkflowError {
 var NodeTimeoutErr = newNodeTimeout()
 
 func newNodeTimeout() WorkflowError {
-	e := errorx.New(errno.ErrNodeTimeout, errorx.Extra("level", string(LevelError)))
+	e := errorx.New(errno.ErrNodeTimeoutCode, errorx.Extra("level", string(LevelError)))
 	var sErr errorx.StatusError
 	_ = errors.As(e, &sErr)
 	wfe := &wfErr{
@@ -241,7 +241,7 @@ func newNodeTimeout() WorkflowError {
 var WorkflowTimeoutErr = newWorkflowTimeout()
 
 func newWorkflowTimeout() WorkflowError {
-	e := errorx.New(errno.ErrWorkflowTimeout, errorx.Extra("level", string(LevelError)))
+	e := errorx.New(errno.ErrExecutionTimeoutCode, errorx.Extra("level", string(LevelError)))
 	var sErr errorx.StatusError
 	_ = errors.As(e, &sErr)
 	wfe := &wfErr{

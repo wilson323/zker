@@ -47,7 +47,7 @@ type executeHistoryStoreImpl struct {
 func (e *executeHistoryStoreImpl) CreateWorkflowExecution(ctx context.Context, execution *entity.WorkflowExecution) (err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrDatabaseError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrDatabaseError, err)
 		}
 	}()
 
@@ -115,7 +115,7 @@ func (e *executeHistoryStoreImpl) UpdateWorkflowExecution(ctx context.Context, e
 	allowedStatus []entity.WorkflowExecuteStatus) (_ int64, _ entity.WorkflowExecuteStatus, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrDatabaseError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrDatabaseError, err)
 		}
 	}()
 
@@ -164,7 +164,7 @@ func (e *executeHistoryStoreImpl) TryLockWorkflowExecution(ctx context.Context, 
 	_ bool, _ entity.WorkflowExecuteStatus, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrDatabaseError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrDatabaseError, err)
 		}
 	}()
 
@@ -204,7 +204,7 @@ func (e *executeHistoryStoreImpl) GetWorkflowExecution(ctx context.Context, id i
 		Where(e.query.WorkflowExecution.ID.Eq(id)).
 		Find()
 	if err != nil {
-		return nil, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("failed to find workflow execution: %v", err))
+		return nil, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("failed to find workflow execution: %v", err))
 	}
 
 	if len(rootExes) == 0 {
@@ -288,7 +288,7 @@ func (e *executeHistoryStoreImpl) CreateNodeExecution(ctx context.Context, execu
 	if execution.Extra != nil {
 		m, err := sonic.MarshalString(execution.Extra)
 		if err != nil {
-			return vo.WrapError(errno.ErrSerializationDeserializationFail,
+			return vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail,
 				fmt.Errorf("failed to marshal extra: %w", err))
 		}
 		nodeExec.Extra = m
@@ -305,7 +305,7 @@ func (e *executeHistoryStoreImpl) UpdateNodeExecutionStreaming(ctx context.Conte
 	key := fmt.Sprintf(nodeExecOutputKey, execution.ID)
 
 	if err := e.redis.Set(ctx, key, *execution.Output, nodeExecDataExpiry).Err(); err != nil {
-		return vo.WrapError(errno.ErrRedisError, err)
+		return vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 
 	return nil
@@ -314,7 +314,7 @@ func (e *executeHistoryStoreImpl) UpdateNodeExecutionStreaming(ctx context.Conte
 func (e *executeHistoryStoreImpl) UpdateNodeExecution(ctx context.Context, execution *entity.NodeExecution) (err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrDatabaseError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrDatabaseError, err)
 		}
 	}()
 
@@ -356,7 +356,7 @@ func (e *executeHistoryStoreImpl) UpdateNodeExecution(ctx context.Context, execu
 func (e *executeHistoryStoreImpl) CancelAllRunningNodes(ctx context.Context, wfExeID int64) (err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrDatabaseError, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrDatabaseError, err)
 		}
 	}()
 
@@ -377,7 +377,7 @@ func (e *executeHistoryStoreImpl) CancelAllRunningNodes(ctx context.Context, wfE
 		Updates(map[string]interface{}{
 			"status":      int32(entity.WorkflowCancel),
 			"fail_reason": "workflow cancel by user",
-			"error_code":  strconv.Itoa(errno.ErrWorkflowCanceledByUser),
+			"error_code":  strconv.Itoa(errno.DeprecatedErrWorkflowCanceledByUser),
 		})
 	if err != nil {
 		return fmt.Errorf("failed to cancel workflow execution: %w", err)
@@ -434,7 +434,7 @@ func (e *executeHistoryStoreImpl) GetNodeExecutionsByWfExeID(ctx context.Context
 		Where(e.query.NodeExecution.ExecuteID.Eq(wfExeID)).
 		Find()
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("failed to find node executions: %v", err))
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("failed to find node executions: %v", err))
 	}
 
 	for _, nodeExec := range nodeExecs {
@@ -461,7 +461,7 @@ func (e *executeHistoryStoreImpl) loadNodeExecutionFromRedis(ctx context.Context
 		if errors.Is(err, cache.Nil) {
 			return nil
 		}
-		return vo.WrapError(errno.ErrRedisError, err)
+		return vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 
 	if result != "" {
@@ -479,7 +479,7 @@ func (e *executeHistoryStoreImpl) GetNodeExecution(ctx context.Context, wfExeID 
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, false, nil
 		}
-		return nil, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("failed to find node executions: %w", err))
+		return nil, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("failed to find node executions: %w", err))
 	}
 
 	nodeExeEntity := convertNodeExecution(nodeExec)
@@ -493,7 +493,7 @@ func (e *executeHistoryStoreImpl) GetNodeExecutionByParent(ctx context.Context, 
 		Where(e.query.NodeExecution.ExecuteID.Eq(wfExeID), e.query.NodeExecution.ParentNodeID.Eq(parentNodeID)).
 		Find()
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("failed to find node executions: %w", err))
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("failed to find node executions: %w", err))
 	}
 	var result []*entity.NodeExecution
 	for _, nodeExec := range nodeExecs {
@@ -514,7 +514,7 @@ func (e *executeHistoryStoreImpl) SetTestRunLatestExeID(ctx context.Context, wfI
 	key := fmt.Sprintf(testRunLastExeKey, wfID, uID)
 	err := e.redis.Set(ctx, key, exeID, 7*24*time.Hour).Err()
 	if err != nil {
-		return vo.WrapError(errno.ErrRedisError, err)
+		return vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 
 	return nil
@@ -527,7 +527,7 @@ func (e *executeHistoryStoreImpl) GetTestRunLatestExeID(ctx context.Context, wfI
 		if errors.Is(err, cache.Nil) {
 			return 0, nil
 		}
-		return 0, vo.WrapError(errno.ErrRedisError, err)
+		return 0, vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 	exeID, err := strconv.ParseInt(exeIDStr, 10, 64)
 	if err != nil {
@@ -540,7 +540,7 @@ func (e *executeHistoryStoreImpl) SetNodeDebugLatestExeID(ctx context.Context, w
 	key := fmt.Sprintf(nodeDebugLastExeKey, wfID, nodeID, uID)
 	err := e.redis.Set(ctx, key, exeID, 7*24*time.Hour).Err()
 	if err != nil {
-		return vo.WrapError(errno.ErrRedisError, err)
+		return vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 	return nil
 }
@@ -552,7 +552,7 @@ func (e *executeHistoryStoreImpl) GetNodeDebugLatestExeID(ctx context.Context, w
 		if errors.Is(err, cache.Nil) {
 			return 0, nil
 		}
-		return 0, vo.WrapError(errno.ErrRedisError, err)
+		return 0, vo.WrapError(errno.DeprecatedErrRedisError, err)
 	}
 	exeID, err := strconv.ParseInt(exeIDStr, 10, 64)
 	if err != nil {

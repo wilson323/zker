@@ -9,7 +9,6 @@ import (
 
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
-	tenantentity "github.com/coze-dev/coze-studio/backend/domain/tenant/entity"
 	tenantservice "github.com/coze-dev/coze-studio/backend/domain/tenant/service"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 )
@@ -42,14 +41,14 @@ type DatabaseConnection struct {
 	IsolationStrategy tenantservice.IsolationStrategy
 }
 
-// TenantIsolationMiddleware 租户隔离中间件
+// TenantIsolationDatabaseMiddleware 租户隔离数据库路由中间件
 //
 // 功能:
 //   1. 检查租户隔离策略
 //   2. 根据策略选择数据库实例
 //   3. 将数据库连接注入上下文
 //   4. 监控隔离策略使用情况
-func TenantIsolationMiddleware(config TenantIsolationMiddlewareConfig) app.HandlerFunc {
+func TenantIsolationDatabaseMiddleware(config TenantIsolationMiddlewareConfig) app.HandlerFunc {
 	// 租户策略缓存
 	strategyCache := make(map[string]tenantservice.IsolationStrategy)
 	var cacheMutex sync.RWMutex
@@ -68,7 +67,7 @@ func TenantIsolationMiddleware(config TenantIsolationMiddlewareConfig) app.Handl
 		}
 
 		// 2. 获取租户隔离策略
-		strategy, err := s.getIsolationStrategy(ctx, tenant.TenantID, config.IsolationService, strategyCache, &cacheMutex)
+		strategy, err := getIsolationStrategy(ctx, tenant.TenantID, config.IsolationService, strategyCache, &cacheMutex)
 		if err != nil {
 			logs.CtxErrorf(ctx, "[TenantIsolation] 获取隔离策略失败 [tenant=%s]: %v", tenant.TenantID, err)
 			c.JSON(consts.StatusInternalServerError, map[string]interface{}{
@@ -115,7 +114,7 @@ func TenantIsolationMiddleware(config TenantIsolationMiddlewareConfig) app.Handl
 }
 
 // getIsolationStrategy 获取租户隔离策略（带缓存）
-func (s *TenantIsolationMiddleware) getIsolationStrategy(
+func getIsolationStrategy(
 	ctx context.Context,
 	tenantID string,
 	isolationService *tenantservice.IsolationUpgradeService,

@@ -105,3 +105,42 @@ type BotStoreCategoryRepository interface {
 	// DecrementBotCount 减少Bot数量
 	DecrementBotCount(ctx context.Context, categoryID string) error
 }
+
+// BotStoreReviewRepository Bot商店评论仓储接口
+type BotStoreReviewRepository interface {
+	// Create 创建评论
+	Create(ctx context.Context, review *entity.BotStoreReview) error
+
+	// Update 更新评论
+	Update(ctx context.Context, review *entity.BotStoreReview) error
+
+	// Delete 删除评论（软删除）
+	Delete(ctx context.Context, reviewID string) error
+
+	// GetByID 根据ID获取评论
+	GetByID(ctx context.Context, reviewID string) (*entity.BotStoreReview, error)
+
+	// GetByUserAndItem 根据用户ID和商品ID获取评论
+	GetByUserAndItem(ctx context.Context, userID, itemID string) (*entity.BotStoreReview, error)
+
+	// ListByItemID 根据商品ID列出评论（分页）
+	ListByItemID(ctx context.Context, itemID string, page, pageSize int, sortBy string) ([]*entity.BotStoreReview, int, error)
+
+	// ListByUserID 根据用户ID列出评论（分页）
+	ListByUserID(ctx context.Context, userID string, page, pageSize int) ([]*entity.BotStoreReview, int, error)
+
+	// GetStatistics 获取商品评论统计
+	GetStatistics(ctx context.Context, itemID string) (*entity.ReviewStatistics, error)
+
+	// UpdateItemRating 更新商品评分统计
+	UpdateItemRating(ctx context.Context, itemID string) error
+
+	// CountByItemID 统计商品评论数
+	CountByItemID(ctx context.Context, itemID string) (int, error)
+
+	// HasUserReviewed 检查用户是否已评论
+	HasUserReviewed(ctx context.Context, userID, itemID string) (bool, error)
+}
+
+// 注意：构造函数移到了 DAL 层，避免循环导入
+// 使用 dal.NewBotStoreRepository() 和 dal.NewBotStoreCategoryRepository() 创建实例

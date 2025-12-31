@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	product_public_api "github.com/coze-dev/coze-studio/backend/api/model/marketplace/product_public_api"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/workflow"
 	appworkflow "github.com/coze-dev/coze-studio/backend/application/workflow"
 
@@ -52,7 +53,7 @@ func PublicGetProductList(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetProductListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -61,25 +62,25 @@ func PublicGetProductList(ctx context.Context, c *app.RequestContext) {
 	case product_common.ProductEntityType_Plugin:
 		resp, err = plugin.PluginApplicationSVC.PublicGetProductList(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 
 	case product_common.ProductEntityType_TemplateCommon:
 		resp, err = template.ApplicationSVC.PublicGetProductList(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	case product_common.ProductEntityType_SaasPlugin:
 		resp, err = plugin.PluginApplicationSVC.GetCozeSaasPluginList(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicGetProductDetail .
@@ -89,22 +90,22 @@ func PublicGetProductDetail(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetProductDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetProductID() <= 0 {
-		invalidParamRequestResponse(c, "productID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "productID is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.PublicGetProductDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicFavoriteProduct .
@@ -114,12 +115,12 @@ func PublicFavoriteProduct(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.FavoriteProductRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetEntityID() <= 0 {
-		invalidParamRequestResponse(c, "entityID is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "entityID is invalid", "参数验证失败", nil)
 		return
 	}
 
@@ -131,17 +132,17 @@ func PublicFavoriteProduct(ctx context.Context, c *app.RequestContext) {
 	}
 
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	resp, err := search.SearchSVC.PublicFavoriteProduct(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicGetUserFavoriteListV2 .
@@ -151,26 +152,26 @@ func PublicGetUserFavoriteListV2(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetUserFavoriteListV2Request
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.GetPageSize() <= 0 {
-		invalidParamRequestResponse(c, "pageSize is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "pageSize is invalid", "参数验证失败", nil)
 		return
 	}
 	if req.GetEntityType() <= 0 {
-		invalidParamRequestResponse(c, "entityType is invalid")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "entityType is invalid", "参数验证失败", nil)
 		return
 	}
 
 	resp, err := search.SearchSVC.PublicGetUserFavoriteList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicDuplicateProduct .
@@ -180,7 +181,7 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.DuplicateProductRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -191,11 +192,11 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 	case product_common.ProductEntityType_BotTemplate:
 		modelListResp, err := modelmgr.ModelmgrApplicationSVC.GetModelList(ctx, &developer_api.GetTypeListRequest{})
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 		if modelListResp == nil || modelListResp.Data == nil || len(modelListResp.Data.ModelList) == 0 {
-			invalidParamRequestResponse(c, "no model found")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "no model found", "参数验证失败", nil)
 			return
 		}
 
@@ -204,7 +205,7 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 			SpaceID: req.GetSpaceID(),
 		})
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 
@@ -212,17 +213,17 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 			BotID: bot.Data.BotID,
 		})
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 		if botInfo.Data == nil || botInfo.Data.BotInfo == nil {
-			invalidParamRequestResponse(c, "no bot info found")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "no bot info found", "参数验证失败", nil)
 			return
 		}
 
 		modelInfo := botInfo.GetData().GetBotInfo().ModelInfo
 		if modelInfo == nil {
-			invalidParamRequestResponse(c, "no model info found in agent")
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "no model info found in agent", "参数验证失败", nil)
 			return
 		}
 		modelInfo.ModelId = &modelListResp.Data.ModelList[0].ModelType
@@ -236,7 +237,7 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 				},
 			})
 			if err != nil {
-				internalServerErrorResponse(ctx, c, err)
+				httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 				return
 			}
 		}
@@ -249,13 +250,13 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 			SpaceID:    strconv.FormatInt(req.GetSpaceID(), 10),
 		})
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 
 		newWorkflowID, err := strconv.ParseInt(workflowResp.Data.WorkflowID, 10, 64)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 		resp.Data.NewEntityID = newWorkflowID
@@ -268,13 +269,13 @@ func PublicDuplicateProduct(ctx context.Context, c *app.RequestContext) {
 				Name:       req.Name,
 			})
 			if err != nil {
-				internalServerErrorResponse(ctx, c, err)
+				httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 				return
 			}
 		}
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicSearchProduct .
@@ -287,7 +288,7 @@ func PublicSearchProduct(ctx context.Context, c *app.RequestContext) {
 	if categoryIDsStr := string(c.Query("category_ids")); categoryIDsStr != "" {
 		categoryIDs, err = handlerCategoryIDs(c, &req)
 		if err != nil {
-			invalidParamRequestResponse(c, err.Error())
+			httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 			return
 		}
 		c.Request.URI().QueryArgs().Del("category_ids")
@@ -295,7 +296,7 @@ func PublicSearchProduct(ctx context.Context, c *app.RequestContext) {
 
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -306,11 +307,11 @@ func PublicSearchProduct(ctx context.Context, c *app.RequestContext) {
 	resp, err := plugin.PluginApplicationSVC.PublicSearchProduct(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "PublicSearchProduct failed: %v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func handlerCategoryIDs(c *app.RequestContext, req *product_public_api.SearchProductRequest) ([]int64, error) {
@@ -340,7 +341,7 @@ func PublicSearchSuggest(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.SearchSuggestRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -348,11 +349,11 @@ func PublicSearchSuggest(ctx context.Context, c *app.RequestContext) {
 	resp, err := plugin.PluginApplicationSVC.PublicSearchSuggest(ctx, &req)
 	if err != nil {
 		logs.CtxErrorf(ctx, "PublicSearchSuggest failed: %v", err)
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicGetProductCategoryList .
@@ -362,7 +363,7 @@ func PublicGetProductCategoryList(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetProductCategoryListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -372,11 +373,11 @@ func PublicGetProductCategoryList(ctx context.Context, c *app.RequestContext) {
 	case product_common.ProductEntityType_SaasPlugin:
 		resp, err = plugin.PluginApplicationSVC.GetSaasProductCategoryList(ctx, &req)
 		if err != nil {
-			internalServerErrorResponse(ctx, c, err)
+			httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 			return
 		}
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicGetProductCallInfo .
@@ -386,17 +387,17 @@ func PublicGetProductCallInfo(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetProductCallInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetProductCallInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublicGetMarketPluginConfig .
@@ -406,15 +407,15 @@ func PublicGetMarketPluginConfig(ctx context.Context, c *app.RequestContext) {
 	var req product_public_api.GetMarketPluginConfigRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := plugin.PluginApplicationSVC.GetMarketPluginConfig(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

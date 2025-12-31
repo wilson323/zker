@@ -24,6 +24,8 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
+	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // organizationRepository 组织仓储实现
@@ -321,7 +323,7 @@ func (r *departmentRepository) Move(ctx context.Context, deptID, newParentID str
 		return err
 	}
 	if dept == nil {
-		return errors.New("department not found")
+		return errorx.New(errno.ErrOrgNotFound.Int32Code())
 	}
 
 	// 计算新的层级和路径
@@ -338,7 +340,7 @@ func (r *departmentRepository) Move(ctx context.Context, deptID, newParentID str
 			return err
 		}
 		if parent == nil {
-			return errors.New("parent department not found")
+			return errorx.New(errno.ErrOrgInvalidParent.Int32Code())
 		}
 		newLevel = parent.Level + 1
 		newPath = parent.Path + "/" + deptID

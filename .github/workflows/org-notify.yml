@@ -1,0 +1,500 @@
+# ========================================
+# 发布通知配置工作流 - 组织中心
+# 用途: 发送部署状态、发布报告、告警通知
+# 触发条件: 部署完成、部署失败、手动触发
+# 通知渠道: Slack、邮件、企业微信
+# ========================================
+
+name: ORG-NOTIFY
+
+on:
+  workflow_run:
+    workflows: ["ORG-CD"]
+    types:
+      - completed
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+    inputs:
+      notification_type:
+        description: '通知类型'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+          - release      # 发布通知
+          - rollback     # 回滚通知
+          - maintenance # 维护通知
+          - alert        # 告警通知
+      message:
+        description: '自定义消息'
+        required: false
+        type: string
+      severity:
+        description: '严重程度（仅告警通知）'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - info
+          - warning
+          - error
+          - critical
+
+# 环境变量
+env:
+  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+  SLACK_CHANNEL_DEPLOYMENTS: '#deployments'
+  SLACK_CHANNEL_ALERTS: '#alerts'
+  EMAIL_TO: ${{ secrets.EMAIL_TO }}
+  EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+  WECHAT_WEBHOOK: ${{ secrets.WECHAT_WEBHOOK }}
+
+jobs:
+  # ==================== Slack 通知 ====================
+  notify-slack:
+    name: 📢 Notify Slack
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      always()
+
+    steps:
+      - name: 📥 获取部署信息
+        id: deployment_info
+        uses: zzzze/trigger-workflow-and-wait@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow_run_id: ${{ github.event.workflow_run.id }}
+
+      - name: 📊 生成 Slack 通知
+        id: slack_notification
+        run: |
+          # 设置通知类型
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            NOTIFICATION_TYPE="${{ github.event.inputs.notification_type }}"
+            SEVERITY="${{ github.event.inputs.severity || 'info' }}"
+            CUSTOM_MESSAGE="${{ github.event.inputs.message }}"
+          else
+            NOTIFICATION_TYPE="deployment"
+            SEVERITY="info"
+            CUSTOM_MESSAGE=""
+          fi
+
+          # 根据工作流结果设置状态
+          WORKFLOW_STATUS="${{ github.event.workflow_run.conclusion }}"
+          if [[ "$WORKFLOW_STATUS" == "success" ]]; then
+            STATUS="✅ 成功"
+            COLOR="good"
+          elif [[ "$WORKFLOW_STATUS" == "failure" ]]; then
+            STATUS="❌ 失败"
+            COLOR="danger"
+          else
+            STATUS="⚠️ 取消"
+            COLOR="warning"
+          fi
+
+          # 生成通知标题
+          case $NOTIFICATION_TYPE in
+            release)
+              TITLE="🚀 组织中心发布通知"
+              ;;
+            rollback)
+              TITLE="🔄 组织中心回滚通知"
+              ;;
+            maintenance)
+              TITLE="🔧 组织中心维护通知"
+              ;;
+            alert)
+              TITLE="🚨 组织中心告警通知"
+              ;;
+            deployment)
+              TITLE="🚀 组织中心部署通知"
+              ;;
+            *)
+              TITLE="📢 组织中心通知"
+              ;;
+          esac
+
+          # 生成时间戳
+          TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          # 输出到 GitHub Output
+          echo "title=$TITLE" >> $GITHUB_OUTPUT
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "color=$COLOR" >> $GITHUB_OUTPUT
+          echo "timestamp=$TIMESTAMP" >> $GITHUB_OUTPUT
+          echo "notification_type=$NOTIFICATION_TYPE" >> $GITHUB_OUTPUT
+
+      - name: 📤 发送 Slack 通知（部署频道）
+        if: |
+          always() &&
+          (steps.slack_notification.outputs.notification_type == 'deployment' ||
+           steps.slack_notification.outputs.notification_type == 'release' ||
+           steps.slack_notification.outputs.notification_type == 'rollback')
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ github.event.workflow_run.conclusion }}
+          text: |
+            ${{ steps.slack_notification.outputs.title }}
+            ${{ steps.slack_notification.outputs.status }}
+            时间: ${{ steps.slack_notification.outputs.timestamp }}
+            版本: ${{ github.event.workflow_run.head_sha }}
+            分支: ${{ github.event.workflow_run.head_branch }}
+            触发者: ${{ github.event.workflow_run.actor }}
+          webhook_url: ${{ env.SLACK_WEBHOOK }}
+          channel: ${{ env.SLACK_CHANNEL_DEPLOYMENTS }}
+          username: 'ORG Center Bot'
+          icon_emoji: ':rocket:'
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ steps.slack_notification.outputs.color }}",
+                  "title": "${{ steps.slack_notification.outputs.title }}",
+                  "fields": [
+                    {
+                      "title": "状态",
+                      "value": "${{ steps.slack_notification.outputs.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "版本",
+                      "value": "${{ github.event.workflow_run.head_sha }}",
+                      "short": true
+                    },
+                    {
+                      "title": "分支",
+                      "value": "${{ github.event.workflow_run.head_branch }}",
+                      "short": true
+                    },
+                    {
+                      "title": "触发者",
+                      "value": "${{ github.event.workflow_run.actor }}",
+                      "short": true
+                    },
+                    {
+                      "title": "时间",
+                      "value": "${{ steps.slack_notification.outputs.timestamp }}",
+                      "short": false
+                    }
+                  ],
+                  "footer": "Organization Center CI/CD",
+                  "ts": ${{ github.event.workflow_run.updated_at }}
+                }
+              ]
+            }
+
+      - name: 📤 发送 Slack 通知（告警频道）
+        if: |
+          always() &&
+          (steps.slack_notification.outputs.notification_type == 'alert' ||
+           steps.slack_notification.outputs.notification_type == 'maintenance' ||
+           github.event.workflow_run.conclusion == 'failure')
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ github.event.workflow_run.conclusion }}
+          text: |
+            🚨 **组织中心告警**
+            状态: ${{ steps.slack_notification.outputs.status }}
+            时间: ${{ steps.slack_notification.outputs.timestamp }}
+            触发者: ${{ github.event.workflow_run.actor }}
+            ${{ github.event.inputs.message != '' && format('消息: {0}', github.event.inputs.message) || '' }}
+          webhook_url: ${{ env.SLACK_WEBHOOK }}
+          channel: ${{ env.SLACK_CHANNEL_ALERTS }}
+          username: 'ORG Center Alert Bot'
+          icon_emoji: ':rotating_light:'
+
+  # ==================== 邮件通知 ====================
+  notify-email:
+    name: 📧 Notify Email
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      always() &&
+      (github.event.workflow_run.conclusion == 'failure' ||
+       github.event.inputs.notification_type == 'alert' ||
+       github.event.inputs.notification_type == 'release')
+
+    steps:
+      - name: 📧 生成邮件内容
+        id: email_content
+        run: |
+          # 设置主题
+          if [[ "${{ github.event.workflow_run.conclusion }}" == "failure" ]]; then
+            SUBJECT="❌ 组织中心部署失败 - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          elif [[ "${{ github.event.inputs.notification_type }}" == "release" ]]; then
+            SUBJECT="✅ 组织中心发布成功 - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          elif [[ "${{ github.event.inputs.notification_type }}" == "alert" ]]; then
+            SUBJECT="🚨 组织中心告警 - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          else
+            SUBJECT="📢 组织中心通知 - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          fi
+
+          # 生成邮件正文
+          cat > email.html <<EOF
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="UTF-8">
+            <style>
+              body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: #f4f4f4; padding: 20px; text-align: center; }
+              .content { padding: 20px; }
+              .footer { background: #f4f4f4; padding: 10px; text-align: center; font-size: 12px; }
+              .success { color: #28a745; }
+              .failure { color: #dc3545; }
+              .warning { color: #ffc107; }
+              table { width: 100%; border-collapse: collapse; }
+              th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h2>组织中心 (Organization Center)</h2>
+                <p>CI/CD 自动通知</p>
+              </div>
+              <div class="content">
+                <h3>部署信息</h3>
+                <table>
+                  <tr><th>状态</th><td class="${{ github.event.workflow_run.conclusion == 'success' && 'success' || 'failure' }}">${{ github.event.workflow_run.conclusion }}</td></tr>
+                  <tr><th>版本</th><td>${{ github.event.workflow_run.head_sha }}</td></tr>
+                  <tr><th>分支</th><td>${{ github.event.workflow_run.head_branch }}</td></tr>
+                  <tr><th>触发者</th><td>${{ github.event.workflow_run.actor }}</td></tr>
+                  <tr><th>时间</th><td>$(date -u '+%Y-%m-%d %H:%M:%S UTC')</td></tr>
+                  <tr><th>工作流</th><td><a href="${{ github.event.workflow_run.html_url }}">查看详情</a></td></tr>
+                </table>
+                ${{ github.event.inputs.message != '' && format('<p><strong>自定义消息:</strong> %s</p>', github.event.inputs.message) || '' }}
+              </div>
+              <div class="footer">
+                <p>此邮件由 CI/CD 系统自动发送，请勿回复。</p>
+                <p>ZKER Organization Center - 企业级组织管理平台</p>
+              </div>
+            </div>
+          </body>
+          </html>
+          EOF
+
+          echo "subject=$SUBJECT" >> $GITHUB_OUTPUT
+
+      - name: 📤 发送邮件
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 465
+          username: ${{ env.EMAIL_FROM }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: ${{ steps.email_content.outputs.subject }}
+          to: ${{ env.EMAIL_TO }}
+          from: ${{ env.EMAIL_FROM }}
+          body: file://email.html
+          priority: high
+          content_type: text/html
+
+  # ==================== 企业微信通知 ====================
+  notify-wechat:
+    name: 📱 Notify WeChat Work
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: |
+      always() &&
+      env.WECHAT_WEBHOOK != ''
+
+    steps:
+      - name: 📱 生成企业微信通知
+        id: wechat_content
+        run: |
+          # 生成通知内容
+          cat > wechat.json <<EOF
+          {
+            "msgtype": "markdown",
+            "markdown": {
+              "content": ">组织中心通知<font color=\"info\">📢</font>\n\n" +
+              "**状态**: ${{ github.event.workflow_run.conclusion == 'success' && '✅ 成功' || '❌ 失败' }}\n" +
+              "**版本**: \`${{ github.event.workflow_run.head_sha }}\`\n" +
+              "**分支**: ${{ github.event.workflow_run.head_branch }}\n" +
+              "**触发者**: ${{ github.event.workflow_run.actor }}\n" +
+              "**时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')\n" +
+              ${{ github.event.inputs.message != '' && format('**消息**: %s\n', github.event.inputs.message) || '' }} +
+              "[查看详情](${{ github.event.workflow_run.html_url }})"
+            }
+          }
+          EOF
+
+          # 如果是失败，添加 @all
+          if [[ "${{ github.event.workflow_run.conclusion }}" == "failure" ]]; then
+            cat > wechat.json <<EOF
+          {
+            "msgtype": "markdown",
+            "markdown": {
+              "content": ">组织中心告警<font color=\"warning\">🚨</font>\n\n" +
+              "**部署失败！请立即检查！**\n\n" +
+              "**版本**: \`${{ github.event.workflow_run.head_sha }}\`\n" +
+              "**分支**: ${{ github.event.workflow_run.head_branch }}\n" +
+              "**触发者**: <at>${{ github.event.workflow_run.actor }}</at>\n" +
+              "**时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')\n" +
+              "[查看详情](${{ github.event.workflow_run.html_url }})\n\n" +
+              "<at>all</at>"
+            }
+          }
+          EOF
+          fi
+
+      - name: 📤 发送企业微信通知
+        run: |
+          curl -X POST "${{ env.WECHAT_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d @wechat.json
+
+  # ==================== GitHub Release Notes ====================
+  create-release-notes:
+    name: 📝 Create Release Notes
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: |
+      github.event.workflow_run.conclusion == 'success' &&
+      startsWith(github.event.workflow_run.head_branch, 'refs/tags/org-v')
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ 提取版本号
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/org-v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📌 版本号: $VERSION"
+
+      - name: 📝 生成 Release Notes
+        id: release_notes
+        run: |
+          # 生成 Release Notes
+          cat > release_notes.md <<EOF
+          # 组织中心 (Organization Center) v${{ steps.version.outputs.version }}
+
+          🎉 **正式发布** - $(date -u '+%Y年%m月%d日')
+
+          ## 📦 变更摘要
+
+          本版本包含以下功能、改进和 Bug 修复：
+
+          ### ✨ 新功能
+
+          <!-- 从 Commit 历史提取新功能 -->
+          $(git log --pretty=format:"- %s" "${{ github.event.workflow_run.head_branch }}^..HEAD" | grep -i "^- feat" || echo "暂无")
+
+          ### 🔧 改进
+
+          <!-- 从 Commit 历史提取改进 -->
+          $(git log --pretty=format:"- %s" "${{ github.event.workflow_run.head_branch }}^..HEAD" | grep -i "^- refactor\|^- perf" || echo "暂无")
+
+          ### 🐛 Bug 修复
+
+          <!-- 从 Commit 历史提取 Bug 修复 -->
+          $(git log --pretty=format:"- %s" "${{ github.event.workflow_run.head_branch }}^..HEAD" | grep -i "^- fix" || echo "暂无")
+
+          ### 📚 文档
+
+          $(git log --pretty=format:"- %s" "${{ github.event.workflow_run.head_branch }}^..HEAD" | grep -i "^- docs" || echo "暂无")
+
+          ### ⚠️ 破坏性变更
+
+          $(git log --pretty=format:"- %s" "${{ github.event.workflow_run.head_branch }}^..HEAD" | grep -i "^- breaking" || echo "无")
+
+          ## 📊 统计信息
+
+          - **提交数**: $(git rev-list --count "${{ github.event.workflow_run.head_branch }}^..HEAD")
+          - **文件变更**: $(git diff --shortstat "${{ github.event.workflow_run.head_branch }}^..HEAD")
+          - **贡献者**: $(git shortlog -sn "${{ github.event.workflow_run.head_branch }}^..HEAD" | wc -l) 位
+
+          ## 🔗 链接
+
+          - **Docker 镜像**: \`ghcr.io/coze-dev/coze-studio/org-api:${{ steps.version.outputs.version }}\`
+          - **完整文档**: [查看文档](https://docs.zker.example.com)
+          - **问题反馈**: [提交 Issue](https://github.com/coze-dev/coze-studio/issues)
+
+          ## 👥 贡献者
+
+          感谢以下贡献者对本版本的贡献：
+          $(git shortlog -sn "${{ github.event.workflow_run.head_branch }}^..HEAD" | sed 's/^\s*/- /')
+
+          ---
+
+          **完整变更日志**: [查看 Commit 历史](https://github.com/coze-dev/coze-studio/commits/${{ github.event.workflow_run.head_sha }})
+
+          **下载**: [GitHub Releases](https://github.com/coze-dev/coze-studio/releases/tag/org-v${{ steps.version.outputs.version }})
+          EOF
+
+      - name: 🚀 创建 GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.event.workflow_run.head_branch }}
+          name: 组织中心 v${{ steps.version.outputs.version }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ==================== 通知总结 ====================
+  notify-summary:
+    name: 📊 Notification Summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [notify-slack, notify-email, notify-wechat, create-release-notes]
+    if: always()
+
+    steps:
+      - name: 📊 生成通知总结
+        run: |
+          echo "# 📢 通知发送总结" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 通知状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 通知渠道 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Slack | ${{ needs.notify-slack.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Email | ${{ needs.notify-email.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 企业微信 | ${{ needs.notify-wechat.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| GitHub Release | ${{ needs.create-release-notes.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **工作流**: ${{ github.workflow }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **状态**: ${{ github.event.workflow_run.conclusion }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **触发者**: ${{ github.event.workflow_run.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+# ========================================
+# 使用说明
+# ========================================
+#
+# 1. 自动触发:
+#    - 当 ORG-CD 工作流完成时，自动发送通知
+#
+# 2. 手动触发:
+#    - 在 GitHub Actions 页面选择 "ORG-NOTIFY" 工作流
+#    - 点击 "Run workflow"
+#    - 选择通知类型、填写消息、选择严重程度
+#
+# 3. 通知类型:
+#    - release: 发布通知（发送到部署频道）
+#    - rollback: 回滚通知（发送到告警频道）
+#    - maintenance: 维护通知（发送到告警频道）
+#    - alert: 告警通知（发送到告警频道 + @all）
+#
+# 4. 配置 Secrets:
+#    - SLACK_WEBHOOK: Slack Webhook URL
+#    - EMAIL_TO: 收件人邮箱（逗号分隔）
+#    - EMAIL_FROM: 发件人邮箱
+#    - EMAIL_PASSWORD: 邮箱密码或应用专用密码
+#    - WECHAT_WEBHOOK: 企业微信 Webhook URL（可选）
+#
+# ========================================

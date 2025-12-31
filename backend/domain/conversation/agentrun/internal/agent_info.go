@@ -44,7 +44,7 @@ func getAgentInfo(ctx context.Context, agentID int64, isDraft bool, connID int64
 		return nil, err
 	}
 	if agentInfo == nil {
-		return nil, errorx.New(errno.ErrAgentNotExists)
+		return nil, errorx.New(errno.DeprecatedErrAgentNotExists)
 	}
 
 	return agentInfo, nil

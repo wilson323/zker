@@ -51,11 +51,11 @@ func (m *OpenapiMessageApplication) GetApiMessageList(ctx context.Context, mr *m
 	}
 
 	if currentConversation == nil {
-		return nil, errorx.New(errno.ErrConversationNotFound)
+		return nil, errno.ErrConversationNotFound
 	}
 
 	if currentConversation.CreatorID != userID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission denied"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission denied"))
 	}
 
 	if mr.Limit == nil {

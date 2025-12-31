@@ -1,0 +1,326 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "ZKER 业务全景监控大盘",
+    "tags": ["zker", "business", "overview", "全景"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "1m",
+    "panels": [
+      {
+        "id": 1,
+        "title": "核心业务指标概览",
+        "type": "stat",
+        "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0},
+        "targets": [
+          {
+            "expr": "sum(zker_users_total)",
+            "legendFormat": "总用户数",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(zker_bots_total{status=\"active\"})",
+            "legendFormat": "活跃Bot数",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(zker_workflows_total{status=\"active\"})",
+            "legendFormat": "活跃工作流数",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(zker_tenants_total{status=\"active\"})",
+            "legendFormat": "活跃租户数",
+            "refId": "D"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "decimals": 0,
+            "color": {"mode": "palette-classic"}
+          }
+        },
+        "options": {
+          "displayMode": "auto",
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 2,
+        "title": "实时API调用量（QPS）",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+        "targets": [
+          {
+            "expr": "sum(rate(zker_api_requests_total[5m]))",
+            "legendFormat": "总QPS",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(rate(zker_api_requests_total{status=~\"2..\"}[5m]))",
+            "legendFormat": "成功QPS",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(rate(zker_api_requests_total{status=~\"4..\"}[5m]))",
+            "legendFormat": "4xx QPS",
+            "refId": "C"
+          },
+          {
+            "expr": "sum(rate(zker_api_requests_total{status=~\"5..\"}[5m]))",
+            "legendFormat": "5xx QPS",
+            "refId": "D"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "QPS", "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "API响应时间（P95/P99）",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(zker_api_response_time_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95延迟",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(zker_api_response_time_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P99延迟",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "延迟（秒）", "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "用户活跃度趋势",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+        "targets": [
+          {
+            "expr": "sum(increase(zker_user_active_daily[1d]))",
+            "legendFormat": "日活跃用户（DAU）",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(increase(zker_user_active_weekly[7d]))",
+            "legendFormat": "周活跃用户（WAU）",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(increase(zker_user_active_monthly[30d]))",
+            "legendFormat": "月活跃用户（MAU）",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "用户数", "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "收入趋势（按套餐）",
+        "type": "graph",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+        "targets": [
+          {
+            "expr": "sum by (tenant_plan) (rate(zker_revenue_total[1h]))",
+            "legendFormat": "{{tenant_plan}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyCNY", "label": "收入（元/小时）", "min": 0},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Token消耗趋势（按租户TOP10）",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 12, "x": 0, "y": 22},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (tenant_id) (rate(zker_token_consumption_total[1h])))",
+            "legendFormat": "{{tenant_id}}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "tenant_id": "租户ID",
+                "Value": "Token消耗速率（个/秒）"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Bot调用统计（TOP10）",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 12, "x": 12, "y": 22},
+        "targets": [
+          {
+            "expr": "topk(10, sum by (bot_id, bot_name) (rate(zker_bot_invocations_total[1h])))",
+            "legendFormat": "{{bot_name}}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "bot_id": "Bot ID",
+                "bot_name": "Bot名称",
+                "Value": "调用速率（次/秒）"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "租户配额使用率（TOP10）",
+        "type": "table",
+        "gridPos": {"h": 10, "w": 24, "x": 0, "y": 32},
+        "targets": [
+          {
+            "expr": "topk(10, zker_tenant_quota_usage_percentage)",
+            "legendFormat": "{{tenant_id}} - {{resource_type}}",
+            "refId": "A",
+            "format": "table"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {"Time": true},
+              "renameByName": {
+                "tenant_id": "租户ID",
+                "resource_type": "资源类型",
+                "Value": "配额使用率（%）"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": null, "color": "green"},
+                {"value": 80, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "工作流执行成功率",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 8, "x": 0, "y": 42},
+        "targets": [
+          {
+            "expr": "(\n  sum(rate(zker_workflow_executions_total{status=\"success\"}[1h]))\n  /\n  sum(rate(zker_workflow_executions_total[1h]))\n) * 100",
+            "legendFormat": "成功率",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Bot调用成功率",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 8, "x": 8, "y": 42},
+        "targets": [
+          {
+            "expr": "(\n  sum(rate(zker_bot_invocations_total{status=\"success\"}[1h]))\n  /\n  sum(rate(zker_bot_invocations_total[1h]))\n) * 100",
+            "legendFormat": "成功率",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 98, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "API错误率",
+        "type": "gauge",
+        "gridPos": {"h": 8, "w": 8, "x": 16, "y": 42},
+        "targets": [
+          {
+            "expr": "(\n  sum(rate(zker_api_requests_total{status=~\"5..\"}[1h]))\n  /\n  sum(rate(zker_api_requests_total[1h]))\n) * 100",
+            "legendFormat": "错误率",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 10,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -121,7 +121,7 @@ func (c *AuditLogConsumer) validateLog(log *entity.AuditLog) error {
 // Start 启动消费者
 func (c *AuditLogConsumer) Start(nsqdAddr, topic, channel string) error {
 	config := nsq.NewConfig()
-	config.MaxAttempts = c.maxRetries
+	config.MaxAttempts = uint16(c.maxRetries)
 	config.DefaultRequeueDelay = c.retryDelay
 
 	consumer, err := nsq.NewConsumer(topic, channel, config)

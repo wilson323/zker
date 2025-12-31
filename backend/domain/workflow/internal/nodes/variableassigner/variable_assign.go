@@ -123,7 +123,7 @@ func (v *VariableAssigner) Invoke(ctx context.Context, in map[string]any) (map[s
 	for _, pair := range v.pairs {
 		right, ok := nodes.TakeMapValue(in, pair.Right)
 		if !ok {
-			return nil, vo.NewError(errno.ErrInputFieldMissing, errorx.KV("name", strings.Join(pair.Right, ".")))
+			return nil, vo.NewError(errno.DeprecatedErrInputFieldMissing, errorx.KV("name", strings.Join(pair.Right, ".")))
 		}
 
 		vType := *pair.Left.VariableType
@@ -152,7 +152,7 @@ func (v *VariableAssigner) Invoke(ctx context.Context, in map[string]any) (map[s
 			}
 			err := v.handler.Set(ctx, *pair.Left.VariableType, pair.Left.FromPath, right, opts...)
 			if err != nil {
-				return nil, vo.WrapIfNeeded(errno.ErrVariablesAPIFail, err)
+				return nil, vo.WrapIfNeeded(errno.DeprecatedErrVariablesAPIFail, err)
 			}
 		default:
 			panic("impossible")

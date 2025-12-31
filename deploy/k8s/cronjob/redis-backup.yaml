@@ -1,0 +1,167 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: redis-backup
+  namespace: zker
+  labels:
+    app: redis-backup
+    component: backup
+spec:
+  schedule: "0 */6 * * *"  # 每6小时执行一次
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: redis:7.0
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              # 配置
+              BACKUP_DIR="/backup/redis"
+              TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+              echo "[$(date)] 开始Redis备份..."
+
+              # Redis认证
+              REDIS_AUTH=""
+              if [ -n "${REDIS_PASSWORD}" ]; then
+                REDIS_AUTH="-a ${REDIS_PASSWORD}"
+              fi
+
+              # 触发BGSAVE
+              echo "[$(date)] 触发BGSAVE..."
+              BGSAVE_RESULT=$(redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} ${REDIS_AUTH} BGSAVE)
+
+              if echo "${BGSAVE_RESULT}" | grep -q "Background saving started"; then
+                echo "[$(date)] BGSAVE已启动"
+              else
+                echo "[$(date)] BGSAVE启动失败: ${BGSAVE_RESULT}"
+                exit 1
+              fi
+
+              # 等待BGSAVE完成
+              echo "[$(date)] 等待BGSAVE完成..."
+              MAX_WAIT=300
+              WAITED=0
+
+              while [ ${WAITED} -lt ${MAX_WAIT} ]; do
+                INFO=$(redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} ${REDIS_AUTH} INFO persistence)
+                if echo "${INFO}" | grep -q "rdb_bgsave_in_progress:1"; then
+                  sleep 2
+                  ((WAITED+=2))
+                  continue
+                fi
+                break
+              done
+
+              if [ ${WAITED} -ge ${MAX_WAIT} ]; then
+                echo "[$(date)] BGSAVE超时"
+                exit 1
+              fi
+
+              # 获取RDB文件路径
+              REDIS_DIR=$(redis-cli -h ${REDIS_HOST} -p ${REDIS_PORT} ${REDIS_AUTH} CONFIG GET dir | tail -n 1)
+
+              # 复制RDB文件（通过redis-cli从容器复制到PVC）
+              BACKUP_FILE="${BACKUP_DIR}/rdb/redis-dump-${TIMESTAMP}.rdb"
+
+              # 注意: 这里需要通过exec方式从Redis容器复制文件
+              # 或者在Redis容器中配置volume挂载
+
+              # 如果Redis容器已经挂载了backup volume
+              if [ -f "${REDIS_DIR}/dump.rdb" ]; then
+                cp -f "${REDIS_DIR}/dump.rdb" "${BACKUP_FILE}"
+
+                if [ $? -eq 0 ]; then
+                  BACKUP_SIZE=$(du -h ${BACKUP_FILE} | cut -f1)
+                  echo "[$(date)] RDB备份成功: ${BACKUP_FILE} (${BACKUP_SIZE})"
+
+                  # 记录元数据
+                  echo "${TIMESTAMP}|${BACKUP_FILE}|${BACKUP_SIZE}|rdb" >> ${BACKUP_DIR}/logs/backups.log
+
+                  # 清理7天前的备份
+                  find ${BACKUP_DIR}/rdb -name "redis-dump-*.rdb" -mtime +7 -delete
+                  echo "[$(date)] 旧备份已清理"
+
+                  exit 0
+                else
+                  echo "[$(date)] RDB备份失败"
+                  exit 1
+                fi
+              else
+                echo "[$(date)] RDB文件不存在: ${REDIS_DIR}/dump.rdb"
+                exit 1
+              fi
+            env:
+            - name: REDIS_HOST
+              value: "zker-redis"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: redis-secret
+                  key: password
+            volumeMounts:
+            - name: backup
+              mountPath: /backup
+            - name: redis-data
+              mountPath: /data  # Redis数据目录
+            resources:
+              requests:
+                memory: "128Mi"
+                cpu: "100m"
+              limits:
+                memory: "256Mi"
+                cpu: "200m"
+          volumes:
+          - name: backup
+            persistentVolumeClaim:
+              claimName: redis-backup-pvc
+          - name: redis-data
+            persistentVolumeClaim:
+              claimName: redis-data-pvc  # Redis的PVC
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - redis-backup
+                  topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-backup-pvc
+  namespace: zker
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: nfs-storage
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: redis-secret
+  namespace: zker
+type: Opaque
+stringData:
+  password: "root"

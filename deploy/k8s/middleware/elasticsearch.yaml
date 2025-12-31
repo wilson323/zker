@@ -1,0 +1,169 @@
+# ================================================================================
+# Coze Studio - Elasticsearch StatefulSet & Service
+# ================================================================================
+# 用途：全文搜索引擎，存储 Bot、对话、知识库索引
+# 架构：3 节点集群（建议生产环境至少 3 节点）
+# 存储：PVC 持久化
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# Elasticsearch ConfigMap
+# ================================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elasticsearch-config
+  namespace: coze-studio
+data:
+  elasticsearch.yml: |
+    cluster.name: "coze-studio-es"
+    network.host: 0.0.0.0
+    discovery.seed_hosts: "elasticsearch-0.elasticsearch,elasticsearch-1.elasticsearch,elasticsearch-2.elasticsearch"
+    cluster.initial_master_nodes: "elasticsearch-0,elasticsearch-1,elasticsearch-2"
+    bootstrap.memory_lock: false
+    xpack.security.enabled: false
+    xpack.monitoring.collection.enabled: true
+
+---
+# ================================================================================
+# Elasticsearch StatefulSet
+# ================================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: elasticsearch
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: elasticsearch
+spec:
+  serviceName: elasticsearch
+  replicas: 3
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: elasticsearch
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: elasticsearch
+    spec:
+      initContainers:
+      # 提高虚拟内存限制
+      - name: increase-vm-max-map
+        image: busybox
+        command:
+        - sysctl
+        - -w
+        - vm.max_map_count=262144
+        securityContext:
+          privileged: true
+      - name: increase-fd-ulimit
+        image: busybox
+        command:
+        - sh
+        - -c
+        - ulimit -n 65536
+        securityContext:
+          privileged: true
+
+      containers:
+      - name: elasticsearch
+        image: elasticsearch:8.18.0
+        ports:
+        - name: http
+          containerPort: 9200
+        - name: transport
+          containerPort: 9300
+        env:
+        - name: ES_JAVA_OPTS
+          value: "-Xms4g -Xmx4g"  # 根据实际内存调整
+        - name: node.name
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        volumeMounts:
+        - name: data
+          mountPath: /usr/share/elasticsearch/data
+        - name: config
+          mountPath: /usr/share/elasticsearch/config/elasticsearch.yml
+          subPath: elasticsearch.yml
+          readOnly: true
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 4Gi
+          limits:
+            cpu: 4000m
+            memory: 8Gi
+        livenessProbe:
+          httpGet:
+            path: /_cluster/health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /_cluster/health?wait_for_status=yellow&timeout=1s
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: elasticsearch-config
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 200Gi
+
+---
+# ================================================================================
+# Elasticsearch Service
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: elasticsearch
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: elasticsearch
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: coze-studio
+    component: elasticsearch
+  ports:
+  - name: http
+    port: 9200
+    targetPort: 9200
+  - name: transport
+    port: 9300
+    targetPort: 9300
+
+---
+# ================================================================================
+# PodDisruptionBudget
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: elasticsearch-pdb
+  namespace: coze-studio
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: elasticsearch

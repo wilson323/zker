@@ -18,13 +18,13 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
@@ -87,13 +87,15 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, req *CreateDep
 	// 1. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, req.OrgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get organization: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 	if org.TenantID != req.TenantID {
-		return nil, errno.ErrTenantMismatch
+		return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 	}
 
 	// 2. 如果有父部门，验证父部门存在且属于同一组织
@@ -104,13 +106,15 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, req *CreateDep
 	if req.ParentID != nil && *req.ParentID != "" {
 		parent, err = s.deptRepo.GetByID(ctx, *req.ParentID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get parent department: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get parent department"),
+            )
 		}
 		if parent == nil {
-			return nil, errno.ErrParentDeptNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrParentDeptNotFound)
 		}
 		if parent.OrgID != req.OrgID {
-			return nil, errno.ErrDeptOrgMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrDeptOrgMismatch)
 		}
 
 		level = parent.Level + 1
@@ -123,10 +127,12 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, req *CreateDep
 	// 3. 验证编码唯一性
 	exists, err := s.deptRepo.ExistsByCode(ctx, req.TenantID, req.DeptCode, "")
 	if err != nil {
-		return nil, fmt.Errorf("failed to check dept code: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check dept code"),
+            )
 	}
 	if exists {
-		return nil, errno.ErrDeptCodeAlreadyExists
+		return nil, errorx.NewByErrorCode(errno.ErrDeptCodeAlreadyExists)
 	}
 
 	// 4. 生成部门ID
@@ -155,12 +161,16 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, req *CreateDep
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// 创建部门
 		if err := s.deptRepo.Create(ctx, dept); err != nil {
-			return fmt.Errorf("failed to create department: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create department"),
+            )
 		}
 
 		// 创建闭包表路径
 		if err := s.createDepartmentPaths(ctx, dept, parent); err != nil {
-			return fmt.Errorf("failed to create department paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create department paths"),
+            )
 		}
 
 		return nil
@@ -189,7 +199,9 @@ func (s *DepartmentService) createDepartmentPaths(ctx context.Context, dept *ent
 	if parent != nil {
 		ancestorPaths, err := s.treeRepo.GetAncestors(ctx, parent.DeptID)
 		if err != nil {
-			return fmt.Errorf("failed to get ancestor paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor paths"),
+            )
 		}
 
 		for _, ancestorPath := range ancestorPaths {
@@ -209,15 +221,17 @@ func (s *DepartmentService) createDepartmentPaths(ctx context.Context, dept *ent
 // GetDepartment 获取部门详情
 func (s *DepartmentService) GetDepartment(ctx context.Context, deptID string) (*entity.Department, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	dept, err := s.deptRepo.GetByID(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 	}
 	if dept == nil {
-		return nil, errno.ErrDeptNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 	}
 
 	return dept, nil
@@ -228,10 +242,12 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, req *UpdateDep
 	// 1. 获取部门
 	dept, err := s.deptRepo.GetByID(ctx, req.DeptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 	}
 	if dept == nil {
-		return nil, errno.ErrDeptNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 	}
 
 	// 2. 更新字段
@@ -256,7 +272,9 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, req *UpdateDep
 
 	// 3. 保存更新
 	if err := s.deptRepo.Update(ctx, dept); err != nil {
-		return nil, fmt.Errorf("failed to update department: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update department"),
+            )
 	}
 
 	return dept, nil
@@ -265,37 +283,51 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, req *UpdateDep
 // DeleteDepartment 删除部门
 func (s *DepartmentService) DeleteDepartment(ctx context.Context, deptID string) error {
 	if deptID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取部门
 	dept, err := s.deptRepo.GetByID(ctx, deptID)
 	if err != nil {
-		return fmt.Errorf("failed to get department: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 	}
 	if dept == nil {
-		return errno.ErrDeptNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "DeptNotFound"),
+                )
 	}
 
 	// 2. 检查是否有子部门
 	children, err := s.deptRepo.GetChildren(ctx, deptID)
 	if err != nil {
-		return fmt.Errorf("failed to check children: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check children"),
+            )
 	}
 	if len(children) > 0 {
-		return errno.ErrDeptHasChildren
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "DeptHasChildren"),
+                )
 	}
 
 	// 3. 使用事务删除部门和路径
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		// 软删除部门
 		if err := s.deptRepo.Delete(ctx, deptID); err != nil {
-			return fmt.Errorf("failed to delete department: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete department"),
+            )
 		}
 
 		// 删除闭包表路径
 		if err := s.treeRepo.DeletePaths(ctx, deptID); err != nil {
-			return fmt.Errorf("failed to delete department paths: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete department paths"),
+            )
 		}
 
 		return nil
@@ -305,21 +337,29 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, deptID string)
 // MoveDepartment 移动部门
 func (s *DepartmentService) MoveDepartment(ctx context.Context, req *MoveDepartmentRequest) error {
 	if req.DeptID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取要移动的部门
 	dept, err := s.deptRepo.GetByID(ctx, req.DeptID)
 	if err != nil {
-		return fmt.Errorf("failed to get department: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 	}
 	if dept == nil {
-		return errno.ErrDeptNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "DeptNotFound"),
+                )
 	}
 
 	// 2. 验证不能移动到自己
 	if req.NewParentID != nil && *req.NewParentID == dept.DeptID {
-		return errno.ErrCannotMoveToSelf
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotMoveToSelf"),
+                )
 	}
 
 	// 3. 验证新父部门存在且属于同一组织
@@ -330,22 +370,32 @@ func (s *DepartmentService) MoveDepartment(ctx context.Context, req *MoveDepartm
 	if req.NewParentID != nil && *req.NewParentID != "" {
 		newParent, err = s.deptRepo.GetByID(ctx, *req.NewParentID)
 		if err != nil {
-			return fmt.Errorf("failed to get new parent: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get new parent"),
+            )
 		}
 		if newParent == nil {
-			return errno.ErrParentDeptNotFound
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ParentDeptNotFound"),
+                )
 		}
 		if newParent.OrgID != dept.OrgID {
-			return errno.ErrDeptOrgMismatch
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "DeptOrgMismatch"),
+                )
 		}
 
 		// 验证不能移动到自己的后代
 		isDescendant, err := s.isDescendant(ctx, dept.DeptID, newParent.DeptID)
 		if err != nil {
-			return fmt.Errorf("failed to check descendant: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "check descendant"),
+            )
 		}
 		if isDescendant {
-			return errno.ErrCannotMoveToDescendant
+			return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotMoveToDescendant"),
+                )
 		}
 
 		newLevel = newParent.Level + 1
@@ -365,7 +415,9 @@ func (s *DepartmentService) MoveDepartment(ctx context.Context, req *MoveDepartm
 		dept.UpdatedAt = time.Now().UnixMilli()
 
 		if err := s.deptRepo.Update(ctx, dept); err != nil {
-			return fmt.Errorf("failed to update department: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update department"),
+            )
 		}
 
 		// 更新闭包表路径
@@ -374,7 +426,9 @@ func (s *DepartmentService) MoveDepartment(ctx context.Context, req *MoveDepartm
 			newParentID = *req.NewParentID
 		}
 		if err := s.treeRepo.MoveSubtree(ctx, dept.DeptID, newParentID); err != nil {
-			return fmt.Errorf("failed to move subtree: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "move subtree"),
+            )
 		}
 
 		return nil
@@ -400,12 +454,14 @@ func (s *DepartmentService) isDescendant(ctx context.Context, ancestorID, descen
 // GetDepartmentTree 获取部门树
 func (s *DepartmentService) GetDepartmentTree(ctx context.Context, tenantID string) ([]*entity.Department, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	depts, err := s.deptRepo.GetTree(ctx, tenantID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get department tree: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department tree"),
+            )
 	}
 
 	// 构建树形结构
@@ -438,12 +494,14 @@ func (s *DepartmentService) buildDeptTree(depts []*entity.Department, parentID s
 // ListDepartments 分页查询部门列表
 func (s *DepartmentService) ListDepartments(ctx context.Context, filter *repository.DepartmentFilter) ([]*entity.Department, int64, error) {
 	if filter.TenantID == "" {
-		return nil, 0, errno.ErrInvalidParam
+		return nil, 0, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	depts, total, err := s.deptRepo.List(ctx, filter)
 	if err != nil {
-		return nil, 0, fmt.Errorf("failed to list departments: %w", err)
+		return nil, 0, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list departments"),
+            )
 	}
 
 	return depts, total, nil
@@ -452,12 +510,14 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, filter *reposit
 // GetChildren 获取子部门
 func (s *DepartmentService) GetChildren(ctx context.Context, parentID string) ([]*entity.Department, error) {
 	if parentID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	depts, err := s.deptRepo.GetChildren(ctx, parentID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get children: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get children"),
+            )
 	}
 
 	return depts, nil
@@ -466,12 +526,14 @@ func (s *DepartmentService) GetChildren(ctx context.Context, parentID string) ([
 // GetAncestors 获取部门的所有祖先
 func (s *DepartmentService) GetAncestors(ctx context.Context, deptID string) ([]*entity.Department, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	paths, err := s.treeRepo.GetAncestors(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ancestor paths: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor paths"),
+            )
 	}
 
 	// 转换为部门实体
@@ -480,7 +542,9 @@ func (s *DepartmentService) GetAncestors(ctx context.Context, deptID string) ([]
 		if path.Depth > 0 { // 排除自己
 			dept, err := s.deptRepo.GetByID(ctx, path.AncestorID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get ancestor department: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get ancestor department"),
+            )
 			}
 			if dept != nil {
 				ancestors = append(ancestors, dept)
@@ -494,12 +558,14 @@ func (s *DepartmentService) GetAncestors(ctx context.Context, deptID string) ([]
 // GetDescendants 获取部门的所有后代
 func (s *DepartmentService) GetDescendants(ctx context.Context, deptID string) ([]*entity.Department, error) {
 	if deptID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	paths, err := s.treeRepo.GetDescendants(ctx, deptID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get descendant paths: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get descendant paths"),
+            )
 	}
 
 	// 转换为部门实体
@@ -508,7 +574,9 @@ func (s *DepartmentService) GetDescendants(ctx context.Context, deptID string) (
 		if path.Depth > 0 { // 排除自己
 			dept, err := s.deptRepo.GetByID(ctx, path.DescendantID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get descendant department: %w", err)
+				return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get descendant department"),
+            )
 			}
 			if dept != nil {
 				descendants = append(descendants, dept)
@@ -522,7 +590,7 @@ func (s *DepartmentService) GetDescendants(ctx context.Context, deptID string) (
 // GetDepartmentsByOrg 获取组织的所有部门
 func (s *DepartmentService) GetDepartmentsByOrg(ctx context.Context, orgID string) ([]*entity.Department, error) {
 	if orgID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	filter := &repository.DepartmentFilter{
@@ -531,7 +599,9 @@ func (s *DepartmentService) GetDepartmentsByOrg(ctx context.Context, orgID strin
 
 	depts, _, err := s.deptRepo.List(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get departments by org: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get departments by org"),
+            )
 	}
 
 	return depts, nil

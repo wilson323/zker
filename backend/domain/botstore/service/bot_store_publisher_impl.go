@@ -25,6 +25,7 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/domain/botstore/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/botstore/repository"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
@@ -57,10 +58,18 @@ func (s *botStorePublisher) PublishBot(ctx context.Context, req *PublishBotReque
 	if err == nil && existingItem != nil {
 		// Bot已存在，检查状态
 		if existingItem.Status == entity.BotStoreItemStatusPublished {
-			return nil, errno.ErrAlreadyPublished
+			return nil, errorx.New(errno.ErrBotStoreAlreadyPublishedCode,
+				errorx.KV("bot_id", req.BotID),
+				errorx.KV("item_id", existingItem.ItemID),
+				errorx.KV("status", string(existingItem.Status)),
+			)
 		}
 		if existingItem.Status == entity.BotStoreItemStatusPending {
-			return nil, errno.ErrPendingReview
+			return nil, errorx.New(errno.ErrBotStorePendingReviewCode,
+				errorx.KV("bot_id", req.BotID),
+				errorx.KV("item_id", existingItem.ItemID),
+				errorx.KV("status", string(existingItem.Status)),
+			)
 		}
 	}
 
@@ -68,7 +77,10 @@ func (s *botStorePublisher) PublishBot(ctx context.Context, req *PublishBotReque
 	if req.Category != "" {
 		category, err := s.categoryRepo.GetByID(ctx, req.Category)
 		if err != nil || category == nil {
-			return nil, errno.ErrInvalidCategory
+			return nil, errorx.New(errno.ErrBotStoreInvalidCategoryCode,
+				errorx.KV("category", req.Category),
+				errorx.KV("bot_id", req.BotID),
+			)
 		}
 	}
 
@@ -97,7 +109,11 @@ func (s *botStorePublisher) PublishBot(ctx context.Context, req *PublishBotReque
 
 	// 5. 保存到数据库
 	if err := s.storeRepo.Create(ctx, item); err != nil {
-		return nil, fmt.Errorf("failed to create bot store item: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrBotStorePublishCode,
+			errorx.KV("bot_id", req.BotID),
+			errorx.KV("item_id", item.ItemID),
+			errorx.KV("tenant_id", req.TenantID),
+		)
 	}
 
 	// 6. 增加分类的Bot数量
@@ -113,17 +129,28 @@ func (s *botStorePublisher) UnpublishBot(ctx context.Context, itemID, userID str
 	// 1. 获取商店项目
 	item, err := s.storeRepo.GetByID(ctx, itemID)
 	if err != nil {
-		return errno.ErrBotStoreItemNotFound
+		return errorx.New(errno.ErrBotStoreItemNotFoundCode,
+			errorx.KV("item_id", itemID),
+			errorx.KV("user_id", userID),
+		)
 	}
 
 	// 2. 验证权限
 	if item.PublisherID != userID {
-		return errno.ErrPermissionDenied
+		return errorx.New(errno.ErrBotStorePermissionDeniedCode,
+			errorx.KV("item_id", itemID),
+			errorx.KV("user_id", userID),
+			errorx.KV("publisher_id", item.PublisherID),
+		)
 	}
 
 	// 3. 检查状态
 	if item.Status != entity.BotStoreItemStatusPublished {
-		return errno.ErrInvalidStatus
+		return errorx.New(errno.ErrBotStoreInvalidStatusCode,
+			errorx.KV("item_id", itemID),
+			errorx.KV("current_status", string(item.Status)),
+			errorx.KV("expected_status", string(entity.BotStoreItemStatusPublished)),
+		)
 	}
 
 	// 4. 更新状态为下架
@@ -131,7 +158,11 @@ func (s *botStorePublisher) UnpublishBot(ctx context.Context, itemID, userID str
 	item.UpdatedAt = time.Now()
 
 	if err := s.storeRepo.Update(ctx, item); err != nil {
-		return fmt.Errorf("failed to unpublish bot: %w", err)
+		return errorx.WrapByCode(err, errno.ErrBotStoreUpdateCode,
+			errorx.KV("item_id", itemID),
+			errorx.KV("user_id", userID),
+			errorx.KV("target_status", string(item.Status)),
+		)
 	}
 
 	// 5. 减少分类的Bot数量
@@ -147,18 +178,28 @@ func (s *botStorePublisher) UpdateBotStoreItem(ctx context.Context, req *UpdateB
 	// 1. 获取商店项目
 	item, err := s.storeRepo.GetByID(ctx, req.ItemID)
 	if err != nil {
-		return errno.ErrBotStoreItemNotFound
+		return errorx.New(errno.ErrBotStoreItemNotFoundCode,
+			errorx.KV("item_id", req.ItemID),
+			errorx.KV("user_id", userID),
+		)
 	}
 
 	// 2. 验证权限
 	if item.PublisherID != userID {
-		return errno.ErrPermissionDenied
+		return errorx.New(errno.ErrBotStoreNoModifyPermissionCode,
+			errorx.KV("item_id", req.ItemID),
+			errorx.KV("user_id", userID),
+			errorx.KV("publisher_id", item.PublisherID),
+		)
 	}
 
 	// 3. 检查状态（只有草稿和已拒绝状态可以修改）
 	if item.Status != entity.BotStoreItemStatusDraft &&
 	   item.Status != entity.BotStoreItemStatusRejected {
-		return errno.ErrCannotModifyPublishedItem
+		return errorx.New(errno.ErrBotStoreCannotModifyPublishedItemCode,
+			errorx.KV("item_id", req.ItemID),
+			errorx.KV("current_status", string(item.Status)),
+		)
 	}
 
 	// 4. 更新字段
@@ -172,7 +213,10 @@ func (s *botStorePublisher) UpdateBotStoreItem(ctx context.Context, req *UpdateB
 		// 验证分类是否存在
 		category, err := s.categoryRepo.GetByID(ctx, req.Category)
 		if err != nil || category == nil {
-			return errno.ErrInvalidCategory
+			return errorx.New(errno.ErrBotStoreInvalidCategoryCode,
+				errorx.KV("category", req.Category),
+				errorx.KV("item_id", req.ItemID),
+			)
 		}
 
 		// 更新分类计数
@@ -198,7 +242,10 @@ func (s *botStorePublisher) UpdateBotStoreItem(ctx context.Context, req *UpdateB
 
 	// 5. 保存更新
 	if err := s.storeRepo.Update(ctx, item); err != nil {
-		return fmt.Errorf("failed to update bot store item: %w", err)
+		return errorx.WrapByCode(err, errno.ErrBotStoreUpdateCode,
+			errorx.KV("item_id", req.ItemID),
+			errorx.KV("user_id", userID),
+		)
 	}
 
 	return nil
@@ -225,22 +272,46 @@ func (s *botStorePublisher) GetPublishedBots(ctx context.Context, userID string,
 // validatePublishRequest 验证发布请求
 func (s *botStorePublisher) validatePublishRequest(req *PublishBotRequest) error {
 	if req.BotID == "" {
-		return errno.ErrInvalidBotID
+		return errorx.New(errno.ErrBotStoreInvalidBotIDCode,
+			errorx.KV("field", "bot_id"),
+			errorx.KV("reason", "required field is empty"),
+		)
 	}
 	if req.Name == "" {
-		return errno.ErrInvalidBotName
+		return errorx.New(errno.ErrBotStoreInvalidBotNameCode,
+			errorx.KV("field", "name"),
+			errorx.KV("reason", "required field is empty"),
+			errorx.KV("bot_id", req.BotID),
+		)
 	}
 	if req.TenantID == "" {
-		return errno.ErrInvalidTenantID
+		return errorx.New(errno.ErrBotStoreInvalidTenantIDCode,
+			errorx.KV("field", "tenant_id"),
+			errorx.KV("reason", "required field is empty"),
+			errorx.KV("bot_id", req.BotID),
+		)
 	}
 	if req.PublisherID == "" {
-		return errno.ErrInvalidPublisherID
+		return errorx.New(errno.ErrBotStoreInvalidPublisherIDCode,
+			errorx.KV("field", "publisher_id"),
+			errorx.KV("reason", "required field is empty"),
+			errorx.KV("bot_id", req.BotID),
+		)
 	}
 	if req.Price < 0 {
-		return errno.ErrInvalidPrice
+		return errorx.New(errno.ErrBotStoreInvalidPriceCode,
+			errorx.KV("field", "price"),
+			errorx.KV("value", fmt.Sprintf("%.2f", req.Price)),
+			errorx.KV("reason", "price cannot be negative"),
+			errorx.KV("bot_id", req.BotID),
+		)
 	}
 	if req.Category == "" {
-		return errno.ErrInvalidCategory
+		return errorx.New(errno.ErrBotStoreInvalidCategoryCode,
+			errorx.KV("field", "category"),
+			errorx.KV("reason", "required field is empty"),
+			errorx.KV("bot_id", req.BotID),
+		)
 	}
 	return nil
 }

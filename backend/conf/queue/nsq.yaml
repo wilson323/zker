@@ -1,0 +1,142 @@
+# NSQ任务队列配置示例
+# 文件路径: backend/conf/queue/nsq.yaml
+
+# ============================================================
+# NSQ基础配置
+# ============================================================
+nsqd_addresses:
+  - "localhost:4150"
+  # - "nsqd-2.example.com:4150"  # 集群部署时添加多个NSQD地址
+
+nsqlookupd_addresses:
+  - "localhost:4161"
+  # - "nsqlookupd-2.example.com:4161"  # 集群部署时添加多个NSQLookupd地址
+
+# ============================================================
+# 生产者配置
+# ============================================================
+producer:
+  timeout: 5s              # 发布超时时间
+  retry: 3                 # 失败重试次数
+  retry_interval: 1s       # 重试间隔
+  max_idle_conns: 10       # 最大空闲连接数
+
+# ============================================================
+# 消费者配置
+# ============================================================
+consumer:
+  max_retries: 3           # 最大重试次数（超过进入死信队列）
+  retry_delay: 1s          # 重试延迟（指数退避初始值）
+  max_in_flight: 10        # 最大并发消息数
+  message_timeout: 60s     # 消息处理超时
+  heartbeat_interval: 30s  # 心跳间隔
+
+# ============================================================
+# 死信队列配置
+# ============================================================
+dlq:
+  enabled: true            # 是否启用死信队列
+  topic_suffix: "-dlq"     # 死信队列Topic后缀
+  retention_duration: 72h  # 死信消息保留时长
+  max_replays: 3           # 最大重放次数
+
+# ============================================================
+# 监控配置
+# ============================================================
+metrics:
+  enabled: true            # 是否启用Prometheus监控
+  address: ":2112"         # Metrics暴露地址
+
+# ============================================================
+# 日志配置
+# ============================================================
+logging:
+  level: "info"            # 日志级别（debug, info, warn, error）
+  verbose: false           # 是否输出详细日志
+
+# ============================================================
+# 生产环境配置建议
+# ============================================================
+# production:
+#   nsqd_addresses:
+#     - "nsqd-1.prod.example.com:4150"
+#     - "nsqd-2.prod.example.com:4150"
+#     - "nsqd-3.prod.example.com:4150"
+#
+#   nsqlookupd_addresses:
+#     - "nsqlookupd-1.prod.example.com:4161"
+#     - "nsqlookupd-2.prod.example.com:4161"
+#     - "nsqlookupd-3.prod.example.com:4161"
+#
+#   producer:
+#     timeout: 10s
+#     retry: 5
+#     retry_interval: 2s
+#     max_idle_conns: 50
+#
+#   consumer:
+#     max_retries: 5
+#     retry_delay: 2s
+#     max_in_flight: 20
+#     message_timeout: 300s
+#     heartbeat_interval: 30s
+#
+#   dlq:
+#     retention_duration: 168h  # 7天
+#     max_replays: 5
+#
+#   logging:
+#     level: "warn"
+#     verbose: false
+
+# ============================================================
+# 开发环境配置建议
+# ============================================================
+# development:
+#   nsqd_addresses:
+#     - "localhost:4150"
+#
+#   nsqlookupd_addresses:
+#     - "localhost:4161"
+#
+#   producer:
+#     timeout: 3s
+#     retry: 2
+#
+#   consumer:
+#     max_retries: 2
+#     max_in_flight: 5
+#     message_timeout: 30s
+#
+#   dlq:
+#     retention_duration: 24h
+#
+#   logging:
+#     level: "debug"
+#     verbose: true
+
+# ============================================================
+# 测试环境配置建议
+# ============================================================
+# testing:
+#   nsqd_addresses:
+#     - "localhost:14150"  # 使用不同端口避免冲突
+#
+#   nsqlookupd_addresses:
+#     - "localhost:14161"
+#
+#   producer:
+#     timeout: 2s
+#     retry: 1
+#
+#   consumer:
+#     max_retries: 1
+#     max_in_flight: 3
+#     message_timeout: 10s
+#
+#   dlq:
+#     enabled: false       # 测试环境可关闭DLQ
+#
+#   logging:
+#     level: "debug"
+#     verbose: true

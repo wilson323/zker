@@ -97,5 +97,6 @@ type KnowledgeDocumentSliceRepo interface {
 		[]*model.KnowledgeDocumentSlice, error)
 	IncrementHitCount(ctx context.Context, sliceIDs []int64) error
 	GetSliceHitByKnowledgeID(ctx context.Context, knowledgeID int64) (int64, error)
+	MGetSliceHitByKnowledgeIDs(ctx context.Context, knowledgeIDs []int64) (map[int64]int64, error)
 	GetLastSequence(ctx context.Context, documentID int64) (float64, error)
 }

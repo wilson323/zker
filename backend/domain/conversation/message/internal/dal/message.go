@@ -171,7 +171,7 @@ func (dao *MessageDAO) Edit(ctx context.Context, msgID int64, msg *message.Messa
 
 	originMsg, err := dao.GetByID(ctx, msgID)
 	if originMsg == nil {
-		return 0, errorx.New(errno.ErrRecordNotFound)
+		return 0, errorx.New(errno.DeprecatedErrRecordNotFound)
 	}
 	if err != nil {
 		return 0, err
@@ -183,7 +183,7 @@ func (dao *MessageDAO) Edit(ctx context.Context, msgID int64, msg *message.Messa
 		return 0, err
 	}
 	if do.RowsAffected == 0 {
-		return 0, errorx.New(errno.ErrRecordNotFound)
+		return 0, errorx.New(errno.DeprecatedErrRecordNotFound)
 	}
 
 	return do.RowsAffected, nil
@@ -321,7 +321,7 @@ func (dao *MessageDAO) messageDO2PO(ctx context.Context, msgDo *entity.Message) 
 
 	ext, err := json.Marshal(msgDo.Ext)
 	if err != nil {
-		return nil, errorx.WrapByCode(err, errno.ErrConversationJsonMarshal)
+		return nil, errorx.WrapByCode(err, errno.DeprecatedErrConversationJsonMarshal)
 	}
 	msgPO.Ext = string(ext)
 
@@ -393,7 +393,7 @@ func (dao *MessageDAO) buildModelContent(msgDO *entity.Message) (string, error) 
 
 	mcObjByte, err := json.Marshal(modelContentObj)
 	if err != nil {
-		return "", errorx.WrapByCode(err, errno.ErrConversationJsonMarshal)
+		return "", errorx.WrapByCode(err, errno.DeprecatedErrConversationJsonMarshal)
 	}
 
 	return string(mcObjByte), nil

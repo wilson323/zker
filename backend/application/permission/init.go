@@ -19,9 +19,9 @@ package permission
 import (
 	"gorm.io/gorm"
 
-	"github.com/coze-dev/coze-studio/backend/api/middleware"
 	"github.com/coze-dev/coze-studio/backend/domain/permission/repository"
 	permissionservice "github.com/coze-dev/coze-studio/backend/domain/permission/service"
+	"github.com/coze-dev/coze-studio/backend/pkg/interfaces"
 )
 
 var PermissionAppSVC *PermissionApplicationService
@@ -41,30 +41,45 @@ func InitService(c *ServiceComponents) (*PermissionApplicationService, error) {
 	departmentRepo := repository.NewDepartmentRepository(c.DB)
 	userDepartmentRepo := repository.NewUserDepartmentRepository(c.DB)
 
-	// 2. 初始化领域服务
-	roleSVC := permissionservice.NewRoleService(roleRepo, dataPermRepo, fieldPermRepo, userRoleRepo)
-	departmentSVC := permissionservice.NewDepartmentService(departmentRepo, userDepartmentRepo)
+	// 2. 初始化权限检查器（首先创建，因为 RoleService 需要它）
 	permissionChecker := permissionservice.NewPermissionChecker(
-		userRoleRepo,
+		c.DB,
+		roleRepo,
 		dataPermRepo,
 		fieldPermRepo,
-		departmentRepo,
+		userRoleRepo,
 		userDepartmentRepo,
+		departmentRepo,
 	)
 
-	// 3. 初始化应用服务
+	// 3. 初始化角色服务（现在需要 permissionChecker 参数）
+	roleSVC := permissionservice.NewRoleService(
+		roleRepo,
+		dataPermRepo,
+		fieldPermRepo,
+		userRoleRepo,
+		permissionChecker,
+	)
+
+	// 4. 初始化部门服务适配器
+	// 注意：这是一个临时的实现，实际应该从 org 模块注入真实的部门服务
+	departmentSVC := NewDefaultDepartmentAdapter()
+
+	// 5. 初始化应用服务
 	permissionAppSVC := NewPermissionApplicationService(
 		permissionChecker,
 		roleSVC,
 		departmentSVC,
 	)
 
-	// 4. 设置全局变量
+	// 6. 设置全局变量
 	PermissionAppSVC = permissionAppSVC
 
-	// 🔧 P0修复：初始化权限中间件
+	// 7. 将权限服务注册到接口层，供API层调用（避免应用层依赖API层）
 	if permissionChecker != nil {
-		middleware.InitPermissionMiddleware(permissionChecker)
+		// 使用适配器将 PermissionChecker 转换为 interfaces.PermissionService
+		permissionAdapter := NewPermissionCheckerAdapter(permissionChecker)
+		interfaces.SetPermissionService(permissionAdapter)
 	}
 
 	return permissionAppSVC, nil

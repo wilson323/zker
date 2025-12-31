@@ -10,6 +10,12 @@ import (
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 )
 
+// BaseResponse 基础响应
+type BaseResponse struct {
+	Code    int    `json:"code"`
+	Message string `json:"msg"`
+}
+
 // CheckQuotaRequest 配额检查请求
 type CheckQuotaRequest struct {
 	TenantID     string `json:"tenant_id"`
@@ -44,12 +50,12 @@ func NewQuotaAppService(quotaRepo repository.QuotaRepository) *QuotaAppService {
 func (s *QuotaAppService) CheckQuota(ctx context.Context, req *CheckQuotaRequest) (*CheckQuotaResponse, error) {
 	// 1. 参数验证
 	if req.TenantID == "" {
-		logger.CtxWarnf(ctx, "[QuotaApp] tenant_id is empty")
+		logs.CtxWarnf(ctx, "[QuotaApp] tenant_id is empty")
 		return nil, fmt.Errorf("tenant_id cannot be empty")
 	}
 
 	if req.ResourceType == "" {
-		logger.CtxWarnf(ctx, "[QuotaApp] resource_type is empty")
+		logs.CtxWarnf(ctx, "[QuotaApp] resource_type is empty")
 		return nil, fmt.Errorf("resource_type cannot be empty")
 	}
 
@@ -59,13 +65,13 @@ func (s *QuotaAppService) CheckQuota(ctx context.Context, req *CheckQuotaRequest
 	// 3. 获取配额信息
 	quota, err := s.quotaRepo.GetByTenantAndResource(ctx, req.TenantID, resourceType)
 	if err != nil {
-		logger.CtxErrorf(ctx, "[QuotaApp] failed to get quota: tenant=%s resource=%s error=%v",
+		logs.CtxErrorf(ctx, "[QuotaApp] failed to get quota: tenant=%s resource=%s error=%v",
 			req.TenantID, req.ResourceType, err)
 		return nil, fmt.Errorf("failed to get quota: %w", err)
 	}
 
 	if quota == nil {
-		logger.CtxWarnf(ctx, "[QuotaApp] quota not found: tenant=%s resource=%s",
+		logs.CtxWarnf(ctx, "[QuotaApp] quota not found: tenant=%s resource=%s",
 			req.TenantID, req.ResourceType)
 		// 配额不存在时，默认允许（兼容旧数据）
 		return &CheckQuotaResponse{
@@ -84,7 +90,7 @@ func (s *QuotaAppService) CheckQuota(ctx context.Context, req *CheckQuotaRequest
 
 	// 4. 检查是否无限制
 	if quota.IsUnlimited() {
-		logger.CtxDebugf(ctx, "[QuotaApp] unlimited quota: tenant=%s resource=%s",
+		logs.CtxDebugf(ctx, "[QuotaApp] unlimited quota: tenant=%s resource=%s",
 			req.TenantID, req.ResourceType)
 		return &CheckQuotaResponse{
 			BaseResponse: BaseResponse{Code: 0, Message: "success"},
@@ -103,7 +109,7 @@ func (s *QuotaAppService) CheckQuota(ctx context.Context, req *CheckQuotaRequest
 	// 5. 检查配额是否充足
 	allowed := quota.UsedCount < quota.MaxLimit
 
-	logger.CtxInfof(ctx, "[QuotaApp] quota check: tenant=%s resource=%s allowed=%v usage=%d/%d",
+	logs.CtxInfof(ctx, "[QuotaApp] quota check: tenant=%s resource=%s allowed=%v usage=%d/%d",
 		req.TenantID, req.ResourceType, allowed, quota.UsedCount, quota.MaxLimit)
 
 	return &CheckQuotaResponse{

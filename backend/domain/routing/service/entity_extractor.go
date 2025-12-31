@@ -23,6 +23,7 @@ import (
 	"regexp"
 
 	"github.com/coze-dev/coze-studio/backend/domain/routing/entity"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
 	"go.uber.org/zap"
 )
@@ -60,7 +61,7 @@ func (e *EntityExtractor) ExtractEntities(ctx context.Context, text string) ([]*
 	case "hybrid":
 		return e.extractByHybrid(ctx, text)
 	default:
-		return nil, errno.ROUTING201001.WithDetail("reason", "unknown extraction strategy")
+		return nil, errorx.New(errno.ErrRouteFormatInvalidCode, errorx.KV("reason", "unknown extraction strategy"))
 	}
 }
 
@@ -70,7 +71,7 @@ func (e *EntityExtractor) extractByLLM(ctx context.Context, text string) ([]*ent
 
 	response, err := e.llmClient.GenerateText(ctx, prompt)
 	if err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", err.Error())
+		return nil, errorx.New(errno.ErrEntityExtractionFailedCode, errorx.KV("error", err.Error()))
 	}
 
 	var llmResult struct {
@@ -83,7 +84,7 @@ func (e *EntityExtractor) extractByLLM(ctx context.Context, text string) ([]*ent
 	}
 
 	if err := json.Unmarshal([]byte(response), &llmResult); err != nil {
-		return nil, errno.ROUTING500002.WithDetail("error", "failed to parse llm response")
+		return nil, errorx.New(errno.ErrEntityExtractionFailedCode, errorx.KV("error", "failed to parse llm response"))
 	}
 
 	entities := make([]*entity.Entity, 0, len(llmResult.Entities))

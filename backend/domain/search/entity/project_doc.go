@@ -16,12 +16,12 @@
 
 package entity
 
-import "github.com/coze-dev/coze-studio/backend/api/model/app/intelligence/common"
+import "github.com/coze-dev/coze-studio/backend/domain/search/entity/vo"
 
 type ProjectDocument struct {
 	ID             int64                     `json:"id"`
-	Type           common.IntelligenceType   `json:"type"`
-	Status         common.IntelligenceStatus `json:"status,omitempty"`
+	Type           vo.IntelligenceType   `json:"type"`
+	Status         vo.IntelligenceStatus `json:"status,omitempty"`
 	Name           *string                   `json:"name,omitempty"`
 	SpaceID        *int64                    `json:"space_id,omitempty"`
 	OwnerID        *int64                    `json:"owner_id,omitempty"`

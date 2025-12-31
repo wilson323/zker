@@ -18,7 +18,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -26,6 +25,7 @@ import (
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // HRLifecycleService 人力资源生命周期服务
@@ -124,10 +124,12 @@ func (s *HRLifecycleService) CreateContract(ctx context.Context, req *CreateCont
 	// 1. 验证员工存在
 	emp, err := s.empRepo.GetByID(ctx, req.EmpID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 2. 验证合同编号唯一性
@@ -159,7 +161,9 @@ func (s *HRLifecycleService) CreateContract(ctx context.Context, req *CreateCont
 
 	// 5. 创建合同
 	if err := s.contractRepo.Create(ctx, contract); err != nil {
-		return nil, fmt.Errorf("failed to create contract: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create contract"),
+            )
 	}
 
 	return contract, nil
@@ -168,21 +172,29 @@ func (s *HRLifecycleService) CreateContract(ctx context.Context, req *CreateCont
 // SignContract 签署合同
 func (s *HRLifecycleService) SignContract(ctx context.Context, req *SignContractRequest) error {
 	if req.ContractID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取合同
 	contract, err := s.contractRepo.GetByID(ctx, req.ContractID)
 	if err != nil {
-		return fmt.Errorf("failed to get contract: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get contract"),
+            )
 	}
 	if contract == nil {
-		return errno.ErrContractNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ContractNotFound"),
+                )
 	}
 
 	// 2. 只有草稿状态可以签署
 	if contract.Status != "draft" {
-		return errno.ErrCannotSignContract
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "CannotSignContract"),
+                )
 	}
 
 	// 3. 更新合同状态
@@ -192,7 +204,9 @@ func (s *HRLifecycleService) SignContract(ctx context.Context, req *SignContract
 	contract.UpdatedAt = now
 
 	if err := s.contractRepo.Update(ctx, contract); err != nil {
-		return fmt.Errorf("failed to update contract: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update contract"),
+            )
 	}
 
 	return nil
@@ -201,12 +215,14 @@ func (s *HRLifecycleService) SignContract(ctx context.Context, req *SignContract
 // GetActiveContract 获取员工的生效合同
 func (s *HRLifecycleService) GetActiveContract(ctx context.Context, empID string) (*entity.EmployeeContract, error) {
 	if empID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	contract, err := s.contractRepo.GetActiveByEmployeeID(ctx, empID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get active contract: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get active contract"),
+            )
 	}
 
 	return contract, nil
@@ -215,12 +231,14 @@ func (s *HRLifecycleService) GetActiveContract(ctx context.Context, empID string
 // GetEmployeeContracts 获取员工的所有合同
 func (s *HRLifecycleService) GetEmployeeContracts(ctx context.Context, empID string) ([]*entity.EmployeeContract, error) {
 	if empID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	contracts, err := s.contractRepo.GetByEmployeeID(ctx, empID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee contracts: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee contracts"),
+            )
 	}
 
 	return contracts, nil
@@ -231,23 +249,27 @@ func (s *HRLifecycleService) TransferEmployee(ctx context.Context, req *Transfer
 	// 1. 获取员工
 	emp, err := s.empRepo.GetByID(ctx, req.EmpID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 2. 验证新部门存在（如果提供）
 	if req.NewDeptID != nil && *req.NewDeptID != "" {
 		dept, err := s.deptRepo.GetByID(ctx, *req.NewDeptID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get department: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get department"),
+            )
 		}
 		if dept == nil {
-			return nil, errno.ErrDeptNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrDeptNotFound)
 		}
 		if dept.TenantID != emp.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 	}
 
@@ -255,13 +277,15 @@ func (s *HRLifecycleService) TransferEmployee(ctx context.Context, req *Transfer
 	if req.NewPositionID != nil && *req.NewPositionID != "" {
 		position, err := s.posRepo.GetByID(ctx, *req.NewPositionID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get position: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get position"),
+            )
 		}
 		if position == nil {
-			return nil, errno.ErrPositionNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrPositionNotFound)
 		}
 		if position.TenantID != emp.TenantID {
-			return nil, errno.ErrTenantMismatch
+			return nil, errorx.NewByErrorCode(errno.ErrTenantMismatch)
 		}
 	}
 
@@ -293,7 +317,9 @@ func (s *HRLifecycleService) TransferEmployee(ctx context.Context, req *Transfer
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		// 创建调岗记录
 		if err := s.transferRepo.Create(ctx, transfer); err != nil {
-			return fmt.Errorf("failed to create transfer record: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create transfer record"),
+            )
 		}
 
 		// 更新员工信息
@@ -304,7 +330,9 @@ func (s *HRLifecycleService) TransferEmployee(ctx context.Context, req *Transfer
 		emp.UpdatedAt = time.Now().UnixMilli()
 
 		if err := s.empRepo.Update(ctx, emp); err != nil {
-			return fmt.Errorf("failed to update employee: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update employee"),
+            )
 		}
 
 		return nil
@@ -320,12 +348,14 @@ func (s *HRLifecycleService) TransferEmployee(ctx context.Context, req *Transfer
 // GetEmployeeTransfers 获取员工的调岗记录
 func (s *HRLifecycleService) GetEmployeeTransfers(ctx context.Context, empID string) ([]*entity.EmployeeTransfer, error) {
 	if empID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	transfers, err := s.transferRepo.GetByEmployeeID(ctx, empID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee transfers: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee transfers"),
+            )
 	}
 
 	return transfers, nil
@@ -336,28 +366,32 @@ func (s *HRLifecycleService) ResignEmployee(ctx context.Context, req *ResignEmpl
 	// 1. 获取员工
 	emp, err := s.empRepo.GetByID(ctx, req.EmpID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee"),
+            )
 	}
 	if emp == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 2. 验证员工状态（只有在职员工可以离职）
 	if !emp.IsActive() {
-		return nil, errno.ErrEmployeeNotActive
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotActive)
 	}
 
 	// 3. 验证交接人存在（如果提供）
 	if req.HandoverToID != nil && *req.HandoverToID != "" {
 		handoverTo, err := s.empRepo.GetByID(ctx, *req.HandoverToID)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get handover employee: %w", err)
+			return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get handover employee"),
+            )
 		}
 		if handoverTo == nil {
-			return nil, errno.ErrHandoverEmployeeNotFound
+			return nil, errorx.NewByErrorCode(errno.ErrHandoverEmployeeNotFound)
 		}
 		if handoverTo.EmpID == emp.EmpID {
-			return nil, errno.ErrCannotHandoverToSelf
+			return nil, errorx.NewByErrorCode(errno.ErrCannotHandoverToSelf)
 		}
 	}
 
@@ -386,7 +420,9 @@ func (s *HRLifecycleService) ResignEmployee(ctx context.Context, req *ResignEmpl
 
 	// 6. 创建离职记录
 	if err := s.resignationRepo.Create(ctx, resignation); err != nil {
-		return nil, fmt.Errorf("failed to create resignation: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create resignation"),
+            )
 	}
 
 	return resignation, nil
@@ -395,21 +431,29 @@ func (s *HRLifecycleService) ResignEmployee(ctx context.Context, req *ResignEmpl
 // ApproveResignation 审批离职
 func (s *HRLifecycleService) ApproveResignation(ctx context.Context, req *ApproveResignationRequest) error {
 	if req.ResignationID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取离职记录
 	resignation, err := s.resignationRepo.GetByID(ctx, req.ResignationID)
 	if err != nil {
-		return fmt.Errorf("failed to get resignation: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get resignation"),
+            )
 	}
 	if resignation == nil {
-		return errno.ErrResignationNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ResignationNotFound"),
+                )
 	}
 
 	// 2. 验证状态（只有待审批状态可以审批）
 	if resignation.ApprovalStatus != "pending" {
-		return errno.ErrResignationAlreadyProcessed
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ResignationAlreadyProcessed"),
+                )
 	}
 
 	// 3. 更新审批状态
@@ -424,12 +468,16 @@ func (s *HRLifecycleService) ApproveResignation(ctx context.Context, req *Approv
 		return s.db.Transaction(func(tx *gorm.DB) error {
 			// 更新离职记录
 			if err := s.resignationRepo.Update(ctx, resignation); err != nil {
-				return fmt.Errorf("failed to update resignation: %w", err)
+				return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update resignation"),
+            )
 			}
 
 			// 更新员工状态
 			if err := s.empRepo.UpdateStatus(ctx, resignation.EmpID, entity.EmpStatusResigned); err != nil {
-				return fmt.Errorf("failed to update employee status: %w", err)
+				return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update employee status"),
+            )
 			}
 
 			return nil
@@ -437,7 +485,9 @@ func (s *HRLifecycleService) ApproveResignation(ctx context.Context, req *Approv
 	} else {
 		// 审批拒绝，只更新离职记录
 		if err := s.resignationRepo.Update(ctx, resignation); err != nil {
-			return fmt.Errorf("failed to update resignation: %w", err)
+			return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update resignation"),
+            )
 		}
 	}
 
@@ -447,12 +497,14 @@ func (s *HRLifecycleService) ApproveResignation(ctx context.Context, req *Approv
 // GetResignation 获取离职记录
 func (s *HRLifecycleService) GetResignation(ctx context.Context, resignationID string) (*entity.EmployeeResignation, error) {
 	if resignationID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	resignation, err := s.resignationRepo.GetByID(ctx, resignationID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get resignation: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get resignation"),
+            )
 	}
 
 	return resignation, nil
@@ -461,12 +513,14 @@ func (s *HRLifecycleService) GetResignation(ctx context.Context, resignationID s
 // GetEmployeeResignation 获取员工的离职记录
 func (s *HRLifecycleService) GetEmployeeResignation(ctx context.Context, empID string) (*entity.EmployeeResignation, error) {
 	if empID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	resignation, err := s.resignationRepo.GetByEmployeeID(ctx, empID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employee resignation: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employee resignation"),
+            )
 	}
 
 	return resignation, nil
@@ -475,16 +529,22 @@ func (s *HRLifecycleService) GetEmployeeResignation(ctx context.Context, empID s
 // UpdateHandoverStatus 更新交接状态
 func (s *HRLifecycleService) UpdateHandoverStatus(ctx context.Context, resignationID, handoverStatus string) error {
 	if resignationID == "" || handoverStatus == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 1. 获取离职记录
 	resignation, err := s.resignationRepo.GetByID(ctx, resignationID)
 	if err != nil {
-		return fmt.Errorf("failed to get resignation: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get resignation"),
+            )
 	}
 	if resignation == nil {
-		return errno.ErrResignationNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ResignationNotFound"),
+                )
 	}
 
 	// 2. 更新交接状态
@@ -492,7 +552,9 @@ func (s *HRLifecycleService) UpdateHandoverStatus(ctx context.Context, resignati
 	resignation.UpdatedAt = time.Now().UnixMilli()
 
 	if err := s.resignationRepo.Update(ctx, resignation); err != nil {
-		return fmt.Errorf("failed to update resignation: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update resignation"),
+            )
 	}
 
 	return nil
@@ -501,7 +563,7 @@ func (s *HRLifecycleService) UpdateHandoverStatus(ctx context.Context, resignati
 // GetPendingResignations 获取待审批的离职列表
 func (s *HRLifecycleService) GetPendingResignations(ctx context.Context, tenantID string) ([]*entity.EmployeeResignation, error) {
 	if tenantID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	filter := &repository.ResignationFilter{
@@ -511,7 +573,9 @@ func (s *HRLifecycleService) GetPendingResignations(ctx context.Context, tenantI
 
 	resignations, _, err := s.resignationRepo.List(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pending resignations: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get pending resignations"),
+            )
 	}
 
 	return resignations, nil
@@ -520,7 +584,7 @@ func (s *HRLifecycleService) GetPendingResignations(ctx context.Context, tenantI
 // GetUpcomingProbationEndings 获取即将结束试用期的员工列表
 func (s *HRLifecycleService) GetUpcomingProbationEndings(ctx context.Context, tenantID string, days int) ([]*entity.Employee, error) {
 	if tenantID == "" || days <= 0 {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 计算时间范围
@@ -538,7 +602,9 @@ func (s *HRLifecycleService) GetUpcomingProbationEndings(ctx context.Context, te
 
 	emps, _, err := s.empRepo.List(ctx, filter)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get employees: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get employees"),
+            )
 	}
 
 	// 过滤出即将结束试用期的员工

@@ -1,0 +1,213 @@
+# ================================================================================
+# Coze Studio - Worker Deployment & Service
+# ================================================================================
+# 用途：后台任务处理器，处理异步消息队列任务
+# 架构：无状态服务，从 NSQ 消费消息
+# 资源配置：根据队列长度自动扩展（基于 KEDA）
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# Worker Deployment
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coze-studio-worker
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: worker
+    version: v1
+  annotations:
+    description: "Coze Studio 后台任务处理器"
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9091"
+    prometheus.io/path: "/metrics"
+spec:
+  replicas: 2
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: worker
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: worker
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+        prometheus.io/path: "/metrics"
+    spec:
+      containers:
+      - name: worker
+        image: coze-studio/backend-worker:latest  # 替换为实际镜像地址
+        imagePullPolicy: Always
+
+        # 环境变量
+        env:
+        # 从 ConfigMap 读取
+        - name: APP_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: APP_ENV
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: LOG_LEVEL
+        - name: DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: DB_HOST
+        - name: NSQD_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: NSQD_ADDRESS
+        - name: NSQLOOKUPD_ADDRESS
+          valueFrom:
+            configMapKeyRef:
+              name: coze-studio-config
+              key: NSQLOOKUPD_ADDRESS
+        # 从 Secret 读取
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: coze-studio-secret
+              key: db-password
+        # Worker 配置
+        - name: WORKER_CONCURRENCY
+          value: "10"  # 每个 Worker 的并发数
+        - name: WORKER_MAX_RETRIES
+          value: "3"
+        - name: WORKER_TIMEOUT
+          value: "300"  # 5 分钟超时
+
+        # 资源配置（比 API Server 低，因为是后台任务）
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+
+        # 健康检查（HTTP 端点）
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9091
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 9091
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+
+        # 生命周期
+        lifecycle:
+          preStop:
+            exec:
+              command:
+              - /bin/sh
+              - -c
+              - |
+                # 优雅停机：等待当前任务完成
+                sleep 30
+
+      # 重启策略
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 60  # Worker 需要更长的停机时间
+
+---
+# ================================================================================
+# Worker Service (Headless)
+# ================================================================================
+# 说明：Headless Service 用于直接访问每个 Worker Pod（如需要）
+apiVersion: v1
+kind: Service
+metadata:
+  name: coze-studio-worker
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: worker
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless Service
+  selector:
+    app: coze-studio
+    component: worker
+  ports:
+  - name: http-metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP
+
+---
+# ================================================================================
+# PodDisruptionBudget
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: coze-studio-worker-pdb
+  namespace: coze-studio
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: worker
+
+---
+# ================================================================================
+# KEDA ScaledObject (基于队列深度的自动扩展)
+# ================================================================================
+# 说明：需要安装 KEDA (https://keda.sh/)
+# 用途：根据 NSQ 队列深度自动扩展 Worker 副本数
+#
+# apiVersion: keda.sh/v1alpha1
+# kind: ScaledObject
+# metadata:
+#   name: coze-studio-worker-scaler
+#   namespace: coze-studio
+#   labels:
+#     app: coze-studio
+#     component: worker
+# spec:
+#   scaleTargetRef:
+#     apiVersion: apps/v1
+#     kind: Deployment
+#     name: coze-studio-worker
+#   minReplicaCount: 2
+#   maxReplicaCount: 20
+#   pollingInterval: 30  # 每 30 秒检查一次队列深度
+#   cooldownPeriod: 300   # 5 分钟冷却期
+#   triggers:
+#   - type: nsq
+#     metadata:
+#       nsqServerAddress: "nsqd.coze-studio.svc.cluster.local:4150"
+#       topic: "coze-studio-tasks"
+#       channel: "worker"
+#       queueLength: "5"  # 每个队列深度 5 时扩展 1 个 Pod
+---

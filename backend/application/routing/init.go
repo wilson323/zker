@@ -23,7 +23,14 @@ import (
 	routingservice "github.com/coze-dev/coze-studio/backend/domain/routing/service"
 )
 
-var RoutingAppSVC *RoutingApplicationService
+var (
+	RoutingAppSVC           *RoutingApplicationService
+	IntentRecognitionSVC   *IntentRecognitionService
+	RoutingOptimizerSVC    *RoutingOptimizerService
+	RoutingRuleConfigSVC   *RoutingRuleConfigService
+	ABTestSVC              *ABTestService
+	RoutingLearningSVC     *RoutingLearningService
+)
 
 // ServiceComponents 路由应用服务组件
 type ServiceComponents struct {
@@ -43,17 +50,15 @@ func InitService(c *ServiceComponents) (*RoutingApplicationService, error) {
 	// 3. 初始化匹配器
 	ruleMatcher := routingservice.NewRuleBasedMatcher(ruleRepo)
 	similarityMatcher := routingservice.NewSimilarityMatcher(0.75) // 默认阈值0.75
-	modelMatcher := routingservice.NewModelMatcher() // 如果需要的话
 
-	// 4. 初始化混合意图匹配器
+	// 4. 初始化混合意图匹配器（只需2个参数）
 	intentMatcher := routingservice.NewHybridIntentMatcher(
 		ruleMatcher,
 		similarityMatcher,
-		modelMatcher,
-		0.5, // rule_weight
-		0.3, // similarity_weight
-		0.2, // model_weight
 	)
+
+	// 设置匹配器权重（可选）
+	intentMatcher.SetWeights(0.5, 0.5)
 
 	// 5. 初始化服务健康监控
 	healthMonitor := routingservice.NewServiceHealthMonitor()
@@ -88,6 +93,13 @@ func InitService(c *ServiceComponents) (*RoutingApplicationService, error) {
 
 	// 9. 设置全局变量
 	RoutingAppSVC = routingAppSvc
+
+	// 10. 初始化Handler层所需的服务适配器
+	IntentRecognitionSVC = NewIntentRecognitionService(routingAppSvc)
+	RoutingOptimizerSVC = NewRoutingOptimizerService(routingAppSvc)
+	RoutingRuleConfigSVC = NewRoutingRuleConfigService(routingAppSvc)
+	ABTestSVC = NewABTestService(routingAppSvc)
+	RoutingLearningSVC = NewRoutingLearningService(routingAppSvc)
 
 	return routingAppSvc, nil
 }

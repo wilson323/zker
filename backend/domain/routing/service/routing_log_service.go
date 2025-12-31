@@ -64,7 +64,12 @@ func (s *RoutingLogService) GetRoutingLogs(
 	limit int,
 	offset int,
 ) ([]*entity.RoutingLog, error) {
-	return s.logRepo.ListByTenant(ctx, tenantID, limit, offset)
+	filter := &repository.RoutingLogFilter{
+		TenantID: tenantID,
+		PageSize: limit,
+	}
+	logs, _, err := s.logRepo.List(ctx, filter)
+	return logs, err
 }
 
 // GetRoutingStats 获取路由统计
@@ -72,7 +77,11 @@ func (s *RoutingLogService) GetRoutingStats(
 	ctx context.Context,
 	tenantID string,
 ) (*RoutingStats, error) {
-	logs, err := s.logRepo.ListByTenant(ctx, tenantID, 1000, 0)
+	filter := &repository.RoutingLogFilter{
+		TenantID: tenantID,
+		PageSize: 1000,
+	}
+	logs, _, err := s.logRepo.List(ctx, filter)
 	if err != nil {
 		return nil, err
 	}

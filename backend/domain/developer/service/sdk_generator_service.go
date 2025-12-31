@@ -328,7 +328,7 @@ export class CozeClient {
     this.client = axios.create({
       baseURL,
       headers: {
-        'Authorization': \`Bearer \${apiKey}\`,
+        'Authorization': "Bearer " + apiKey,
         'Content-Type': 'application/json',
       },
     });
@@ -394,13 +394,15 @@ func (c *Client) SetBaseURL(baseURL string) {
 	c.baseURL = baseURL
 }
 
+// CreateBotRequest 创建机器人请求
 type CreateBotRequest struct {
-	Name        string \`json:"name"\`
-	Description string \`json:"description,omitempty"\`
+	Name        string
+	Description string
 }
 
+// CreateBotResponse 创建机器人响应
 type CreateBotResponse struct {
-	BotID string \`json:"bot_id"\`
+	BotID string
 }
 
 func (c *Client) CreateBot(req *CreateBotRequest) (*CreateBotResponse, error) {
@@ -567,13 +569,13 @@ func (s *sdkGeneratorService) generateReadme(language entity.SDKLanguage, projec
 
 ## Installation
 
-\`\`\`bash
+`+"```bash"+`
 pip install coze-studio-%s
-\`\`\`
+`+"```"+`
 
 ## Quick Start
 
-\`\`\`python
+`+"```python"+`
 from coze_studio import CozeClient
 
 client = CozeClient(api_key="your-api-key")
@@ -585,7 +587,7 @@ print(f"Bot created: {bot['bot_id']}")
 # Send a message
 response = client.send_message(bot_id=bot['bot_id'], message="Hello!")
 print(response)
-\`\`\`
+`+"```"+`
 
 ## API Reference
 
@@ -597,13 +599,13 @@ See the [full API documentation](https://docs.coze.com).
 
 ## Installation
 
-\`\`\`bash
+`+"```bash"+`
 npm install @coze-studio/%s
-\`\`\`
+`+"```"+`
 
 ## Quick Start
 
-\`\`\`typescript
+`+"```typescript"+`
 import { CozeClient } from '@coze-studio/%s';
 
 const client = new CozeClient({
@@ -612,7 +614,7 @@ const client = new CozeClient({
 
 // Create a bot
 const bot = await client.createBot({ name: 'My Bot', description: 'A helpful bot' });
-console.log(\`Bot created: \${bot.bot_id}\`);
+console.log("Bot created: " + bot.bot_id);
 
 // Send a message
 const response = await client.sendMessage({
@@ -620,7 +622,7 @@ const response = await client.sendMessage({
   message: 'Hello!',
 });
 console.log(response);
-\`\`\`
+`+"```"+`
 
 ## API Reference
 
@@ -632,13 +634,13 @@ See the [full API documentation](https://docs.coze.com).
 
 ## Installation
 
-\`\`\`bash
+`+"```bash"+`
 go get github.com/coze-studio/%s
-\`\`\`
+`+"```"+`
 
 ## Quick Start
 
-\`\`\`go
+`+"```go"+`
 package main
 
 import (
@@ -657,9 +659,9 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("Bot created: %s\\n", resp.BotID)
+	fmt.Printf("Bot created: %%s\n", resp.BotID)
 }
-\`\`\`
+`+"```"+`
 
 ## API Reference
 
@@ -671,19 +673,19 @@ See the [full API documentation](https://docs.coze.com).
 
 ## Installation
 
-Add this to your \`pom.xml\`:
+Add this to your pom.xml:
 
-\`\`\`xml
+`+"```xml"+`
 <dependency>
     <groupId>com.coze-studio</groupId>
     <artifactId>%s-sdk</artifactId>
     <version>1.0.0</version>
 </dependency>
-\`\`\`
+`+"```"+`
 
 ## Quick Start
 
-\`\`\`java
+`+"```java"+`
 import com.coze.sdk.CozeClient;
 import com.coze.sdk.CreateBotRequest;
 
@@ -699,7 +701,7 @@ public class Main {
         System.out.println("Bot created: " + response.getBotId());
     }
 }
-\`\`\`
+`+"```"+`
 
 ## API Reference
 

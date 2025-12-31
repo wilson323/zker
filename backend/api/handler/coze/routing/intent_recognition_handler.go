@@ -26,7 +26,6 @@ import (
 
 	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	routingapp "github.com/coze-dev/coze-studio/backend/application/routing"
-	"github.com/coze-dev/coze-studio/backend/types/errno"
 )
 
 // IntentRecognitionHandler 意图识别Handler

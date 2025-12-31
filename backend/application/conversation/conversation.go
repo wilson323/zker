@@ -67,12 +67,12 @@ func (c *ConversationApplicationService) ClearHistory(ctx context.Context, req *
 		return resp, err
 	}
 	if currentRes == nil {
-		return resp, errorx.New(errno.ErrConversationNotFound)
+		return resp, errno.ErrConversationNotFound
 	}
 	// check user
 	userID := ctxutil.GetUIDFromCtx(ctx)
 	if userID == nil || *userID != currentRes.CreatorID {
-		return resp, errorx.New(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
+		return resp, errorx.Wrap(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
 	}
 
 	// delete conversation
@@ -101,7 +101,7 @@ func (c *ConversationApplicationService) CreateSection(ctx context.Context, conv
 	}
 
 	if currentRes == nil {
-		return 0, errorx.New(errno.ErrConversationNotFound, errorx.KV("msg", "conversation not found"))
+		return 0, errorx.Wrap(errno.ErrConversationNotFound, errorx.KV("msg", "conversation not found"))
 	}
 	var userID int64
 	if currentRes.ConnectorID == consts.CozeConnectorID {
@@ -111,7 +111,7 @@ func (c *ConversationApplicationService) CreateSection(ctx context.Context, conv
 	}
 
 	if userID != currentRes.CreatorID {
-		return 0, errorx.New(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
+		return 0, errorx.Wrap(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
 	}
 
 	convRes, err := c.ConversationDomainSVC.NewConversationCtx(ctx, &entity.NewConversationCtxRequest{
@@ -186,7 +186,7 @@ func (c *ConversationApplicationService) ListConversation(ctx context.Context, r
 	connectorID := apiKeyInfo.ConnectorID
 
 	if userID == 0 {
-		return resp, errorx.New(errno.ErrConversationNotFound)
+		return resp, errno.ErrConversationNotFound
 	}
 	if ptr.From(req.ConnectorID) == consts.WebSDKConnectorID {
 		connectorID = ptr.From(req.ConnectorID)
@@ -237,7 +237,7 @@ func (c *ConversationApplicationService) DeleteConversation(ctx context.Context,
 	userID := apiKeyInfo.UserID
 
 	if userID == 0 {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission check failed"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission check failed"))
 	}
 
 	conversationDO, err := c.ConversationDomainSVC.GetByID(ctx, convID)
@@ -245,10 +245,10 @@ func (c *ConversationApplicationService) DeleteConversation(ctx context.Context,
 		return resp, err
 	}
 	if conversationDO == nil {
-		return resp, errorx.New(errno.ErrConversationNotFound)
+		return resp, errno.ErrConversationNotFound
 	}
 	if conversationDO.CreatorID != userID {
-		return resp, errorx.New(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
+		return resp, errorx.Wrap(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
 	}
 	err = c.ConversationDomainSVC.Delete(ctx, convID)
 	if err != nil {
@@ -265,7 +265,7 @@ func (c *ConversationApplicationService) UpdateConversation(ctx context.Context,
 	userID := apiKeyInfo.UserID
 
 	if userID == 0 {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission check failed"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission check failed"))
 	}
 
 	conversationDO, err := c.ConversationDomainSVC.GetByID(ctx, convID)
@@ -273,10 +273,10 @@ func (c *ConversationApplicationService) UpdateConversation(ctx context.Context,
 		return resp, err
 	}
 	if conversationDO == nil {
-		return resp, errorx.New(errno.ErrConversationNotFound)
+		return resp, errno.ErrConversationNotFound
 	}
 	if conversationDO.CreatorID != userID {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "user not match"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "user not match"))
 	}
 
 	updateResult, err := c.ConversationDomainSVC.Update(ctx, &entity.UpdateMeta{
@@ -304,7 +304,7 @@ func (c *ConversationApplicationService) RetrieveConversation(ctx context.Contex
 	userID := apiKeyInfo.UserID
 
 	if userID == 0 {
-		return resp, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "permission check failed"))
+		return resp, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "permission check failed"))
 	}
 
 	conversationDO, err := c.ConversationDomainSVC.GetByID(ctx, convID)
@@ -312,10 +312,10 @@ func (c *ConversationApplicationService) RetrieveConversation(ctx context.Contex
 		return resp, err
 	}
 	if conversationDO == nil {
-		return resp, errorx.New(errno.ErrConversationNotFound)
+		return resp, errno.ErrConversationNotFound
 	}
 	if conversationDO.CreatorID != userID {
-		return resp, errorx.New(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
+		return resp, errorx.Wrap(errno.ErrConversationNotFound, errorx.KV("msg", "user not match"))
 	}
 
 	resp.ConversationData = &conversation.ConversationData{

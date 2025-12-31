@@ -1,0 +1,227 @@
+# Filebeat 配置 - 计费系统日志采集
+# 版本: v1.0.0
+
+filebeat.inputs:
+  # ==================== Token计量日志 ====================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/coze-studio/billing/token_metering*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: billing
+      module: token_metering
+      environment: ${ENVIRONMENT:production}
+    fields_under_root: true
+    multiline:
+      pattern: '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      negate: true
+      match: after
+    tags: ["billing", "token-metering"]
+
+  # ==================== 预算告警日志 ====================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/coze-studio/billing/budget_alert*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: billing
+      module: budget_alert
+      environment: ${ENVIRONMENT:production}
+    fields_under_root: true
+    multiline:
+      pattern: '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      negate: true
+      match: after
+    tags: ["billing", "budget-alert"]
+
+  # ==================== 定价引擎日志 ====================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/coze-studio/billing/pricing_engine*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: billing
+      module: pricing_engine
+      environment: ${ENVIRONMENT:production}
+    fields_under_root: true
+    multiline:
+      pattern: '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      negate: true
+      match: after
+    tags: ["billing", "pricing-engine"]
+
+  # ==================== 通知服务日志 ====================
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/coze-studio/billing/notification*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: billing
+      module: notification
+      environment: ${ENVIRONMENT:production}
+    fields_under_root: true
+    multiline:
+      pattern: '^\[[0-9]{4}-[0-9]{2}-[0-9]{2}'
+      negate: true
+      match: after
+    tags: ["billing", "notification"]
+
+# ==================== 处理器配置 ====================
+processors:
+  # 添加主机信息
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+
+  # 添加云提供商信息
+  - add_cloud_metadata: ~
+
+  # 添加Docker信息
+  - add_docker_metadata: ~
+
+  # 添加Kubernetes信息（如果运行在K8s中）
+  - add_kubernetes_metadata:
+      host: ${NODE_NAME:localhost}
+      matchers:
+        - logs_path:
+            logs_path: "/var/log/coze-studio/"
+
+  # 解析JSON日志
+  - decode_json_fields:
+      fields: ["message"]
+      target: "json"
+      overwrite_keys: true
+
+  # 提取时间戳
+  - timestamp:
+      field: json.timestamp
+      layouts:
+        - "2006-01-02T15:04:05.999Z"
+        - "2006-01-02 15:04:05"
+      test:
+        - "2024-01-01T12:00:00.000Z"
+
+  # 提取租户ID
+  - dissect:
+      field: message
+      pattern: "[%{service}] tenant=%{tenant_id}"
+      target_prefix: ""
+      ignore_missing: true
+
+  # 提取Trace ID（如果有）
+  - grok:
+      field: message
+      patterns:
+        - "\\[trace_id=%{DATA:trace_id}\\]"
+      ignore_missing: true
+
+  # 删除调试日志（生产环境）
+  - drop_event:
+      when:
+        and:
+          - equals:
+              environment: production
+          - regexp:
+              message: '^.*\[Debug\].*$'
+
+  # 添加错误标记
+  - drop_event:
+      when:
+        not:
+          or:
+            - regexp:
+                message: '.*\[(Info|Warn|Error)\].*'
+            - regexp:
+                message: '.*\[(TokenMetering|BudgetAlert|PricingEngine|NotificationService)\].*'
+
+# ==================== Elasticsearch输出配置 ====================
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS:elasticsearch:9200}"]
+  protocol: "https"
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD:changeme}"
+  ssl.verification_mode: certificate
+
+  # 索引配置
+  indices:
+    - index: "coze-studio-billing-token-metering-%{+yyyy.MM.dd}"
+      when.equals:
+        module: token_metering
+
+    - index: "coze-studio-billing-budget-alert-%{+yyyy.MM.dd}"
+      when.equals:
+        module: budget_alert
+
+    - index: "coze-studio-billing-pricing-engine-%{+yyyy.MM.dd}"
+      when.equals:
+        module: pricing_engine
+
+    - index: "coze-studio-billing-notification-%{+yyyy.MM.dd}"
+      when.equals:
+        module: notification
+
+    # 默认索引
+    - index: "coze-studio-billing-%{+yyyy.MM.dd}"
+
+  # 性能优化
+  worker: 2
+  bulk_max_size: 2048
+  flush_interval: 1s
+
+  # 索引生命周期管理
+  ilm.enabled: true
+  ilm.rollover_alias: "coze-studio-billing"
+  ilm.pattern: "{now/d}-000001"
+  ilm.policy: "coze-studio-billing-policy"
+
+# ==================== Kibana配置 ====================
+setup.kibana:
+  host: "${KIBANA_HOST:kibana:5601}"
+  protocol: "https"
+  username: "${KIBANA_USERNAME:elastic}"
+  password: "${KIBANA_PASSWORD:changeme}"
+  ssl.enabled: true
+  ssl.verification_mode: certificate
+
+# ==================== 监控配置 ====================
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS:elasticsearch:9200}"]
+  username: "${ELASTICSEARCH_USERNAME:elastic}"
+  password: "${ELASTICSEARCH_PASSWORD:changeme}"
+
+# ==================== 日志配置 ====================
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat-billing
+  keepfiles: 7
+  permissions: 0644
+
+# ==================== 其他配置 ====================
+# HTTP超时
+http.timeout: 30s
+
+# 最大重试次数
+http.max_retries: 3
+
+# 关闭时等待
+shutdown_timeout: 30s
+
+# 队列类型
+queue.mem:
+  events: 4096
+  flush.min_events: 512
+  flush.timeout: 1s

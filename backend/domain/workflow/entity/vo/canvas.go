@@ -19,8 +19,6 @@ package vo
 import (
 	"fmt"
 
-	"github.com/coze-dev/coze-studio/backend/api/model/app/bot_common"
-	"github.com/coze-dev/coze-studio/backend/api/model/workflow"
 	"github.com/coze-dev/coze-studio/backend/pkg/i18n"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ternary"
 )
@@ -240,8 +238,8 @@ type FCParam struct {
 			PluginVersion   string `json:"plugin_version"`
 			IsDraft         bool   `json:"is_draft"`
 			FCSetting       *struct {
-				RequestParameters  []*workflow.APIParameter `json:"request_params"`
-				ResponseParameters []*workflow.APIParameter `json:"response_params"`
+				RequestParameters  []*APIParameter `json:"request_params"`
+				ResponseParameters []*APIParameter `json:"response_params"`
 			} `json:"fc_setting,omitempty"`
 		} `json:"workflowList,omitempty"`
 	} `json:"workflowFCParam,omitempty"`
@@ -253,10 +251,10 @@ type FCParam struct {
 			PluginVersion string `json:"plugin_version"`
 			IsDraft       bool   `json:"is_draft"`
 
-			PluginFrom *bot_common.PluginFrom `json:"plugin_from"`
+			PluginFrom *PluginFrom `json:"plugin_from"`
 			FCSetting  *struct {
-				RequestParameters  []*workflow.APIParameter `json:"request_params"`
-				ResponseParameters []*workflow.APIParameter `json:"response_params"`
+				RequestParameters  []*APIParameter `json:"request_params"`
+				ResponseParameters []*APIParameter `json:"response_params"`
 			} `json:"fc_setting,omitempty"`
 		} `json:"pluginList,omitempty"`
 	} `json:"pluginFCParam,omitempty"`
@@ -306,7 +304,7 @@ type VariableAggregator struct {
 
 type PluginAPIParam struct {
 	APIParams  []*Param               `json:"apiParam"`
-	PluginFrom *bot_common.PluginFrom `json:"pluginFrom"`
+	PluginFrom *PluginFrom `json:"pluginFrom"`
 }
 
 type CodeRunner struct {

@@ -37,20 +37,8 @@ func NewRuleService(ruleRepo repository.RoutingRuleRepository) *RuleService {
 
 // GetActiveRules 获取活跃规则（按优先级排序）
 func (s *RuleService) GetActiveRules(ctx context.Context, tenantID string) ([]*entity.RoutingRule, error) {
-	rules, err := s.ruleRepo.ListByTenant(ctx, tenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	// 过滤活跃规则
-	activeRules := make([]*entity.RoutingRule, 0)
-	for _, rule := range rules {
-		if rule.IsActive {
-			activeRules = append(activeRules, rule)
-		}
-	}
-
-	return activeRules, nil
+	// 直接使用仓储的GetActiveRulesByTenant方法
+	return s.ruleRepo.GetActiveRulesByTenant(ctx, tenantID)
 }
 
 // GetRulesByType 按类型获取规则
@@ -59,34 +47,46 @@ func (s *RuleService) GetRulesByType(
 	tenantID string,
 	ruleType entity.RuleType,
 ) ([]*entity.RoutingRule, error) {
-	rules, err := s.ruleRepo.ListByTenant(ctx, tenantID)
+	filter := &repository.RoutingRuleFilter{
+		TenantID: tenantID,
+		RuleType: &ruleType,
+		IsActive: nil, // 获取所有，不过滤激活状态
+	}
+	rules, _, err := s.ruleRepo.List(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-
-	filtered := make([]*entity.RoutingRule, 0)
-	for _, rule := range rules {
-		if rule.RuleType == ruleType {
-			filtered = append(filtered, rule)
-		}
-	}
-
-	return filtered, nil
+	return rules, nil
 }
 
 // EnableRule 启用规则
 func (s *RuleService) EnableRule(ctx context.Context, ruleID string) error {
-	return s.ruleRepo.UpdateActive(ctx, ruleID, true)
+	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
+	if err != nil {
+		return err
+	}
+	rule.IsActive = true
+	return s.ruleRepo.Update(ctx, rule)
 }
 
 // DisableRule 禁用规则
 func (s *RuleService) DisableRule(ctx context.Context, ruleID string) error {
-	return s.ruleRepo.UpdateActive(ctx, ruleID, false)
+	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
+	if err != nil {
+		return err
+	}
+	rule.IsActive = false
+	return s.ruleRepo.Update(ctx, rule)
 }
 
 // UpdatePriority 更新规则优先级
 func (s *RuleService) UpdatePriority(ctx context.Context, ruleID string, priority int) error {
-	return s.ruleRepo.UpdatePriority(ctx, ruleID, priority)
+	rule, err := s.ruleRepo.GetByID(ctx, ruleID)
+	if err != nil {
+		return err
+	}
+	rule.Priority = priority
+	return s.ruleRepo.Update(ctx, rule)
 }
 
 // ValidateRule 验证规则
@@ -97,4 +97,66 @@ func (s *RuleService) ValidateRule(rule *entity.RoutingRule) error {
 	// 3. 验证优先级范围
 	// 4. 验证规则类型
 	return nil
+}
+
+// CreateRule 创建路由规则
+func (s *RuleService) CreateRule(ctx context.Context, rule *entity.RoutingRule) (*entity.RoutingRule, error) {
+	if err := s.ValidateRule(rule); err != nil {
+		return nil, err
+	}
+	if err := s.ruleRepo.Create(ctx, rule); err != nil {
+		return nil, err
+	}
+	return rule, nil
+}
+
+// GetRuleByID 根据ID获取规则
+func (s *RuleService) GetRuleByID(ctx context.Context, ruleID string) (*entity.RoutingRule, error) {
+	return s.ruleRepo.GetByID(ctx, ruleID)
+}
+
+// UpdateRule 更新路由规则
+func (s *RuleService) UpdateRule(ctx context.Context, rule *entity.RoutingRule) (*entity.RoutingRule, error) {
+	if err := s.ValidateRule(rule); err != nil {
+		return nil, err
+	}
+	if err := s.ruleRepo.Update(ctx, rule); err != nil {
+		return nil, err
+	}
+	return rule, nil
+}
+
+// DeleteRule 删除路由规则
+func (s *RuleService) DeleteRule(ctx context.Context, ruleID string) error {
+	return s.ruleRepo.Delete(ctx, ruleID)
+}
+
+// ListRulesRequest 列出规则请求
+type ListRulesRequest struct {
+	TenantID  string
+	RuleType  *entity.RuleType
+	IsActive  *bool
+	PageSize  int
+	PageToken string
+}
+
+// ListRules 列出路由规则
+func (s *RuleService) ListRules(ctx context.Context, req *ListRulesRequest) ([]*entity.RoutingRule, int64, string, error) {
+	// 构建过滤条件
+	filter := &repository.RoutingRuleFilter{
+		TenantID:  req.TenantID,
+		RuleType:  req.RuleType,
+		IsActive:  req.IsActive,
+		PageSize:  req.PageSize,
+		PageToken: req.PageToken,
+	}
+
+	// 调用仓储获取规则列表（只有3个返回值）
+	rules, total, err := s.ruleRepo.List(ctx, filter)
+	if err != nil {
+		return nil, 0, "", err
+	}
+
+	// 简化实现：暂时不返回分页token
+	return rules, total, "", nil
 }

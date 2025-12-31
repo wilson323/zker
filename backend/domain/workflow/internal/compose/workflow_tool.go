@@ -113,7 +113,7 @@ func (wt *workflowTool) prepare(ctx context.Context, rInfo *entity.ResumeRequest
 
 	if (rInfo == nil || rInfo.Resumed) && len(wt.wfEntity.InputParams) > 0 {
 		if err = sonic.UnmarshalString(argumentsInJSON, &input); err != nil {
-			err = vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+			err = vo.WrapError(errno.DeprecatedErrSerializationDeserializationFail, err)
 			return
 		}
 

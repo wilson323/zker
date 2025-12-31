@@ -43,7 +43,7 @@ func (u *uploadSVC) UploadFile(ctx context.Context, req *UploadFileRequest) (res
 	if req.File.ID == 0 {
 		req.File.ID, err = u.idgen.GenID(ctx)
 		if err != nil {
-			return nil, errorx.New(errno.ErrIDGenError)
+			return nil, errorx.New(errno.IDGenErrorCode)
 		}
 	}
 	err = u.fileRepo.Create(ctx, req.File)
@@ -60,7 +60,7 @@ func (u *uploadSVC) UploadFiles(ctx context.Context, req *UploadFilesRequest) (r
 		if file.ID == 0 {
 			file.ID, err = u.idgen.GenID(ctx)
 			if err != nil {
-				return nil, errorx.New(errno.ErrIDGenError)
+				return nil, errorx.New(errno.IDGenErrorCode)
 			}
 		}
 	}

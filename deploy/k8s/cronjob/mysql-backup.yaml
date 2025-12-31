@@ -1,0 +1,132 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mysql-backup
+  namespace: zker
+  labels:
+    app: mysql-backup
+    component: backup
+spec:
+  schedule: "0 2 * * *"  # 每天凌晨2点执行
+  successfulJobsHistoryLimit: 7
+  failedJobsHistoryLimit: 3
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: backup
+            image: mysql:8.0
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              # 配置
+              BACKUP_DIR="/backup/mysql"
+              BACKUP_FILE="mysql-full-$(date +%Y%m%d-%H%M%S).sql.gz"
+              TIMESTAMP=$(date +%Y%m%d-%H%M%S)
+
+              echo "[$(date)] 开始MySQL备份..."
+
+              # 执行备份
+              mysqldump -h ${MYSQL_HOST} \
+                -P ${MYSQL_PORT} \
+                -u ${MYSQL_USER} \
+                -p${MYSQL_PASSWORD} \
+                --all-databases \
+                --single-transaction \
+                --quick \
+                --lock-tables=false \
+                --routines \
+                --triggers \
+                --events \
+                --hex-blob \
+                2>&1 | tee ${BACKUP_DIR}/logs/backup-${TIMESTAMP}.log \
+                | gzip > ${BACKUP_DIR}/full/${BACKUP_FILE}
+
+              # 检查备份是否成功
+              if [ $? -eq 0 ]; then
+                BACKUP_SIZE=$(du -h ${BACKUP_DIR}/full/${BACKUP_FILE} | cut -f1)
+                echo "[$(date)] 备份成功: ${BACKUP_FILE} (${BACKUP_SIZE})"
+
+                # 记录元数据
+                echo "${TIMESTAMP}|${BACKUP_DIR}/full/${BACKUP_FILE}|${BACKUP_SIZE}|full" >> ${BACKUP_DIR}/logs/backups.log
+
+                # 清理30天前的备份
+                find ${BACKUP_DIR}/full -name "mysql-full-*.sql.gz" -mtime +30 -delete
+                echo "[$(date)] 旧备份已清理"
+
+                exit 0
+              else
+                echo "[$(date)] 备份失败"
+                exit 1
+              fi
+            env:
+            - name: MYSQL_HOST
+              value: "zker-mysql"
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: username
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mysql-secret
+                  key: password
+            volumeMounts:
+            - name: backup
+              mountPath: /backup
+            resources:
+              requests:
+                memory: "256Mi"
+                cpu: "250m"
+              limits:
+                memory: "512Mi"
+                cpu: "500m"
+          volumes:
+          - name: backup
+            persistentVolumeClaim:
+              claimName: mysql-backup-pvc
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  labelSelector:
+                    matchExpressions:
+                    - key: app
+                      operator: In
+                      values:
+                      - mysql-backup
+                  topologyKey: kubernetes.io/hostname
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-backup-pvc
+  namespace: zker
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: nfs-storage
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysql-secret
+  namespace: zker
+type: Opaque
+stringData:
+  username: "root"
+  password: "root"

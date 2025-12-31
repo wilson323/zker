@@ -1,0 +1,343 @@
+# ZKER 组织中心性能测试工作流
+#
+# 功能: 定期运行组织中心性能测试，监控性能回归
+#
+# 触发条件:
+#   - 每天凌晨2点 (cron)
+#   - PR创建或更新
+#   - 手动触发
+#
+# @author 研发B (后端工程师)
+# @version 1.0
+# @date 2025-01-01
+
+name: 组织中心性能测试
+
+on:
+  # 定时执行（每天凌晨2点）
+  schedule:
+    - cron: '0 2 * * *'
+
+  # PR触发
+  pull_request:
+    paths:
+      - 'backend/domain/org/**'
+      - 'backend/api/handler/coze/org/**'
+      - 'backend/api/router/coze/org/**'
+      - '.github/workflows/org-performance-test.yml'
+
+  # 手动触发
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: '测试类型'
+        required: true
+        default: 'base'
+        type: choice
+        options:
+          - base
+          - spike
+          - stress
+          - scalability
+
+  # 推送到main分支
+  push:
+    branches:
+      - main
+      - feature/org-*
+    paths:
+      - 'backend/domain/org/**'
+      - 'backend/api/handler/coze/org/**'
+      - 'backend/api/router/coze/org/**'
+
+env:
+  GO_VERSION: '1.24.0'
+  MYSQL_VERSION: '8.4'
+  K6_VERSION: '0.47.0'
+
+jobs:
+  # ==========================================
+  # 性能基准测试
+  # ==========================================
+  performance-baseline:
+    name: 性能基准测试
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        test_type: [base, spike, scalability]
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 获取完整历史，用于对比
+
+      - name: 🏗️ 设置Go环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 🐳 启动MySQL容器
+        run: |
+          cd docker
+          docker compose up -d mysql
+
+          # 等待MySQL就绪
+          echo "等待MySQL启动..."
+          for i in {1..30}; do
+            if docker compose exec -T mysql mysqladmin ping -h localhost --silent; then
+              echo "✅ MySQL已就绪"
+              break
+            fi
+            echo "等待中... ($i/30)"
+            sleep 2
+          done
+
+      - name: 📦 安装依赖
+        run: |
+          go mod download
+          go install github.com/golang/mock/mockgen@latest
+
+      - name: 🔧 安装K6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+          # 验证安装
+          k6 version
+
+      - name: 📊 生成测试数据
+        run: |
+          cd backend/tests/performance
+          go run generate_org_testdata.go -size=medium
+
+      - name: 🚀 启动后端服务
+        run: |
+          cd backend
+          make server &
+          SERVER_PID=$!
+
+          echo "后端服务PID: $SERVER_PID"
+          echo $SERVER_PID > /tmp/server.pid
+
+          # 等待服务就绪
+          echo "等待服务启动..."
+          for i in {1..60}; do
+            if curl -s http://localhost:8080/health > /dev/null; then
+              echo "✅ 服务已就绪"
+              break
+            fi
+            echo "等待中... ($i/60)"
+            sleep 2
+          done
+
+      - name: 🧪 执行性能测试
+        run: |
+          cd backend/tests/performance
+          k6 run \
+            --env BASE_URL=http://localhost:8080 \
+            --env TEST_TYPE=${{ matrix.test_type }} \
+            --out json=results/${{ matrix.test_type }}_test.json \
+            org_load_test.k6.js
+        continue-on-error: true
+
+      - name: 📈 生成性能报告
+        if: always()
+        run: |
+          cd backend/tests/performance
+
+          # 创建结果目录
+          mkdir -p results
+
+          # 生成JSON报告
+          echo "生成JSON报告..."
+
+          # 如果有基线数据，进行对比
+          if [ -f baseline/${{ matrix.test_type }}_baseline.json ]; then
+            echo "对比基线数据..."
+            python scripts/compare_baseline.py \
+              baseline/${{ matrix.test_type }}_baseline.json \
+              results/${{ matrix.test_type }}_test.json \
+              > results/${{ matrix.test_type }}_comparison.txt
+          fi
+
+      - name: 📤 上传测试结果
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results-${{ matrix.test_type }}
+          path: backend/tests/performance/results/
+          retention-days: 30
+
+      - name: 🔍 检查性能回归
+        if: always()
+        run: |
+          cd backend/tests/performance
+
+          # 检查测试是否通过
+          if grep -q "status is pass" results/${{ matrix.test_type }}_test.json; then
+            echo "✅ 性能测试通过"
+          else
+            echo "❌ 性能测试失败"
+
+            # 检查是否超过阈值
+            if grep -q "thresholds_breached" results/${{ matrix.test_type }}_test.json; then
+              echo "⚠️  性能阈值被突破"
+              exit 1
+            fi
+          fi
+
+      - name: 🛑 清理
+        if: always()
+        run: |
+          # 停止后端服务
+          if [ -f /tmp/server.pid ]; then
+            kill $(cat /tmp/server.pid) || true
+          fi
+
+          # 停止MySQL容器
+          cd docker
+          docker compose down
+
+  # ==========================================
+  # 性能回归检测
+  # ==========================================
+  performance-regression:
+    name: 性能回归检测
+    runs-on: ubuntu-latest
+    needs: performance-baseline
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 📥 下载基线结果
+        uses: actions/download-artifact@v4
+        with:
+          name: baseline-results
+          path: baseline/
+
+      - name: 📥 下载当前测试结果
+        uses: actions/download-artifact@v4
+        with:
+          name: performance-results-base
+          path: current/
+
+      - name: 📈 对比性能指标
+        run: |
+          # 安装对比工具
+          pip install jmeter2junit
+
+          # 对比基线
+          python backend/tests/performance/scripts/compare_baseline.py \
+            baseline/base_test.json \
+            current/base_test.json \
+            --threshold=10 \
+            --output=comparison.txt
+
+          # 输出对比结果
+          cat comparison.txt
+
+      - name: 🚨 发生回归时告警
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ **性能回归检测告警**\n\n检测到性能退化，请查看性能测试报告。'
+            })
+
+  # ==========================================
+  # 定期性能报告
+  # ==========================================
+  weekly-report:
+    name: 每周性能报告
+    runs-on: ubuntu-latest
+    needs: performance-baseline
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 📥 下载所有测试结果
+        uses: actions/download-artifact@v4
+        with:
+          path: results/
+
+      - name: 📊 生成HTML报告
+        run: |
+          cd backend/tests/performance
+
+          # 安装报告生成工具
+          pip install jinja2 matplotlib
+
+          # 生成报告
+          python scripts/generate_report.py \
+            --input-dir=../../results/ \
+            --output=../../performance_report.html
+
+      - name: 📤 发布报告
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-performance-report
+          path: performance_report.html
+
+      - name: 📧 发送报告（可选）
+        if: env.SLACK_WEBHOOK_URL != ''
+        run: |
+          curl -X POST ${{ secrets.SLACK_WEBHOOK_URL }} \
+            -H 'Content-Type: application/json' \
+            -d '{
+              "text": "📊 组织中心每周性能报告",
+              "attachments": [{
+                "title": "性能测试结果",
+                "text": "请查看附件中的详细报告"
+              }]
+            }'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
+  # ==========================================
+  # 快速烟雾测试（每次提交）
+  # ==========================================
+  smoke-test:
+    name: 快速烟雾测试
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+
+    steps:
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+
+      - name: 🏗️ 设置Go环境
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: 🔧 安装K6
+        run: |
+          curl https://github.com/grafana/k6/releases/download/v${{ env.K6_VERSION }}/k6-v${{ env.K6_VERSION }}-linux-amd64.tar.gz -L | tar xvz
+          sudo mv k6-${{ env.K6_VERSION }}-linux-amd64/k6 /usr/local/bin/
+
+      - name: 🧪 执行快速测试
+        run: |
+          cd backend/tests/performance
+          k6 run \
+            --env BASE_URL=http://localhost:8080 \
+            --env TEST_TYPE=base \
+            --duration=30s \
+            org_load_test.k6.js
+        timeout-minutes: 5
+
+      - name: ✅ 检查结果
+        run: |
+          echo "✅ 烟雾测试完成"

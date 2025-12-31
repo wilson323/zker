@@ -241,7 +241,7 @@ func (tp TemplatePart) Render(m []byte, opts ...RenderOption) (string, error) {
 									return tp.literal, nil
 								}
 
-								return "", vo.NewError(errno.ErrArrIndexOutOfRange,
+								return "", vo.NewError(errno.DeprecatedErrArrIndexOutOfRange,
 									errorx.KV("arr_name", joinJsonPath(tp.JsonPath[:i])),
 									errorx.KV("req_index", strconv.Itoa(segmentI)),
 									errorx.KV("arr_len", strconv.Itoa(len(segArr))))
@@ -251,7 +251,7 @@ func (tp TemplatePart) Render(m []byte, opts ...RenderOption) (string, error) {
 					} else if errors.As(err, &syntaxErr) {
 						segmentI, ok := tp.JsonPath[i].(int)
 						if ok {
-							return "", vo.NewError(errno.ErrIndexingNilArray,
+							return "", vo.NewError(errno.DeprecatedErrIndexingNilArray,
 								errorx.KV("arr_name", joinJsonPath(tp.JsonPath[:i])),
 								errorx.KV("req_index", strconv.Itoa(segmentI)))
 						}

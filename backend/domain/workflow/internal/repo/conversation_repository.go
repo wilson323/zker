@@ -38,7 +38,7 @@ const batchSize = 10
 func (r *RepositoryImpl) CreateDraftConversationTemplate(ctx context.Context, template *vo.CreateConversationTemplateMeta) (int64, error) {
 	id, err := r.GenID(ctx)
 	if err != nil {
-		return 0, vo.WrapError(errno.ErrIDGenError, err)
+		return 0, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 	}
 	m := &model.AppConversationTemplateDraft{
 		ID:         id,
@@ -50,7 +50,7 @@ func (r *RepositoryImpl) CreateDraftConversationTemplate(ctx context.Context, te
 	}
 	err = r.query.AppConversationTemplateDraft.WithContext(ctx).Create(m)
 	if err != nil {
-		return 0, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return id, nil
@@ -81,7 +81,7 @@ func (r *RepositoryImpl) GetConversationTemplate(ctx context.Context, env vo.Env
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, false, nil
 			}
-			return nil, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return nil, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return &entity.ConversationTemplate{
 			AppID:      template.AppID,
@@ -128,7 +128,7 @@ func (r *RepositoryImpl) UpdateDraftConversationTemplateName(ctx context.Context
 	).UpdateColumnSimple(r.query.AppConversationTemplateDraft.Name.Value(name))
 
 	if err != nil {
-		return vo.WrapError(errno.ErrDatabaseError, err)
+		return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 	return nil
 
@@ -140,7 +140,7 @@ func (r *RepositoryImpl) DeleteDraftConversationTemplate(ctx context.Context, te
 	).Delete()
 
 	if err != nil {
-		return 0, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 	return resultInfo.RowsAffected, nil
 
@@ -150,13 +150,13 @@ func (r *RepositoryImpl) DeleteDynamicConversation(ctx context.Context, env vo.E
 	if env == vo.Draft {
 		info, err := r.query.AppDynamicConversationDraft.WithContext(ctx).Where(r.query.AppDynamicConversationDraft.ID.Eq(id)).Delete()
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return info.RowsAffected, nil
 	} else if env == vo.Online {
 		info, err := r.query.AppDynamicConversationOnline.WithContext(ctx).Where(r.query.AppDynamicConversationOnline.ID.Eq(id)).Delete()
 		if err != nil {
-			return 0, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return info.RowsAffected, nil
 	} else {
@@ -197,7 +197,7 @@ func (r *RepositoryImpl) listDraftConversationTemplate(ctx context.Context, poli
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.ConversationTemplate{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return slices.Transform(templates, func(a *model.AppConversationTemplateDraft) *entity.ConversationTemplate {
@@ -239,7 +239,7 @@ func (r *RepositoryImpl) listOnlineConversationTemplate(ctx context.Context, pol
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.ConversationTemplate{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return slices.Transform(templates, func(a *model.AppConversationTemplateOnline) *entity.ConversationTemplate {
@@ -279,7 +279,7 @@ func (r *RepositoryImpl) mGetDraftStaticConversation(ctx context.Context, userID
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.StaticConversation{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return slices.Transform(cs, func(a *model.AppStaticConversationDraft) *entity.StaticConversation {
@@ -307,7 +307,7 @@ func (r *RepositoryImpl) mGetOnlineStaticConversation(ctx context.Context, userI
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.StaticConversation{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return slices.Transform(cs, func(a *model.AppStaticConversationOnline) *entity.StaticConversation {
@@ -360,7 +360,7 @@ func (r *RepositoryImpl) listDraftDynamicConversation(ctx context.Context, polic
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.DynamicConversation{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 	return slices.Transform(dynamicConversations, func(a *model.AppDynamicConversationDraft) *entity.DynamicConversation {
 		return &entity.DynamicConversation{
@@ -403,7 +403,7 @@ func (r *RepositoryImpl) listOnlineDynamicConversation(ctx context.Context, poli
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return []*entity.DynamicConversation{}, nil
 		}
-		return nil, vo.WrapError(errno.ErrDatabaseError, err)
+		return nil, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return slices.Transform(dynamicConversations, func(a *model.AppDynamicConversationOnline) *entity.DynamicConversation {
@@ -440,16 +440,16 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 		if err == nil {
 			cInfo, err := crossconversation.DefaultSVC().GetByID(ctx, ret.ConversationID)
 			if err != nil {
-				return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+				return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 			}
 			if cInfo == nil {
-				return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("conversation not found"))
+				return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("conversation not found"))
 			}
 			return ret.ConversationID, cInfo.SectionID, true, nil
 		}
 
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 
 		conv, err := idGen(ctx, meta.BizID, meta.UserID, meta.ConnectorID)
@@ -459,7 +459,7 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 
 		id, err := r.GenID(ctx)
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrIDGenError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 		}
 
 		err = r.query.AppDynamicConversationDraft.WithContext(ctx).Create(&model.AppDynamicConversationDraft{
@@ -471,7 +471,7 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 			ConversationID: conv.ID,
 		})
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 
 		return conv.ID, conv.SectionID, false, nil
@@ -487,15 +487,15 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 		if err == nil {
 			cInfo, err := crossconversation.DefaultSVC().GetByID(ctx, ret.ConversationID)
 			if err != nil {
-				return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+				return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 			}
 			if cInfo == nil {
-				return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("conversation not found"))
+				return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("conversation not found"))
 			}
 			return ret.ConversationID, cInfo.SectionID, true, nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 
 		conv, err := idGen(ctx, meta.BizID, meta.UserID, meta.ConnectorID)
@@ -504,7 +504,7 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 		}
 		id, err := r.GenID(ctx)
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrIDGenError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 		}
 
 		err = r.query.AppDynamicConversationOnline.WithContext(ctx).Create(&model.AppDynamicConversationOnline{
@@ -516,7 +516,7 @@ func (r *RepositoryImpl) GetOrCreateDynamicConversation(ctx context.Context, env
 			ConversationID: conv.ID,
 		})
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 
 		return conv.ID, conv.SectionID, false, nil
@@ -538,7 +538,7 @@ func (r *RepositoryImpl) GetStaticConversationByTemplateID(ctx context.Context, 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, false, nil
 			}
-			return nil, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return nil, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return &entity.StaticConversation{
 			UserID:         cs.UserID,
@@ -556,7 +556,7 @@ func (r *RepositoryImpl) GetStaticConversationByTemplateID(ctx context.Context, 
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil, false, nil
 			}
-			return nil, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return nil, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return &entity.StaticConversation{
 			UserID:         cs.UserID,
@@ -572,16 +572,16 @@ func (r *RepositoryImpl) GetStaticConversationByTemplateID(ctx context.Context, 
 func (r *RepositoryImpl) getOrCreateDraftStaticConversation(ctx context.Context, idGen workflow.ConversationIDGenerator, meta *vo.CreateStaticConversation) (int64, int64, bool, error) {
 	cs, err := r.mGetDraftStaticConversation(ctx, meta.UserID, meta.ConnectorID, []int64{meta.TemplateID})
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	if len(cs) > 0 {
 		cInfo, err := crossconversation.DefaultSVC().GetByID(ctx, cs[0].ConversationID)
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		if cInfo == nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("conversation not found"))
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("conversation not found"))
 		}
 		return cs[0].ConversationID, cInfo.SectionID, true, nil
 	}
@@ -593,7 +593,7 @@ func (r *RepositoryImpl) getOrCreateDraftStaticConversation(ctx context.Context,
 
 	id, err := r.GenID(ctx)
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrIDGenError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 	}
 	object := &model.AppStaticConversationDraft{
 		ID:             id,
@@ -604,7 +604,7 @@ func (r *RepositoryImpl) getOrCreateDraftStaticConversation(ctx context.Context,
 	}
 	err = r.query.AppStaticConversationDraft.WithContext(ctx).Create(object)
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return conv.ID, conv.SectionID, false, nil
@@ -613,16 +613,16 @@ func (r *RepositoryImpl) getOrCreateDraftStaticConversation(ctx context.Context,
 func (r *RepositoryImpl) getOrCreateOnlineStaticConversation(ctx context.Context, idGen workflow.ConversationIDGenerator, meta *vo.CreateStaticConversation) (int64, int64, bool, error) {
 	cs, err := r.mGetOnlineStaticConversation(ctx, meta.UserID, meta.ConnectorID, []int64{meta.TemplateID})
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	if len(cs) > 0 {
 		cInfo, err := crossconversation.DefaultSVC().GetByID(ctx, cs[0].ConversationID)
 		if err != nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		if cInfo == nil {
-			return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, fmt.Errorf("conversation not found"))
+			return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, fmt.Errorf("conversation not found"))
 		}
 		return cs[0].ConversationID, cInfo.SectionID, true, nil
 	}
@@ -634,7 +634,7 @@ func (r *RepositoryImpl) getOrCreateOnlineStaticConversation(ctx context.Context
 
 	id, err := r.GenID(ctx)
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrIDGenError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrIDGenError, err)
 	}
 	object := &model.AppStaticConversationOnline{
 		ID:             id,
@@ -645,7 +645,7 @@ func (r *RepositoryImpl) getOrCreateOnlineStaticConversation(ctx context.Context
 	}
 	err = r.query.AppStaticConversationOnline.WithContext(ctx).Create(object)
 	if err != nil {
-		return 0, 0, false, vo.WrapError(errno.ErrDatabaseError, err)
+		return 0, 0, false, vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	return conv.ID, conv.SectionID, false, nil
@@ -654,7 +654,7 @@ func (r *RepositoryImpl) getOrCreateOnlineStaticConversation(ctx context.Context
 func (r *RepositoryImpl) BatchCreateOnlineConversationTemplate(ctx context.Context, templates []*entity.ConversationTemplate, version string) error {
 	ids, err := r.GenMultiIDs(ctx, len(templates))
 	if err != nil {
-		return vo.WrapError(errno.ErrIDGenError, err)
+		return vo.WrapError(errno.DeprecatedErrIDGenError, err)
 	}
 
 	objects := make([]*model.AppConversationTemplateOnline, 0, len(templates))
@@ -672,7 +672,7 @@ func (r *RepositoryImpl) BatchCreateOnlineConversationTemplate(ctx context.Conte
 
 	err = r.query.AppConversationTemplateOnline.WithContext(ctx).CreateInBatches(objects, batchSize)
 	if err != nil {
-		return vo.WrapError(errno.ErrDatabaseError, err)
+		return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 	return nil
 
@@ -735,7 +735,7 @@ func (r *RepositoryImpl) UpdateDynamicConversationNameByID(ctx context.Context, 
 			appDynamicConversationDraft.ID.Eq(templateID),
 		).UpdateColumnSimple(appDynamicConversationDraft.Name.Value(name))
 		if err != nil {
-			return vo.WrapError(errno.ErrDatabaseError, err)
+			return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return nil
 	} else if env == vo.Online {
@@ -744,7 +744,7 @@ func (r *RepositoryImpl) UpdateDynamicConversationNameByID(ctx context.Context, 
 			appDynamicConversationOnline.ID.Eq(templateID),
 		).UpdateColumnSimple(appDynamicConversationOnline.Name.Value(name))
 		if err != nil {
-			return vo.WrapError(errno.ErrDatabaseError, err)
+			return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 		}
 		return nil
 
@@ -815,7 +815,7 @@ func (r *RepositoryImpl) CopyTemplateConversationByAppID(ctx context.Context, ap
 	appConversationTemplateDraft := r.query.AppConversationTemplateDraft
 	templates, err := appConversationTemplateDraft.WithContext(ctx).Where(appConversationTemplateDraft.AppID.Eq(appID), appConversationTemplateDraft.Name.Neq("Default")).Find()
 	if err != nil {
-		return vo.WrapError(errno.ErrDatabaseError, err)
+		return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 
 	if len(templates) == 0 {
@@ -824,7 +824,7 @@ func (r *RepositoryImpl) CopyTemplateConversationByAppID(ctx context.Context, ap
 	templateTemplates := make([]*model.AppConversationTemplateDraft, 0, len(templates))
 	ids, err := r.GenMultiIDs(ctx, len(templates))
 	if err != nil {
-		return vo.WrapError(errno.ErrIDGenError, err)
+		return vo.WrapError(errno.DeprecatedErrIDGenError, err)
 	}
 	for i := range templates {
 		copiedTemplate := templates[i]
@@ -835,7 +835,7 @@ func (r *RepositoryImpl) CopyTemplateConversationByAppID(ctx context.Context, ap
 	}
 	err = appConversationTemplateDraft.WithContext(ctx).CreateInBatches(templateTemplates, batchSize)
 	if err != nil {
-		return vo.WrapError(errno.ErrDatabaseError, err)
+		return vo.WrapError(errno.DeprecatedErrDatabaseError, err)
 	}
 	return nil
 

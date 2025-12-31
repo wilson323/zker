@@ -86,20 +86,20 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 
 	conversationName, ok := input["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversationName is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversationName is required"))
 	}
 	messageStr, ok := input["messageId"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("messageId is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("messageId is required"))
 	}
 	messageID, err := strconv.ParseInt(messageStr, 10, 64)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, err)
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, err)
 	}
 
 	if appID == nil {
 		if conversationName != "Default" {
-			return nil, vo.WrapError(errno.ErrOnlyDefaultConversationAllowInAgentScenario, fmt.Errorf("only default conversation allow in agent scenario"))
+			return nil, vo.WrapError(errno.DeprecatedErrOnlyDefaultConversationAllowInAgentScenario, fmt.Errorf("only default conversation allow in agent scenario"))
 		}
 
 		if agentID == nil || execCtx.ExeCfg.ConversationID == nil {
@@ -108,7 +108,7 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 
 		err = crossmessage.DefaultSVC().Delete(ctx, &msgentity.DeleteMeta{MessageIDs: []int64{messageID}, ConversationID: execCtx.ExeCfg.ConversationID})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		return successMap, nil
@@ -120,13 +120,13 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 		Version: ptr.Of(version),
 	})
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 
 	if existed {
 		sc, existed, err := wf.GetRepository().GetStaticConversationByTemplateID(ctx, env, userID, connectorID, t.TemplateID)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		if !existed {
@@ -135,7 +135,7 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 
 		err = crossmessage.DefaultSVC().Delete(ctx, &msgentity.DeleteMeta{MessageIDs: []int64{messageID}, ConversationID: ptr.Of(sc.ConversationID)})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		return successMap, nil
@@ -143,7 +143,7 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 	} else {
 		dc, existed, err := wf.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		if !existed {
@@ -152,7 +152,7 @@ func (d *DeleteMessage) Invoke(ctx context.Context, input map[string]any) (map[s
 
 		err = crossmessage.DefaultSVC().Delete(ctx, &msgentity.DeleteMeta{MessageIDs: []int64{messageID}, ConversationID: ptr.Of(dc.ConversationID)})
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrMessageNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 
 		return successMap, nil

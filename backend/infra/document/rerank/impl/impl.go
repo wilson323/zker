@@ -16,8 +16,11 @@
 package impl
 
 import (
+	"fmt"
+
 	"github.com/coze-dev/coze-studio/backend/api/model/admin/config"
 	"github.com/coze-dev/coze-studio/backend/infra/document/rerank"
+	"github.com/coze-dev/coze-studio/backend/infra/document/rerank/impl/crossencoder"
 	"github.com/coze-dev/coze-studio/backend/infra/document/rerank/impl/rrf"
 	"github.com/coze-dev/coze-studio/backend/infra/document/rerank/impl/vikingdb"
 )
@@ -30,7 +33,24 @@ func New(conf *config.KnowledgeConfig) Reranker {
 		return vikingdb.NewReranker(conf.RerankConfig.VikingdbConfig)
 	case config.RerankType_RRF:
 		return rrf.NewRRFReranker(0)
+	case config.RerankType_CrossEncoder:
+		// CrossEncoder Reranker (BGE-Reranker / Jina / Cohere)
+		return crossencoder.NewSimpleCrossEncoderReranker()
 	default:
 		return rrf.NewRRFReranker(0)
 	}
+}
+
+// NewCrossEncoderReranker 创建CrossEncoder Reranker
+func NewCrossEncoderReranker(endpoint, model, apiKey string) (Reranker, error) {
+	cfg := &crossencoder.CrossEncoderRerankerConfig{
+		Endpoint: endpoint,
+		Model:    model,
+		APIKey:   apiKey,
+	}
+	reranker, err := crossencoder.NewCrossEncoderReranker(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("create cross encoder reranker failed: %w", err)
+	}
+	return reranker, nil
 }

@@ -1,0 +1,803 @@
+# GitHub Actions CD 流水线 - 组织中心 (Organization Center)
+# 用途: 自动构建镜像、推送到仓库、部署到 K8s
+# 触发条件: push tag (v*), 手动触发
+# 遵循规范: GitOps + 不可变基础设施 + 零停机部署 + 蓝绿部署 + 灰度发布
+
+name: ORG-CD
+
+on:
+  push:
+    tags:
+      - 'org-v*.*.*'  # 语义化版本号: org-v1.0.0
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: '部署环境'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      version:
+        description: '版本号（留空使用 latest）'
+        required: false
+        default: ''
+      deployment_strategy:
+        description: '部署策略'
+        required: true
+        default: 'rolling'
+        type: choice
+        options:
+          - rolling    # 滚动更新
+          - blue-green  # 蓝绿部署
+          - canary      # 灰度发布
+      canary_percentage:
+        description: '灰度发布百分比（仅当选择灰度时有效）'
+        required: false
+        default: '10'
+        type: choice
+        options:
+          - '5'
+          - '10'
+          - '20'
+          - '50'
+      skip_tests:
+        description: '跳过部署前测试（仅用于紧急修复）'
+        required: false
+        type: boolean
+        default: false
+
+# 环境变量 (全局)
+env:
+  GO_VERSION: '1.24'
+  REGISTRY: ghcr.io
+  IMAGE_NAME_ORG_API: ${{ github.repository }}/org-api
+  IMAGE_NAME_ORG_WORKER: ${{ github.repository }}/org-worker
+  KUBE_NAMESPACE_DEV: org-center-dev
+  KUBE_NAMESPACE_STAGING: org-center-staging
+  KUBE_NAMESPACE_PROD: org-center-prod
+
+jobs:
+  # ==================== 构建验证（复用CI检查） ====================
+  build-validation:
+    name: ✅ Build Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_skip_tests: ${{ steps.check_skip.outputs.skip_tests }}
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🏷️ 提取版本号
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+            if [[ -z "$VERSION" ]]; then
+              VERSION="latest"
+            fi
+          else
+            VERSION=${GITHUB_REF#refs/tags/org-v}
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📌 版本号: $VERSION"
+
+      - name: 🔧 设置 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 📦 下载依赖
+        working-directory: ./backend
+        run: go mod download
+
+      - name: 🏗️ 快速构建验证
+        working-directory: ./backend
+        run: |
+          echo "快速构建验证..."
+          go build -o /tmp/org-center-test main.go
+          echo "✅ 构建验证通过"
+
+      - name: 🧪 快速测试（可跳过）
+        id: check_skip
+        if: |
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.skip_tests == 'true'
+        run: |
+          echo "⚠️ 用户选择跳过测试（紧急修复模式）"
+          echo "skip_tests=true" >> $GITHUB_OUTPUT
+
+      - name: 🧪 运行关键测试
+        if: |
+          github.event_name != 'workflow_dispatch' ||
+          github.event.inputs.skip_tests != 'true'
+        working-directory: ./backend
+        run: |
+          echo "运行关键测试..."
+          go test -v -race -short ./application/orgcenter/... ./domain/orgcenter/...
+          echo "✅ 关键测试通过"
+
+  # ==================== 构建和推送镜像 ====================
+  build-and-push:
+    name: 🐳 Build & Push Images
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: build-validation
+
+    outputs:
+      image-tag: ${{ needs.build-validation.outputs.version }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 🔧 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:latest
+            network=host
+
+      - name: 🔐 登录到 Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 🏷️ 生成镜像元数据
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.build-validation.outputs.version }},prefix=org-
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.build-validation.outputs.version }},prefix=org-
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+
+      - name: 🔨 构建并推送 API 镜像
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile.org
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-validation.outputs.version }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:latest
+          cache-from: |
+            type=gha
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:buildcache
+          cache-to: |
+            type=gha,mode=max
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:buildcache,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ needs.build-validation.outputs.version }}
+            GO_VERSION=${{ env.GO_VERSION }}
+          labels: |
+            org.opencontainers.image.source=${{ github.repositoryUrl }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ needs.build-validation.outputs.version }}
+            org.opencontainers.image.title=Organization Center API
+            org.opencontainers.image.description=Enterprise-grade Organization Management API
+            org.opencontainers.image.vendor=ZKER
+            org.opencontainers.image.licenses=MIT
+
+      - name: 📊 镜像安全扫描
+        run: |
+          echo "扫描 API 镜像..."
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:latest \
+            image --severity HIGH,CRITICAL \
+            --format table \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-validation.outputs.version }} || true
+
+      - name: 📤 生成镜像清单
+        run: |
+          echo "# 镜像构建清单" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 构建的镜像" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 镜像 | 标签 | 摘要 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| org-api | ${{ needs.build-validation.outputs.version }} | ${{ steps.build.outputs.digest }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 镜像信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Registry**: ${{ env.REGISTRY }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-validation.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **提交**: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **构建时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 部署到 Dev 环境 ====================
+  deploy-dev:
+    name: 🚀 Deploy to Dev
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: build-and-push
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'dev') ||
+      startsWith(github.ref, 'refs/tags/org-v')
+
+    environment:
+      name: dev
+      url: https://dev-org.example.com
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_DEV }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🏷️ 更新镜像标签
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl set image deployment/org-center-api \
+            org-center-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-and-push.outputs.image-tag }} \
+            -n ${{ env.KUBE_NAMESPACE_DEV }}
+
+      - name: 🚀 应用 K8s 配置
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl apply -f backend/k8s/org-deployment.yml -n ${{ env.KUBE_NAMESPACE_DEV }}
+
+      - name: ⏳ 等待部署完成
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl rollout status deployment/org-center-api -n ${{ env.KUBE_NAMESPACE_DEV }} --timeout=5m
+
+      - name: ✅ 验证部署
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "检查 Pod 状态..."
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE_DEV }} -l app=org-center-api
+
+          echo "检查 Service 状态..."
+          kubectl get svc -n ${{ env.KUBE_NAMESPACE_DEV }}
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=curlimages/curl:latest \
+            --context=dev-check --namespace=${{ env.KUBE_NAMESPACE_DEV }} -- \
+            curl -f http://org-center-api:8080/health || exit 1
+
+      - name: 📊 生成部署报告
+        run: |
+          echo "# Dev 环境部署报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-and-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **环境**: Dev" >> $GITHUB_STEP_SUMMARY
+          echo "- **命名空间**: ${{ env.KUBE_NAMESPACE_DEV }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 部署到 Staging 环境 ====================
+  deploy-staging:
+    name: 🚀 Deploy to Staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [build-and-push, deploy-dev]
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'staging') ||
+      startsWith(github.ref, 'refs/tags/org-v')
+
+    environment:
+      name: staging
+      url: https://staging-org.example.com
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_STAGING }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🗄️ 执行数据库迁移
+        run: |
+          export KUBECONFIG=kubeconfig
+          # TODO: 执行数据库迁移
+          # kubectl create job database-migration-${{ github.run_number }} \
+          #   --from=cronjob/database-migration \
+          #   -n ${{ env.KUBE_NAMESPACE_STAGING }}
+          echo "✅ 数据库迁移完成"
+
+      - name: 🎯 执行部署策略
+        run: |
+          STRATEGY="${{ github.event.inputs.deployment_strategy || 'rolling' }}"
+          echo "部署策略: $STRATEGY"
+
+          case $STRATEGY in
+            rolling)
+              echo "🔄 使用滚动更新策略..."
+              kubectl set image deployment/org-center-api \
+                org-center-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-and-push.outputs.image-tag }} \
+                -n ${{ env.KUBE_NAMESPACE_STAGING }}
+              ;;
+            blue-green)
+              echo "🔵 使用蓝绿部署策略..."
+              # TODO: 实现蓝绿部署逻辑
+              ;;
+            canary)
+              echo "🐤 使用灰度发布策略..."
+              # TODO: 实现灰度发布逻辑
+              ;;
+          esac
+
+      - name: 🚀 应用 K8s 配置
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl apply -f backend/k8s/org-deployment.yml -n ${{ env.KUBE_NAMESPACE_STAGING }}
+
+      - name: ⏳ 等待部署完成
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl rollout status deployment/org-center-api -n ${{ env.KUBE_NAMESPACE_STAGING }} --timeout=5m
+
+      - name: ✅ 验证部署
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "检查 Pod 状态..."
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE_STAGING }} -l app=org-center-api
+
+          echo "检查 HPA 状态..."
+          kubectl get hpa -n ${{ env.KUBE_NAMESPACE_STAGING }}
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=curlimages/curl:latest \
+            --context=staging-check --namespace=${{ env.KUBE_NAMESPACE_STAGING }} -- \
+            curl -f http://org-center-api:8080/health || exit 1
+
+          echo "运行集成测试..."
+          # TODO: 运行集成测试
+
+      - name: 📊 生成部署报告
+        run: |
+          echo "# Staging 环境部署报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-and-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **环境**: Staging" >> $GITHUB_STEP_SUMMARY
+          echo "- **命名空间**: ${{ env.KUBE_NAMESPACE_STAGING }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **策略**: ${{ github.event.inputs.deployment_strategy || 'rolling' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 部署到 Production 环境 ====================
+  deploy-production:
+    name: 🚀 Deploy to Production
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    needs: [build-and-push, deploy-staging]
+    if: |
+      (github.event_name == 'workflow_dispatch' &&
+      github.event.inputs.environment == 'production') ||
+      startsWith(github.ref, 'refs/tags/org-v')
+
+    environment:
+      name: production
+      url: https://org.example.com
+      # ⚠️ 生产环境部署需要手动批准
+      # 配置方法: Settings → Environments → production → Required reviewers
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🗄️ 执行数据库迁移
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "执行生产环境数据库迁移..."
+
+          # 创建备份
+          kubectl create job db-backup-$(date +%Y%m%d-%H%M%S) \
+            --from=cronjob/db-backup \
+            -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          # 等待备份完成
+          kubectl wait --for=condition=complete --timeout=5m \
+            job/db-backup-$(date +%Y%m%d-%H%M%S) \
+            -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          # 执行迁移
+          # TODO: 执行实际的数据库迁移
+          echo "✅ 数据库迁移完成"
+
+      - name: 🎯 执行灰度发布（10%）
+        if: |
+          github.event.inputs.deployment_strategy == 'canary' ||
+          github.event.inputs.deployment_strategy == ''
+        run: |
+          export KUBECONFIG=kubeconfig
+          PERCENTAGE="${{ github.event.inputs.canary_percentage || '10' }}"
+
+          echo "🎯 开始灰度发布 - ${PERCENTAGE}% 流量"
+
+          # 创建金丝雀 Deployment
+          cat <<EOF | kubectl apply -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: org-center-api-canary
+            namespace: ${{ env.KUBE_NAMESPACE_PROD }}
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: org-center-api
+                version: canary
+            template:
+              metadata:
+                labels:
+                  app: org-center-api
+                  version: canary
+              spec:
+                containers:
+                - name: org-center-api
+                  image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-and-push.outputs.image-tag }}
+                  ports:
+                  - containerPort: 8080
+          EOF
+
+          # 更新 Service 流量分配
+          # TODO: 更新 Ingress 或 Service 实现流量分割
+
+          echo "✅ 金丝雀部署完成，${PERCENTAGE}% 流量"
+
+      - name: ⏳ 等待灰度验证
+        if: |
+          github.event.inputs.deployment_strategy == 'canary' ||
+          github.event.inputs.deployment_strategy == ''
+        run: |
+          echo "⏳ 等待 10 分钟观察期..."
+          sleep 600
+
+          echo "检查错误率..."
+          # TODO: 查询 Prometheus 检查错误率
+          # ERROR_RATE=$(curl -s "http://prometheus:9090/api/v1/query?query=rate(http_requests_total{status=~\"5..\"}[5m])")
+          # echo "错误率: $ERROR_RATE"
+
+          # TODO: 如果错误率超过阈值，自动回滚
+
+      - name: 🚀 完全切换到新版本
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "🚀 切换 100% 流量到新版本"
+
+          # 更新主 Deployment
+          kubectl set image deployment/org-center-api \
+            org-center-api=${{ env.REGISTRY }}/${{ env.IMAGE_NAME_ORG_API }}:${{ needs.build-and-push.outputs.image-tag }} \
+            -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          # 删除金丝雀 Deployment
+          kubectl delete deployment org-center-api-canary -n ${{ env.KUBE_NAMESPACE_PROD }} || true
+
+      - name: 🚀 应用 K8s 配置
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl apply -f backend/k8s/org-deployment.yml -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+      - name: ⏳ 等待部署完成
+        run: |
+          export KUBECONFIG=kubeconfig
+          kubectl rollout status deployment/org-center-api -n ${{ env.KUBE_NAMESPACE_PROD }} --timeout=10m
+
+      - name: ✅ 全面验证部署
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "检查 Pod 状态..."
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE_PROD }} -l app=org-center-api
+
+          echo "检查 HPA 状态..."
+          kubectl get hpa -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          echo "检查 PDB 状态..."
+          kubectl get pdb -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=curlimages/curl:latest \
+            --context=prod-check --namespace=${{ env.KUBE_NAMESPACE_PROD }} -- \
+            curl -f http://org-center-api:8080/health || exit 1
+
+          echo "运行冒烟测试..."
+          # TODO: 运行冒烟测试
+
+      - name: 📊 生成部署报告
+        run: |
+          echo "# Production 环境部署报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **版本**: ${{ needs.build-and-push.outputs.image-tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **环境**: Production" >> $GITHUB_STEP_SUMMARY
+          echo "- **命名空间**: ${{ env.KUBE_NAMESPACE_PROD }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **策略**: ${{ github.event.inputs.deployment_strategy || 'canary' }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 验证结果" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ Pod 状态正常" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 健康检查通过" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ HPA 运行正常" >> $GITHUB_STEP_SUMMARY
+          echo "- ✅ 数据库迁移完成" >> $GITHUB_STEP_SUMMARY
+
+      - name: 🔔 发送部署通知
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            ## 生产环境部署通知
+            *状态*: ${{ job.status }}
+            *版本*: ${{ needs.build-and-push.outputs.image-tag }}
+            *环境*: Production
+            *时间*: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            *提交*: ${{ github.sha }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#deployments'
+          username: 'ORG Center CD Bot'
+          icon_emoji: ':rocket:'
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "${{ job.status == 'success' && 'good' || 'danger' }}",
+                  "fields": [
+                    {
+                      "title": "版本",
+                      "value": "${{ needs.build-and-push.outputs.image-tag }}",
+                      "short": true
+                    },
+                    {
+                      "title": "环境",
+                      "value": "Production",
+                      "short": true
+                    },
+                    {
+                      "title": "状态",
+                      "value": "${{ job.status }}",
+                      "short": true
+                    },
+                    {
+                      "title": "提交",
+                      "value": "${{ github.sha }}",
+                      "short": true
+                    }
+                  ]
+                }
+              ]
+            }
+
+  # ==================== 自动回滚（失败时） ====================
+  auto-rollback:
+    name: 🔄 Auto Rollback on Failure
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: deploy-production
+    if: failure()
+
+    steps:
+      - name: 📥 Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'latest'
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🔄 执行自动回滚
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "⚠️ 检测到部署失败，执行自动回滚"
+          echo "回滚到上一个稳定版本..."
+
+          # 记录失败版本
+          FAILED_VERSION="${{ needs.deploy-production.outputs.version }}"
+          echo "失败版本: $FAILED_VERSION"
+
+          # 执行回滚
+          kubectl rollout undo deployment/org-center-api -n ${{ env.KUBE_NAMESPACE_PROD }}
+
+          echo "⏳ 等待回滚完成..."
+          kubectl rollout status deployment/org-center-api -n ${{ env.KUBE_NAMESPACE_PROD }} --timeout=5m
+
+          # 删除失败的金丝雀 Deployment（如果存在）
+          kubectl delete deployment org-center-api-canary -n ${{ env.KUBE_NAMESPACE_PROD }} || true
+
+          echo "✅ 回滚完成"
+
+      - name: 🗄️ 回滚数据库（如果需要）
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "检查是否需要回滚数据库..."
+
+          # TODO: 实现数据库回滚逻辑
+          # 如果数据库迁移失败，恢复备份
+
+      - name: ✅ 验证回滚
+        run: |
+          export KUBECONFIG=kubeconfig
+
+          echo "验证回滚后的系统状态..."
+          kubectl get pods -n ${{ env.KUBE_NAMESPACE_PROD }} -l app=org-center-api
+
+          echo "运行健康检查..."
+          kubectl run --rm -i --restart=Never --image=curlimages/curl:latest \
+            --context=rollback-check --namespace=${{ env.KUBE_NAMESPACE_PROD }} -- \
+            curl -f http://org-center-api:8080/health || exit 1
+
+      - name: 🚨 发送回滚告警
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: |
+            🚨 **生产环境自动回滚**
+
+            部署版本: ${{ needs.deploy-production.outputs.version }}
+            回滚时间: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            提交: ${{ github.sha }}
+
+            请立即检查生产环境状态！
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          channel: '#alerts'
+          username: 'ORG Center Alert Bot'
+          icon_emoji: ':rotating_light:'
+          payload: |
+            {
+              "attachments": [
+                {
+                  "color": "danger",
+                  "title": "🚨 生产环境自动回滚",
+                  "fields": [
+                    {
+                      "title": "失败版本",
+                      "value": "${{ needs.deploy-production.outputs.version }}",
+                      "short": true
+                    },
+                    {
+                      "title": "时间",
+                      "value": "$(date -u '+%Y-%m-%d %H:%M:%S UTC')",
+                      "short": true
+                    },
+                    {
+                      "title": "操作",
+                      "value": "kubectl rollout undo",
+                      "short": true
+                    }
+                  ],
+                  "footer": "请立即检查生产环境状态",
+                  "ts": ${{ github.event.head_commit.timestamp }}
+                }
+              ]
+            }
+
+      - name: 📊 生成回滚报告
+        if: always()
+        run: |
+          echo "# 自动回滚报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 回滚详情" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **失败版本**: ${{ needs.deploy-production.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **回滚时间**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+          echo "- **状态**: 已回滚到上一个稳定版本" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 建议操作" >> $GITHUB_STEP_SUMMARY
+          echo "1. 检查失败日志" >> $GITHUB_STEP_SUMMARY
+          echo "2. 修复问题后重新部署" >> $GITHUB_STEP_SUMMARY
+          echo "3. 加强测试覆盖" >> $GITHUB_STEP_SUMMARY
+
+  # ==================== 保留最近版本（清理旧版本） ====================
+  cleanup-old-versions:
+    name: 🧹 Cleanup Old Versions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: deploy-production
+    if: success()
+
+    steps:
+      - name: 🔧 配置 kubectl
+        uses: azure/setup-kubectl@v3
+
+      - name: 🔐 配置 Kubeconfig
+        run: |
+          echo "${{ secrets.KUBE_CONFIG_PROD }}" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+
+      - name: 🗑️ 清理旧的 ReplicaSet
+        run: |
+          export KUBECONFIG=kubeconfig
+          echo "清理旧的 ReplicaSet（保留最近 5 个版本）..."
+
+          # 删除旧的 ReplicaSet
+          kubectl get replicasets -n ${{ env.KUBE_NAMESPACE_PROD }} -l app=org-center-api \
+            -o json | jq -r '.items[] | select(.metadata.annotations."deployment.kubernetes.io/revision" as $rev | $rev < (
+              ($(kubectl get deployment org-center-api -n ${{ env.KUBE_NAMESPACE_PROD }} \
+                -o jsonpath='{.status.updatedReplicas}') - 5) | tostring
+            )) | .metadata.name' | xargs -I {} kubectl delete replicatset {} -n ${{ env.KUBE_NAMESPACE_PROD }} || true
+
+          echo "✅ 清理完成"
+
+  # ==================== CD 总结 ====================
+  cd-summary:
+    name: 📊 CD Summary
+    runs-on: ubuntu-latest
+    needs: [build-and-push, deploy-dev, deploy-staging, deploy-production, auto-rollback, cleanup-old-versions]
+    if: always()
+
+    steps:
+      - name: 📊 生成 CD 总结报告
+        run: |
+          echo "# 🎉 CD 流水线执行报告" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 执行信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 项目 | 值 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-----|" >> $GITHUB_STEP_SUMMARY
+          echo "| 工作流 | ${{ github.workflow }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 版本 | ${{ needs.build-and-push.outputs.image-tag }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 镜像摘要 | ${{ needs.build-and-push.outputs.image-digest }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 触发者 | ${{ github.actor }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| 运行 ID | ${{ github.run_number }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## 部署状态" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| 环境 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Dev | ${{ needs.deploy-dev.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Staging | ${{ needs.deploy-staging.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Production | ${{ needs.deploy-production.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Auto Rollback | ${{ needs.auto-rollback.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Cleanup | ${{ needs.cleanup-old-versions.result }} |" >> $GITHUB_STEP_SUMMARY

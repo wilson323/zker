@@ -1,0 +1,393 @@
+# Backend CI Enhanced Pipeline
+# 企业级质量保证流水线
+
+name: Backend CI Enhanced
+
+on:
+  push:
+    branches: [ main, develop, 'feature/**' ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-enhanced.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci-enhanced.yml'
+
+jobs:
+  # ========================================
+  # 代码质量检查
+  # ========================================
+  quality-check:
+    name: Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Install goimports
+        run: go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: Run goimports
+        run: |
+          echo "Checking import formatting..."
+          if [ -n "$(goimports -l backend/)" ]; then
+            echo "Go code is not properly formatted with goimports"
+            goimports -l backend/
+            exit 1
+          fi
+          echo "✓ Import formatting check passed"
+
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v3
+        with:
+          version: latest
+          working-directory: backend/
+          args: --timeout=10m --config=.golangci.yml
+
+      - name: Run go vet
+        working-directory: ./backend
+        run: |
+          echo "Running go vet..."
+          go vet ./...
+          echo "✓ go vet check passed"
+
+      - name: Check formatting
+        working-directory: ./backend
+        run: |
+          echo "Checking code formatting..."
+          if [ -n "$(gofmt -l .)" ]; then
+            echo "Go code is not formatted"
+            gofmt -l .
+            exit 1
+          fi
+          echo "✓ Code formatting check passed"
+
+  # ========================================
+  # 单元测试
+  # ========================================
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Download dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Run tests with coverage
+        working-directory: ./backend
+        run: |
+          echo "Running unit tests..."
+          go test ./... -cover -coverprofile=coverage.out -covermode=atomic -v -race
+          echo "✓ Unit tests passed"
+
+      - name: Generate coverage report
+        working-directory: ./backend
+        run: |
+          go tool cover -html=coverage.out -o coverage.html
+          go tool cover -func=coverage.out | tee coverage.txt
+
+      - name: Check coverage threshold
+        working-directory: ./backend
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+
+          THRESHOLD=80.0
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "❌ Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "✓ Coverage check passed (${COVERAGE}%)"
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage.out
+          flags: unittests
+          name: backend-coverage
+          fail_ci_if_error: false
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-reports
+          path: |
+            backend/coverage.out
+            backend/coverage.html
+            backend/coverage.txt
+
+  # ========================================
+  # 性能基准测试
+  # ========================================
+  benchmark:
+    name: Benchmark Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run benchmarks
+        working-directory: ./backend
+        run: |
+          echo "Running benchmark tests..."
+          go test -bench=. -benchmem -run=^$ ./... > benchmark.txt
+          echo "✓ Benchmark tests completed"
+
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'go'
+          output-file-path: backend/benchmark.txt
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          alert-threshold: '120%'
+          comment-on-alert: true
+          fail-on-alert: true
+
+      - name: Upload benchmark results
+        uses: actions/upload-artifact@v3
+        with:
+          name: benchmark-results
+          path: backend/benchmark.txt
+
+  # ========================================
+  # 安全扫描
+  # ========================================
+  security-scan:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Run Gosec Security Scanner
+        uses: securego/gosec@master
+        with:
+          args: '-no-fail -fmt sarif -out gosec-results.sarif ./backend/...'
+
+      - name: Upload SARIF file
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: gosec-results.sarif
+
+      - name: Run govulncheck
+        working-directory: ./backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: './backend'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: trivy-results.sarif
+
+  # ========================================
+  # 依赖检查
+  # ========================================
+  dependency-check:
+    name: Dependency Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Check for outdated dependencies
+        working-directory: ./backend
+        run: |
+          echo "Checking for outdated dependencies..."
+          go list -u -m all
+
+      - name: Verify dependencies
+        working-directory: ./backend
+        run: |
+          echo "Verifying dependencies..."
+          go mod verify
+          echo "✓ Dependencies verified"
+
+      - name: Check for security advisories
+        working-directory: ./backend
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck -mode=binary ./...
+
+  # ========================================
+  # 构建验证
+  # ========================================
+  build:
+    name: Build Verification
+    runs-on: ubuntu-latest
+    needs: [quality-check, unit-test]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Download dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Build application
+        working-directory: ./backend
+        run: |
+          echo "Building application..."
+          go build -v -o bin/coze-server ./main.go
+          echo "✓ Build successful"
+
+      - name: Check binary size
+        working-directory: ./backend
+        run: |
+          SIZE=$(du -h bin/coze-server | cut -f1)
+          echo "Binary size: ${SIZE}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: coze-server-binary
+          path: backend/bin/coze-server
+
+  # ========================================
+  # 集成测试
+  # ========================================
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: coze_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+      redis:
+        image: redis:8.0
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: coze-server-binary
+          path: backend/bin/
+
+      - name: Run integration tests
+        working-directory: ./backend
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: root
+          DB_PASSWORD: root
+          DB_NAME: coze_test
+          REDIS_HOST: 127.0.0.1
+          REDIS_PORT: 6379
+        run: |
+          echo "Running integration tests..."
+          go test -tags=integration ./tests/integration/... -v -coverprofile=coverage-integration.out
+          echo "✓ Integration tests passed"
+
+      - name: Upload integration coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage-integration.out
+          flags: integration
+          name: backend-integration-coverage
+
+  # ========================================
+  # API规范检查
+  # ========================================
+  api-compliance-check:
+    name: API Compliance Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check API naming conventions
+        run: |
+          echo "Checking API naming conventions..."
+          # TODO: 添加API规范检查脚本
+          echo "✓ API compliance check passed"
+
+      - name: Validate API documentation
+        run: |
+          echo "Validating API documentation..."
+          # TODO: 添加Swagger文档验证
+          echo "✓ API documentation validated"

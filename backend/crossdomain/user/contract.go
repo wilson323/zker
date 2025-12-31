@@ -24,10 +24,28 @@ import (
 
 type EntitySpace = entity.Space
 
+// SessionValidator defines interface for session validation (dependency inversion)
+// This interface breaks the circular dependency between application/user and api/middleware
+type SessionValidator interface {
+	ValidateSession(ctx context.Context, sessionKey string) (*entity.Session, error)
+}
+
 //go:generate mockgen -destination ../../internal/mock/crossdomain/crossuser/crossuser.go --package mockCrossUser -source contract.go
 type User interface {
 	GetUserSpaceList(ctx context.Context, userID int64) (spaces []*EntitySpace, err error)
 	GetUserSpaceBySpaceID(ctx context.Context, spaceID []int64) (space []*EntitySpace, err error)
+}
+
+var sessionValidatorSVC SessionValidator
+
+// SessionValidator returns the default session validator
+func SessionValidatorSVC() SessionValidator {
+	return sessionValidatorSVC
+}
+
+// SetSessionValidator sets the default session validator
+func SetSessionValidator(s SessionValidator) {
+	sessionValidatorSVC = s
 }
 
 var defaultSVC User

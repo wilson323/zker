@@ -142,11 +142,10 @@ func (p *TokenUsageProducer) PublishTokenUsage(ctx context.Context, msg *TokenUs
 // TokenUsageConsumer Token使用消费者
 type TokenUsageConsumer struct {
 	nsqConsumer *NSQConsumer
-	tokenRepo    TokenUsageRepository
 }
 
 // NewTokenUsageConsumer 创建Token使用消费者
-func NewTokenUsageConsumer(nsqdAddr, lookupdAddr, channel string, tokenRepo TokenUsageRepository) (*TokenUsageConsumer, error) {
+func NewTokenUsageConsumer(nsqdAddr, lookupdAddr, channel string) (*TokenUsageConsumer, error) {
 	consumer, err := NewNSQConsumer(nsqdAddr, lookupdAddr, "token_usage", channel)
 	if err != nil {
 		return nil, err
@@ -154,7 +153,6 @@ func NewTokenUsageConsumer(nsqdAddr, lookupdAddr, channel string, tokenRepo Toke
 
 	return &TokenUsageConsumer{
 		nsqConsumer: consumer,
-		tokenRepo:   tokenRepo,
 	}, nil
 }
 
@@ -167,24 +165,24 @@ func (c *TokenUsageConsumer) Start() {
 			return err
 		}
 
-		// 写入数据库
-		usage := &TokenUsage{
-			TenantID:         msg.TenantID,
-			UserID:           msg.UserID,
-			BotID:            msg.BotID,
-			ModelID:          msg.ModelID,
-			PromptTokens:     msg.PromptTokens,
-			CompletionTokens: msg.CompletionTokens,
-			TotalTokens:      msg.TotalTokens,
-			CostUSD:          msg.CostUSD,
-		}
+		// TODO: 实现数据库写入逻辑
+		// usage := &TokenUsage{
+		// 	TenantID:         msg.TenantID,
+		// 	UserID:           msg.UserID,
+		// 	BotID:            msg.BotID,
+		// 	ModelID:          msg.ModelID,
+		// 	PromptTokens:     msg.PromptTokens,
+		// 	CompletionTokens: msg.CompletionTokens,
+		// 	TotalTokens:      msg.TotalTokens,
+		// 	CostUSD:          msg.CostUSD,
+		// }
+		//
+		// if err := c.tokenRepo.Create(context.Background(), usage); err != nil {
+		// 	log.Printf("Failed to save token usage: %v", err)
+		// 	return err
+		// }
 
-		if err := c.tokenRepo.Create(context.Background(), usage); err != nil {
-			log.Printf("Failed to save token usage: %v", err)
-			return err
-		}
-
-		log.Printf("Token usage saved: tenant=%s, model=%s, tokens=%d",
+		log.Printf("Token usage received: tenant=%s, model=%s, tokens=%d",
 			msg.TenantID, msg.ModelID, msg.TotalTokens)
 
 		return nil

@@ -22,6 +22,7 @@ import (
 	"io"
 	"time"
 
+	"go.opentelemetry.io/otel/attribute"
 	"github.com/coze-dev/coze-studio/backend/infra/tracing"
 	pkgerrorx "github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
@@ -42,8 +43,8 @@ const (
 	DefaultDownloadExpiry = 1 * time.Hour
 )
 
-// FileInfo 文件信息
-type FileInfo struct {
+// TenantFileInfo 租户文件信息（重命名避免与storage.go中的FileInfo冲突）
+type TenantFileInfo struct {
 	Bucket      string            `json:"bucket"`
 	Key         string            `json:"key"`
 	Size        int64             `json:"size"`
@@ -107,7 +108,7 @@ func NewTenantIsolatedStorage(endpoint, accessKey, secretKey string, useSSL bool
 		Secure: useSSL,
 	})
 	if err != nil {
-		return nil, pkgerrorx.Wrap(err, berrno.ErrInitStorageFailed).WithZap(
+		return nil, pkgerrorx.WrapWithZap(err, berrno.ErrInitStorageFailed,
 			zap.String("endpoint", endpoint),
 		)
 	}
@@ -151,9 +152,9 @@ func (s *TenantIsolatedStorage) Upload(
 ) (*UploadResult, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrCategory.String(category),
-		tracing.AttrFileID.String(fileID),
-		zap.Int64("size", size),
+		attribute.String("category", category),
+		attribute.String("file_id", fileID),
+		attribute.Int64("size", size),
 	)
 
 	// 确保Bucket存在
@@ -190,7 +191,7 @@ func (s *TenantIsolatedStorage) Upload(
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] upload failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return nil, pkgerrorx.Wrap(err, berrno.ErrUploadFileFailed).WithZap(
+		return nil, pkgerrorx.WrapWithZap(err, berrno.ErrUploadFileFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("category", category),
 			zap.String("file_id", fileID),
@@ -229,7 +230,7 @@ func (s *TenantIsolatedStorage) Download(
 ) (*minio.Object, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrKey.String(key),
+		attribute.String("key", key),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -240,7 +241,7 @@ func (s *TenantIsolatedStorage) Download(
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] download failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return nil, pkgerrorx.Wrap(err, berrno.ErrDownloadFileFailed).WithZap(
+		return nil, pkgerrorx.WrapWithZap(err, berrno.ErrDownloadFileFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("key", key),
 		)
@@ -275,8 +276,8 @@ func (s *TenantIsolatedStorage) GetPresignedDownloadURL(
 ) (string, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrKey.String(key),
-		zap.Duration("expiry", expiry),
+		attribute.String("key", key),
+		attribute.String("expiry", expiry.String()),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -287,7 +288,7 @@ func (s *TenantIsolatedStorage) GetPresignedDownloadURL(
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] generate download URL failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return "", pkgerrorx.Wrap(err, berrno.ErrGenerateDownloadURLFailed).WithZap(
+		return "", pkgerrorx.WrapWithZap(err, berrno.ErrGenerateDownloadURLFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("key", key),
 		)
@@ -311,8 +312,8 @@ func (s *TenantIsolatedStorage) GetPresignedUploadURL(
 ) (string, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrCategory.String(category),
-		tracing.AttrFileID.String(fileID),
+		attribute.String("category", category),
+		attribute.String("file_id", fileID),
 	)
 
 	// 确保Bucket存在
@@ -337,7 +338,7 @@ func (s *TenantIsolatedStorage) GetPresignedUploadURL(
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] generate upload URL failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return "", pkgerrorx.Wrap(err, berrno.ErrGenerateUploadURLFailed).WithZap(
+		return "", pkgerrorx.WrapWithZap(err, berrno.ErrGenerateUploadURLFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("category", category),
 			zap.String("file_id", fileID),
@@ -356,7 +357,7 @@ func (s *TenantIsolatedStorage) GetPresignedUploadURL(
 func (s *TenantIsolatedStorage) Delete(ctx context.Context, tenantID, key string) error {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrKey.String(key),
+		attribute.String("key", key),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -366,7 +367,7 @@ func (s *TenantIsolatedStorage) Delete(ctx context.Context, tenantID, key string
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] delete failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return pkgerrorx.Wrap(err, berrno.ErrDeleteFileFailed).WithZap(
+		return pkgerrorx.WrapWithZap(err, berrno.ErrDeleteFileFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("key", key),
 		)
@@ -398,7 +399,7 @@ func (s *TenantIsolatedStorage) DeleteMultiple(
 
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		zap.Int("key_count", len(keys)),
+		attribute.Int("key_count", len(keys)),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -427,10 +428,7 @@ func (s *TenantIsolatedStorage) DeleteMultiple(
 	}
 
 	if len(errors) > 0 {
-		return pkgerrorx.New(berrno.ErrDeleteFilePartialFailed).WithZap(
-			zap.String("tenant_id", tenantID),
-			zap.Int("failed_count", len(errors)),
-		)
+		return pkgerrorx.NewByErrorCode(berrno.ErrDeleteFilePartialFailed)
 	}
 
 	// 记录统计
@@ -450,10 +448,10 @@ func (s *TenantIsolatedStorage) DeleteMultiple(
 func (s *TenantIsolatedStorage) GetFileInfo(
 	ctx context.Context,
 	tenantID, key string,
-) (*FileInfo, error) {
+) (*TenantFileInfo, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrKey.String(key),
+		attribute.String("key", key),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -464,13 +462,13 @@ func (s *TenantIsolatedStorage) GetFileInfo(
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] get file info failed: bucket=%s, key=%s, error=%v",
 			bucketName, key, err)
 
-		return nil, pkgerrorx.Wrap(err, berrno.ErrGetFileInfoFailed).WithZap(
+		return nil, pkgerrorx.WrapWithZap(err, berrno.ErrGetFileInfoFailed,
 			zap.String("tenant_id", tenantID),
 			zap.String("key", key),
 		)
 	}
 
-	info := &FileInfo{
+	info := &TenantFileInfo{
 		Bucket:      bucketName,
 		Key:         key,
 		Size:        stat.Size,
@@ -502,12 +500,12 @@ func (s *TenantIsolatedStorage) ListFiles(
 	ctx context.Context,
 	tenantID, category, prefix string,
 	maxCount int,
-) ([]FileInfo, error) {
+) ([]TenantFileInfo, error) {
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrCategory.String(category),
-		tracing.AttrPrefix.String(prefix),
-		zap.Int("max_count", maxCount),
+		attribute.String("category", category),
+		attribute.String("prefix", prefix),
+		attribute.Int("max_count", maxCount),
 	)
 
 	bucketName := s.buildBucketName(tenantID)
@@ -528,7 +526,7 @@ func (s *TenantIsolatedStorage) ListFiles(
 		MaxKeys:   maxCount,
 	})
 
-	files := make([]FileInfo, 0, maxCount)
+	files := make([]TenantFileInfo, 0, maxCount)
 	for object := range objectCh {
 		if object.Err != nil {
 			logs.CtxErrorf(ctx, "[TenantIsolatedStorage] list files error: bucket=%s, error=%v",
@@ -536,7 +534,7 @@ func (s *TenantIsolatedStorage) ListFiles(
 			continue
 		}
 
-		files = append(files, FileInfo{
+		files = append(files, TenantFileInfo{
 			Bucket:      bucketName,
 			Key:         object.Key,
 			Size:        object.Size,
@@ -571,7 +569,7 @@ func (s *TenantIsolatedStorage) ClearTenantBucket(
 	if err != nil {
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] check bucket exists failed: bucket=%s, error=%v",
 			bucketName, err)
-		return 0, 0, pkgerrorx.Wrap(err, berrno.ErrCheckBucketFailed).WithZap(
+		return 0, 0, pkgerrorx.WrapWithZap(err, berrno.ErrCheckBucketFailed,
 			zap.String("tenant_id", tenantID),
 		)
 	}
@@ -627,7 +625,7 @@ func (s *TenantIsolatedStorage) ClearTenantBucket(
 	if err := s.client.RemoveBucket(ctx, bucketName); err != nil {
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] remove bucket failed: bucket=%s, error=%v",
 			bucketName, err)
-		return 0, 0, pkgerrorx.Wrap(err, berrno.ErrDeleteBucketFailed).WithZap(
+		return 0, 0, pkgerrorx.WrapWithZap(err, berrno.ErrDeleteBucketFailed,
 			zap.String("tenant_id", tenantID),
 		)
 	}
@@ -655,7 +653,7 @@ func (s *TenantIsolatedStorage) ensureBucket(ctx context.Context, bucketName str
 	if err != nil {
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] check bucket exists failed: bucket=%s, error=%v",
 			bucketName, err)
-		return pkgerrorx.Wrap(err, berrno.ErrCheckBucketFailed).WithZap(
+		return pkgerrorx.WrapWithZap(err, berrno.ErrCheckBucketFailed,
 			zap.String("bucket", bucketName),
 		)
 	}
@@ -668,7 +666,7 @@ func (s *TenantIsolatedStorage) ensureBucket(ctx context.Context, bucketName str
 	if err := s.client.MakeBucket(ctx, bucketName, minio.MakeBucketOptions{}); err != nil {
 		logs.CtxErrorf(ctx, "[TenantIsolatedStorage] create bucket failed: bucket=%s, error=%v",
 			bucketName, err)
-		return pkgerrorx.Wrap(err, berrno.ErrCreateBucketFailed).WithZap(
+		return pkgerrorx.WrapWithZap(err, berrno.ErrCreateBucketFailed,
 			zap.String("bucket", bucketName),
 		)
 	}

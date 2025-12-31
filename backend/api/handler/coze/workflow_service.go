@@ -32,6 +32,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/sse"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/workflow"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	appworkflow "github.com/coze-dev/coze-studio/backend/application/workflow"
 	"github.com/coze-dev/coze-studio/backend/domain/workflow/entity/vo"
 	"github.com/coze-dev/coze-studio/backend/pkg/lang/ptr"
@@ -46,17 +47,17 @@ func CreateWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CreateWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.CreateWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetCanvasInfo .
@@ -66,17 +67,17 @@ func GetCanvasInfo(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetCanvasInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetCanvasInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SaveWorkflow .
@@ -86,17 +87,17 @@ func SaveWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.SaveWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.SaveWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateWorkflowMeta .
@@ -106,17 +107,17 @@ func UpdateWorkflowMeta(ctx context.Context, c *app.RequestContext) {
 	var req workflow.UpdateWorkflowMetaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.UpdateWorkflowMeta(ctx, &req)
 
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteWorkflow .
@@ -126,17 +127,17 @@ func DeleteWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.DeleteWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.DeleteWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // BatchDeleteWorkflow .
@@ -146,17 +147,17 @@ func BatchDeleteWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.BatchDeleteWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.BatchDeleteWorkflow(ctx, &req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetDeleteStrategy .
@@ -166,13 +167,13 @@ func GetDeleteStrategy(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetDeleteStrategyRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.GetDeleteStrategyResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // PublishWorkflow .
@@ -182,16 +183,16 @@ func PublishWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.PublishWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.PublishWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CopyWorkflow .
@@ -201,16 +202,16 @@ func CopyWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CopyWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.CopyWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CopyWkTemplateApi .
@@ -220,15 +221,15 @@ func CopyWkTemplateApi(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CopyWkTemplateApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.CopyWkTemplateApi(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetReleasedWorkflows .
@@ -238,13 +239,13 @@ func GetReleasedWorkflows(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetReleasedWorkflowsRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.GetReleasedWorkflowsResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetWorkflowReferences
@@ -254,16 +255,16 @@ func GetWorkflowReferences(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkflowReferencesRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.GetWorkflowReferences(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetWorkFlowList .
@@ -273,16 +274,16 @@ func GetWorkFlowList(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkFlowListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.ListWorkflow(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // QueryWorkflowNodeTypes .
@@ -292,7 +293,7 @@ func QueryWorkflowNodeTypes(ctx context.Context, c *app.RequestContext) {
 	var req workflow.QueryWorkflowNodeTypeRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.QueryWorkflowNodeTypes(ctx, &req)
@@ -301,7 +302,7 @@ func QueryWorkflowNodeTypes(ctx context.Context, c *app.RequestContext) {
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // NodeTemplateList .
@@ -311,17 +312,17 @@ func NodeTemplateList(ctx context.Context, c *app.RequestContext) {
 	var req workflow.NodeTemplateListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetNodeTemplateList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // NodePanelSearch .
@@ -331,13 +332,13 @@ func NodePanelSearch(ctx context.Context, c *app.RequestContext) {
 	var req workflow.NodePanelSearchRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.NodePanelSearchResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetLLMNodeFCSettingsMerged .
@@ -347,17 +348,17 @@ func GetLLMNodeFCSettingsMerged(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetLLMNodeFCSettingsMergedRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetLLMNodeFCSettingsMerged(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetLLMNodeFCSettingDetail .
@@ -367,17 +368,17 @@ func GetLLMNodeFCSettingDetail(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetLLMNodeFCSettingDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetLLMNodeFCSettingDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // WorkFlowTestRun .
@@ -387,17 +388,17 @@ func WorkFlowTestRun(ctx context.Context, c *app.RequestContext) {
 	var req workflow.WorkFlowTestRunRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.TestRun(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // WorkFlowTestResume .
@@ -407,17 +408,17 @@ func WorkFlowTestResume(ctx context.Context, c *app.RequestContext) {
 	var req workflow.WorkflowTestResumeRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.TestResume(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CancelWorkFlow .
@@ -427,17 +428,17 @@ func CancelWorkFlow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CancelWorkFlowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.Cancel(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetWorkFlowProcess .
@@ -447,17 +448,17 @@ func GetWorkFlowProcess(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkflowProcessRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetProcess(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetNodeExecuteHistory .
@@ -467,17 +468,17 @@ func GetNodeExecuteHistory(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetNodeExecuteHistoryRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetNodeExecuteHistory(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetApiDetail .
@@ -487,13 +488,13 @@ func GetApiDetail(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetApiDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	toolDetailInfo, err := appworkflow.SVC.GetApiDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -503,7 +504,7 @@ func GetApiDetail(ctx context.Context, c *app.RequestContext) {
 		"msg":  "",
 	}
 
-	c.JSON(consts.StatusOK, response)
+	httputil.BuildSuccessResp(c, response)
 }
 
 // WorkflowNodeDebugV2 .
@@ -513,17 +514,17 @@ func WorkflowNodeDebugV2(ctx context.Context, c *app.RequestContext) {
 	var req workflow.WorkflowNodeDebugV2Request
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.NodeDebug(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // SignImageURL .
@@ -533,17 +534,17 @@ func SignImageURL(ctx context.Context, c *app.RequestContext) {
 	var req workflow.SignImageURLRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.SignImageURL(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateProjectConversationDef .
@@ -553,17 +554,17 @@ func CreateProjectConversationDef(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CreateProjectConversationDefRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.CreateApplicationConversationDef(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // UpdateProjectConversationDef .
@@ -573,16 +574,16 @@ func UpdateProjectConversationDef(ctx context.Context, c *app.RequestContext) {
 	var req workflow.UpdateProjectConversationDefRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.UpdateApplicationConversationDef(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteProjectConversationDef .
@@ -592,17 +593,17 @@ func DeleteProjectConversationDef(ctx context.Context, c *app.RequestContext) {
 	var req workflow.DeleteProjectConversationDefRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.DeleteApplicationConversationDef(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListProjectConversationDef .
@@ -612,17 +613,17 @@ func ListProjectConversationDef(ctx context.Context, c *app.RequestContext) {
 	var req workflow.ListProjectConversationRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.ListApplicationConversationDef(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListRootSpans .
@@ -632,13 +633,13 @@ func ListRootSpans(ctx context.Context, c *app.RequestContext) {
 	var req workflow.ListRootSpansRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.ListRootSpansResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetTraceSDK .
@@ -648,13 +649,13 @@ func GetTraceSDK(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetTraceSDKRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.GetTraceSDKResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetWorkflowDetail .
@@ -664,13 +665,13 @@ func GetWorkflowDetail(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkflowDetailRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	workflowDetailDataList, err := appworkflow.SVC.GetWorkflowDetail(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -680,7 +681,7 @@ func GetWorkflowDetail(ctx context.Context, c *app.RequestContext) {
 		"message": "",
 	}
 
-	c.JSON(consts.StatusOK, response)
+	httputil.BuildSuccessResp(c, response)
 }
 
 // GetWorkflowDetailInfo .
@@ -690,13 +691,13 @@ func GetWorkflowDetailInfo(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkflowDetailInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	workflowDetailInfoDataList, err := appworkflow.SVC.GetWorkflowDetailInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -706,7 +707,7 @@ func GetWorkflowDetailInfo(ctx context.Context, c *app.RequestContext) {
 		"message": "",
 	}
 
-	c.JSON(consts.StatusOK, response)
+	httputil.BuildSuccessResp(c, response)
 }
 
 // ValidateTree .
@@ -716,17 +717,17 @@ func ValidateTree(ctx context.Context, c *app.RequestContext) {
 	var req workflow.ValidateTreeRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.ValidateTree(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetChatFlowRole .
@@ -736,17 +737,17 @@ func GetChatFlowRole(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetChatFlowRoleRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetChatFlowRole(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // CreateChatFlowRole .
@@ -756,16 +757,16 @@ func CreateChatFlowRole(ctx context.Context, c *app.RequestContext) {
 	var req workflow.CreateChatFlowRoleRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 	resp, err := appworkflow.SVC.CreateChatFlowRole(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // DeleteChatFlowRole .
@@ -775,17 +776,17 @@ func DeleteChatFlowRole(ctx context.Context, c *app.RequestContext) {
 	var req workflow.DeleteChatFlowRoleRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.DeleteChatFlowRole(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ListPublishWorkflow .
@@ -795,13 +796,13 @@ func ListPublishWorkflow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.ListPublishWorkflowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(workflow.ListPublishWorkflowResponse)
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetWorkflowUploadAuthToken .
@@ -811,17 +812,17 @@ func GetWorkflowUploadAuthToken(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetUploadAuthTokenRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetWorkflowUploadAuthToken(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func preprocessWorkflowRequestBody(_ context.Context, c *app.RequestContext) error {
@@ -865,14 +866,14 @@ func OpenAPIRunFlow(ctx context.Context, c *app.RequestContext) {
 	var err error
 
 	if err = preprocessWorkflowRequestBody(ctx, c); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	var req workflow.OpenAPIRunFlowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -887,15 +888,15 @@ func OpenAPIRunFlow(ctx context.Context, c *app.RequestContext) {
 			if debugURL != "" {
 				resp.DebugUrl = ptr.Of(debugURL)
 			}
-			c.JSON(consts.StatusOK, resp)
+			httputil.BuildSuccessResp(c, resp)
 			return
 		}
 
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 type streamRunData struct {
@@ -1002,14 +1003,14 @@ func OpenAPIStreamRunFlow(ctx context.Context, c *app.RequestContext) {
 	var err error
 
 	if err = preprocessWorkflowRequestBody(ctx, c); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	var req workflow.OpenAPIRunFlowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -1022,7 +1023,7 @@ func OpenAPIStreamRunFlow(ctx context.Context, c *app.RequestContext) {
 
 	sr, err := appworkflow.SVC.OpenAPIStreamRun(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -1036,7 +1037,7 @@ func OpenAPIStreamResumeFlow(ctx context.Context, c *app.RequestContext) {
 	var req workflow.OpenAPIStreamResumeFlowRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -1049,7 +1050,7 @@ func OpenAPIStreamResumeFlow(ctx context.Context, c *app.RequestContext) {
 
 	sr, err := appworkflow.SVC.OpenAPIStreamResume(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -1063,7 +1064,7 @@ func OpenAPIGetWorkflowRunHistory(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetWorkflowRunHistoryRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -1074,15 +1075,15 @@ func OpenAPIGetWorkflowRunHistory(ctx context.Context, c *app.RequestContext) {
 			resp = new(workflow.GetWorkflowRunHistoryResponse)
 			resp.Code = ptr.Of(int64(se.OpenAPICode()))
 			resp.Msg = ptr.Of(se.Msg())
-			c.JSON(consts.StatusOK, resp)
+			httputil.BuildSuccessResp(c, resp)
 			return
 		}
 
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // OpenAPIChatFlowRun .
@@ -1090,14 +1091,14 @@ func OpenAPIGetWorkflowRunHistory(ctx context.Context, c *app.RequestContext) {
 func OpenAPIChatFlowRun(ctx context.Context, c *app.RequestContext) {
 	var err error
 	if err = preprocessWorkflowRequestBody(ctx, c); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	var req workflow.ChatFlowRunRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -1109,7 +1110,7 @@ func OpenAPIChatFlowRun(ctx context.Context, c *app.RequestContext) {
 
 	sr, err := appworkflow.SVC.OpenAPIChatFlowRun(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 	sendChatFlowStreamRunSSE(ctx, w, sr)
@@ -1165,7 +1166,7 @@ func OpenAPIGetWorkflowInfo(ctx context.Context, c *app.RequestContext) {
 	var err error
 
 	if err = processOpenAPIGetWorkflowInfoRequest(ctx, c); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
@@ -1173,17 +1174,17 @@ func OpenAPIGetWorkflowInfo(ctx context.Context, c *app.RequestContext) {
 
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.OpenAPIGetWorkflowInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 func processOpenAPIGetWorkflowInfoRequest(_ context.Context, c *app.RequestContext) error {
@@ -1209,17 +1210,17 @@ func GetHistorySchema(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetHistorySchemaRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetHistorySchema(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetExampleWorkFlowList .
@@ -1229,17 +1230,17 @@ func GetExampleWorkFlowList(ctx context.Context, c *app.RequestContext) {
 	var req workflow.GetExampleWorkFlowListRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := appworkflow.SVC.GetExampleWorkFlowList(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // OpenAPICreateConversation .
@@ -1254,9 +1255,9 @@ func OpenAPICreateConversation(ctx context.Context, c *app.RequestContext) {
 	}
 	resp, err := appworkflow.SVC.OpenAPICreateConversation(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

@@ -98,7 +98,7 @@ func (h *APIKeyManagementHandler) ListAPIKeys(ctx context.Context, c *app.Reques
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (h *APIKeyManagementHandler) CreateAPIKey(ctx context.Context, c *app.Reque
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -201,7 +201,7 @@ func (h *APIKeyManagementHandler) GetAPIKey(ctx context.Context, c *app.RequestC
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -214,7 +214,7 @@ func (h *APIKeyManagementHandler) GetAPIKey(ctx context.Context, c *app.RequestC
 
 	// 验证租户隔离
 	if apiKey == nil || apiKey.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Code, berrno.ErrAPIKeyNotFound.Message, berrno.ErrAPIKeyNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Int32Code(), berrno.ErrAPIKeyNotFound.Message(), berrno.ErrAPIKeyNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -233,7 +233,7 @@ func (h *APIKeyManagementHandler) UpdateAPIKey(ctx context.Context, c *app.Reque
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -245,7 +245,7 @@ func (h *APIKeyManagementHandler) UpdateAPIKey(ctx context.Context, c *app.Reque
 	}
 
 	if apiKey == nil || apiKey.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Code, berrno.ErrAPIKeyNotFound.Message, berrno.ErrAPIKeyNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Int32Code(), berrno.ErrAPIKeyNotFound.Message(), berrno.ErrAPIKeyNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -278,7 +278,7 @@ func (h *APIKeyManagementHandler) RevokeAPIKey(ctx context.Context, c *app.Reque
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -290,7 +290,7 @@ func (h *APIKeyManagementHandler) RevokeAPIKey(ctx context.Context, c *app.Reque
 	}
 
 	if apiKey == nil || apiKey.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Code, berrno.ErrAPIKeyNotFound.Message, berrno.ErrAPIKeyNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Int32Code(), berrno.ErrAPIKeyNotFound.Message(), berrno.ErrAPIKeyNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -319,7 +319,7 @@ func (h *APIKeyManagementHandler) DeleteAPIKey(ctx context.Context, c *app.Reque
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -331,7 +331,7 @@ func (h *APIKeyManagementHandler) DeleteAPIKey(ctx context.Context, c *app.Reque
 	}
 
 	if apiKey == nil || apiKey.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Code, berrno.ErrAPIKeyNotFound.Message, berrno.ErrAPIKeyNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Int32Code(), berrno.ErrAPIKeyNotFound.Message(), berrno.ErrAPIKeyNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -359,7 +359,7 @@ func (h *APIKeyManagementHandler) RegenerateAPIKey(ctx context.Context, c *app.R
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -371,7 +371,7 @@ func (h *APIKeyManagementHandler) RegenerateAPIKey(ctx context.Context, c *app.R
 	}
 
 	if apiKey == nil || apiKey.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Code, berrno.ErrAPIKeyNotFound.Message, berrno.ErrAPIKeyNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrAPIKeyNotFound.Int32Code(), berrno.ErrAPIKeyNotFound.Message(), berrno.ErrAPIKeyNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -408,7 +408,7 @@ func (h *APIKeyManagementHandler) GetProjectAPIKeys(ctx context.Context, c *app.
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -436,7 +436,7 @@ func (h *APIKeyManagementHandler) GetExpiringKeys(ctx context.Context, c *app.Re
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 

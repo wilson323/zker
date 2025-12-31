@@ -1,3 +1,5 @@
+// +build ignore
+
 package main
 
 import (
@@ -27,7 +29,7 @@ type TestResult struct {
 }
 
 func main() {
-	config := parseConfig()
+	config := parseTestConfig()
 	results := runTests(config)
 
 	printResults(results)
@@ -40,7 +42,7 @@ func main() {
 	}
 }
 
-func parseConfig() TestConfig {
+func parseTestConfig() TestConfig {
 	config := TestConfig{}
 	flag.StringVar(&config.Host, "host", "localhost", "MySQL host")
 	flag.IntVar(&config.Port, "port", 3306, "MySQL port")

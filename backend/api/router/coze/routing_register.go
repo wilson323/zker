@@ -76,6 +76,60 @@ func RegisterRoutingRoutes(r *server.Hertz, handlers *coze.RoutingHandlers) {
 				_learning.POST("/optimize-strategy", handlers.RoutingLearning.OptimizeStrategy)
 				_learning.GET("/progress", handlers.RoutingLearning.GetLearningProgress)
 				_learning.POST("/export-report", handlers.RoutingLearning.ExportLearningReport)
+
+				// ==================== 路由监控路由 ====================
+				_monitoring := _routing.Group("/monitoring")
+				_monitoring.GET("/metrics", handlers.RoutingMonitoring.RoutingMetricsHandler)
+				_monitoring.GET("/performance", handlers.RoutingMonitoring.RoutingPerformanceHandler)
+				_monitoring.GET("/abtests", handlers.RoutingMonitoring.ABTestListHandler)
+				_monitoring.GET("/abtests/:experiment_id/results", handlers.RoutingMonitoring.ABTestResultsHandler)
+				_monitoring.GET("/health", handlers.RoutingMonitoring.RoutingHealthHandler)
+				_monitoring.GET("/alerts", handlers.RoutingMonitoring.RoutingAlertsHandler)
+				_monitoring.GET("/statistics", handlers.RoutingMonitoring.RoutingStatisticsHandler)
+				_monitoring.POST("/comparison", handlers.RoutingMonitoring.RoutingComparisonHandler)
+			}
+		}
+	}
+}
+
+// RegisterDigitalEmployeeRoutes 注册数字员工管理路由
+func RegisterDigitalEmployeeRoutes(r *server.Hertz) {
+	root := r.Group("/")
+	{
+		_api := root.Group("/api")
+		{
+			_v1 := _api.Group("/v1")
+			{
+				_employees := _v1.Group("/digital-employees")
+				{
+					// ==================== 员工画像管理接口 ====================
+					_employees.POST("", CreateEmployeeProfile)                         // 创建员工画像
+					_employees.PUT("/:employee_id", UpdateEmployeeProfile)            // 更新员工画像
+					_employees.GET("/:employee_id", GetEmployeeProfile)               // 获取员工画像
+					_employees.GET("", ListEmployeeProfiles)                          // 列出员工画像
+					_employees.DELETE("/:employee_id", DeleteEmployeeProfile)         // 删除员工画像
+
+					// ==================== 任务分配管理接口 ====================
+					_tasks := _employees.Group("/tasks")
+					{
+						_tasks.POST("/assign", AssignTask)                           // 分配任务给员工
+						_tasks.POST("/auto-assign", AutoAssignTask)                  // 自动分配任务
+						_tasks.PUT("/:assignment_id/complete", CompleteTask)         // 完成任务
+						_tasks.PUT("/:assignment_id/fail", FailTask)                 // 标记任务失败
+					}
+
+					// ==================== 员工任务列表 ====================
+					_employees.GET("/:employee_id/tasks", GetEmployeeTasks)         // 获取员工任务列表
+
+					// ==================== 绩效统计接口 ====================
+					_employees.GET("/:employee_id/performance", GetEmployeePerformance) // 获取员工绩效
+				}
+
+				// ==================== 团队绩效接口 ====================
+				_performance := _v1.Group("/digital-employees/performance")
+				{
+					_performance.GET("/team", GetTeamPerformance)                   // 获取团队绩效
+				}
 			}
 		}
 	}

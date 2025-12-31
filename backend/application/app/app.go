@@ -56,6 +56,7 @@ import (
 	"github.com/coze-dev/coze-studio/backend/domain/permission"
 	"github.com/coze-dev/coze-studio/backend/domain/plugin/dto"
 	searchEntity "github.com/coze-dev/coze-studio/backend/domain/search/entity"
+	"github.com/coze-dev/coze-studio/backend/domain/search/entity/vo"
 	search "github.com/coze-dev/coze-studio/backend/domain/search/service"
 	user "github.com/coze-dev/coze-studio/backend/domain/user/service"
 	"github.com/coze-dev/coze-studio/backend/infra/storage"
@@ -114,8 +115,8 @@ func (a *APPApplicationService) DraftProjectCreate(ctx context.Context, req *pro
 	err = a.projectEventBus.PublishProject(ctx, &searchEntity.ProjectDomainEvent{
 		OpType: searchEntity.Created,
 		Project: &searchEntity.ProjectDocument{
-			Status:  common.IntelligenceStatus_Using,
-			Type:    common.IntelligenceType_Project,
+			Status:  vo.IntelligenceStatus_Using,
+			Type:    vo.IntelligenceType_Project,
 			ID:      appID,
 			SpaceID: &req.SpaceID,
 			OwnerID: userID,
@@ -180,7 +181,7 @@ func (a *APPApplicationService) DraftProjectDelete(ctx context.Context, req *pro
 		OpType: searchEntity.Deleted,
 		Project: &searchEntity.ProjectDocument{
 			ID:   req.ProjectID,
-			Type: common.IntelligenceType_Project,
+			Type: vo.IntelligenceType_Project,
 		},
 	})
 	if err != nil {
@@ -245,7 +246,7 @@ func (a *APPApplicationService) DraftProjectUpdate(ctx context.Context, req *pro
 		OpType: searchEntity.Updated,
 		Project: &searchEntity.ProjectDocument{
 			ID:   req.ProjectID,
-			Type: common.IntelligenceType_Project,
+			Type: vo.IntelligenceType_Project,
 			Name: req.Name,
 		},
 	})
@@ -427,7 +428,7 @@ func (a *APPApplicationService) ReportUserBehavior(ctx context.Context, req *pla
 		Project: &searchEntity.ProjectDocument{
 			ID:             req.ResourceID,
 			SpaceID:        req.SpaceID,
-			Type:           common.IntelligenceType_Project,
+			Type:           vo.IntelligenceType_Project,
 			IsRecentlyOpen: ptr.Of(1),
 			RecentlyOpenMS: ptr.Of(time.Now().UnixMilli()),
 		},
@@ -498,7 +499,7 @@ func (a *APPApplicationService) PublishAPP(ctx context.Context, req *publishAPI.
 		OpType: searchEntity.Updated,
 		Project: &searchEntity.ProjectDocument{
 			ID:            req.ProjectID,
-			Type:          common.IntelligenceType_Project,
+			Type:          vo.IntelligenceType_Project,
 			HasPublished:  ptr.Of(1),
 			PublishTimeMS: ptr.Of(time.Now().UnixMilli()),
 		},
@@ -1110,8 +1111,8 @@ func (a *APPApplicationService) DraftProjectCopy(ctx context.Context, req *proje
 	err = a.projectEventBus.PublishProject(ctx, &searchEntity.ProjectDomainEvent{
 		OpType: searchEntity.Created,
 		Project: &searchEntity.ProjectDocument{
-			Status:  common.IntelligenceStatus_Using,
-			Type:    common.IntelligenceType_Project,
+			Status:  vo.IntelligenceStatus_Using,
+			Type:    vo.IntelligenceType_Project,
 			ID:      newAPPID,
 			SpaceID: &req.ToSpaceID,
 			OwnerID: userID,

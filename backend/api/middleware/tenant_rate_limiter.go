@@ -26,11 +26,9 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 	pkgerrorx "github.com/coze-dev/coze-studio/backend/pkg/errorx"
-	"github.com/coze-dev/coze-studio/backend/types/errno"
 	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
 	"github.com/coze-dev/coze-studio/backend/infra/cache"
 	"github.com/coze-dev/coze-studio/backend/infra/tracing"
-	"go.uber.org/zap"
 	"golang.org/x/time/rate"
 )
 
@@ -153,7 +151,7 @@ func (l *TenantRateLimiter) Middleware() app.HandlerFunc {
 			ctx.Set("Retry-After", strconv.FormatInt(int64(RateLimitTTL.Seconds()), 10))
 
 			ctx.JSON(429, map[string]interface{}{
-				"code":    berrno.ErrRateLimitExceeded,
+				"code":    berrno.ErrRateLimitExceededCode,
 				"message": "Rate limit exceeded",
 				"error": map[string]interface{}{
 					"tenant_id":      tenantID,
@@ -161,7 +159,7 @@ func (l *TenantRateLimiter) Middleware() app.HandlerFunc {
 					"retry_after":    RateLimitTTL.Seconds(),
 				},
 			})
-			c.Abort()
+			ctx.Abort()
 			return
 		}
 
@@ -170,14 +168,14 @@ func (l *TenantRateLimiter) Middleware() app.HandlerFunc {
 			if err := l.checkConcurrencyLimit(c, tenantID, config); err != nil {
 				l.logConcurrencyLimitExceeded(c, tenantID, config)
 				ctx.JSON(429, map[string]interface{}{
-					"code":    berrno.ErrConcurrencyLimitExceeded,
+					"code":    berrno.ErrConcurrencyLimitExceededCode,
 					"message": "Concurrency limit exceeded",
 					"error": map[string]interface{}{
 						"tenant_id":        tenantID,
 						"max_concurrency":  config.MaxConcurrency,
 					},
 				})
-				c.Abort()
+				ctx.Abort()
 				return
 			}
 		}
@@ -194,8 +192,6 @@ func (l *TenantRateLimiter) checkRateLimit(ctx context.Context, tenantID string,
 	// 记录追踪
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		zap.Float64("rate_limit", config.Rate),
-		zap.Int("burst", config.Burst),
 	)
 
 	// 如果配置了Redis，使用分布式限流
@@ -210,12 +206,12 @@ func (l *TenantRateLimiter) checkRateLimit(ctx context.Context, tenantID string,
 // checkLocalRateLimit 本地速率限制检查
 func (l *TenantRateLimiter) checkLocalRateLimit(ctx context.Context, tenantID string, config *RateLimitConfig) error {
 	// 获取或创建限流器
-	limiterState, _ := l.limiters.LoadOrStore(tenantID, &limiterState{
+	limiterValue, _ := l.limiters.LoadOrStore(tenantID, &limiterState{
 		limiter:  rate.NewLimiter(rate.Limit(config.Rate), config.Burst),
 		lastSeen: time.Now(),
 	})
 
-	state := limiterState.(*limiterState)
+	state := limiterValue.(*limiterState)
 	state.mu.Lock()
 	state.lastSeen = time.Now()
 	state.mu.Unlock()
@@ -224,9 +220,9 @@ func (l *TenantRateLimiter) checkLocalRateLimit(ctx context.Context, tenantID st
 	if !state.limiter.Allow() {
 		logs.CtxWarnf(ctx, "[TenantRateLimiter] rate limit exceeded: tenant_id=%s, rate=%.2f",
 			tenantID, config.Rate)
-		return pkgerrorx.New(berrno.ErrRateLimitExceeded).WithZap(
-			zap.String("tenant_id", tenantID),
-			zap.Float64("rate_limit", config.Rate),
+		return pkgerrorx.New(berrno.ErrRateLimitExceededCode,
+			pkgerrorx.KV("tenant_id", tenantID),
+			pkgerrorx.KV("rate_limit", fmt.Sprintf("%.2f", config.Rate)),
 		)
 	}
 
@@ -257,10 +253,10 @@ func (l *TenantRateLimiter) checkDistributedRateLimit(ctx context.Context, tenan
 	if current > int64(config.Burst) {
 		logs.CtxWarnf(ctx, "[TenantRateLimiter] distributed rate limit exceeded: tenant_id=%s, current=%d, burst=%d",
 			tenantID, current, config.Burst)
-		return pkgerrorx.New(berrno.ErrRateLimitExceeded).WithZap(
-			zap.String("tenant_id", tenantID),
-			zap.Int64("current", current),
-			zap.Int("burst", int64(config.Burst)),
+		return pkgerrorx.New(berrno.ErrRateLimitExceededCode,
+			pkgerrorx.KV("tenant_id", tenantID),
+			pkgerrorx.KV("current", fmt.Sprintf("%d", current)),
+			pkgerrorx.KV("burst", fmt.Sprintf("%d", config.Burst)),
 		)
 	}
 
@@ -290,10 +286,10 @@ func (l *TenantRateLimiter) checkConcurrencyLimit(ctx context.Context, tenantID 
 		l.redis.IncrBy(ctx, key, -1)
 		logs.CtxWarnf(ctx, "[TenantRateLimiter] concurrency limit exceeded: tenant_id=%s, current=%d, max=%d",
 			tenantID, current, config.MaxConcurrency)
-		return pkgerrorx.New(berrno.ErrConcurrencyLimitExceeded).WithZap(
-			zap.String("tenant_id", tenantID),
-			zap.Int64("current", current),
-			zap.Int("max_concurrency", int64(config.MaxConcurrency)),
+		return pkgerrorx.New(berrno.ErrConcurrencyLimitExceededCode,
+			pkgerrorx.KV("tenant_id", tenantID),
+			pkgerrorx.KV("current", fmt.Sprintf("%d", current)),
+			pkgerrorx.KV("max_concurrency", fmt.Sprintf("%d", config.MaxConcurrency)),
 		)
 	}
 
@@ -356,8 +352,6 @@ func (l *TenantRateLimiter) logRateLimitExceeded(ctx context.Context, tenantID s
 
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		zap.String("event", "rate_limit_exceeded"),
-		zap.Float64("rate_limit", config.Rate),
 	)
 }
 
@@ -368,8 +362,6 @@ func (l *TenantRateLimiter) logConcurrencyLimitExceeded(ctx context.Context, ten
 
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		zap.String("event", "concurrency_limit_exceeded"),
-		zap.Int("max_concurrency", config.MaxConcurrency),
 	)
 }
 
@@ -440,13 +432,11 @@ func GetTenantRateLimit(ctx context.Context, redis cache.Cmdable, tenantID strin
 	// 获取当前计数
 	current, err := redis.Get(ctx, key).Int64()
 	if err != nil && err != cache.Nil {
-		return 0, 0, 0, pkgerrorx.Wrap(err, errno.ErrGetRateLimitFailed).WithZap(
-			zap.String("tenant_id", tenantID),
-		)
+		return 0, 0, 0, pkgerrorx.Wrapf(err, "failed to get rate limit: tenant_id=%s", tenantID)
 	}
 
 	// 默认配置
-	rateLimit := DefaultRateLimit
+	rateLimit := float64(DefaultRateLimit)
 	burst := DefaultBurst
 
 	remaining := int64(burst) - current

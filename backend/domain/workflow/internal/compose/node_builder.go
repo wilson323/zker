@@ -50,7 +50,7 @@ func New(ctx context.Context, s *schema.NodeSchema,
 		}
 
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrCreateNodeFail, err, errorx.KV("node_name", s.Name), errorx.KV("cause", err.Error()))
+			err = vo.WrapIfNeeded(errno.ErrNodeCreateFailedCode, err, errorx.KV("node_name", s.Name), errorx.KV("cause", err.Error()))
 		}
 	}()
 

@@ -66,7 +66,7 @@ func (i *impl) SyncExecute(ctx context.Context, config workflowModel.ExecuteConf
 		return nil, "", err
 	}
 
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	isApplicationWorkflow := wfEntity.AppID != nil
 	if isApplicationWorkflow && config.Mode == workflowModel.ExecuteModeRelease {
@@ -142,7 +142,7 @@ func (i *impl) SyncExecute(ctx context.Context, config workflowModel.ExecuteConf
 			if errors.As(err, &wfe) {
 				return nil, "", wfe.AppendDebug(executeID, wfEntity.SpaceID, wfEntity.ID)
 			} else {
-				return nil, "", vo.WrapWithDebug(errno.ErrWorkflowExecuteFail, err, executeID, wfEntity.SpaceID, wfEntity.ID, errorx.KV("cause", err.Error()))
+				return nil, "", vo.WrapWithDebug(errno.DeprecatedErrWorkflowExecuteFail, err, executeID, wfEntity.SpaceID, wfEntity.ID, errorx.KV("cause", err.Error()))
 			}
 		}
 	}
@@ -222,7 +222,7 @@ func (i *impl) AsyncExecute(ctx context.Context, config workflowModel.ExecuteCon
 		return 0, err
 	}
 
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	isApplicationWorkflow := wfEntity.AppID != nil
 	if isApplicationWorkflow && config.Mode == workflowModel.ExecuteModeRelease {
@@ -363,7 +363,7 @@ func (i *impl) AsyncExecuteNode(ctx context.Context, nodeID string, config workf
 		return 0, err
 	}
 
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	isApplicationWorkflow := wfEntity.AppID != nil
 	if isApplicationWorkflow && config.Mode == workflowModel.ExecuteModeRelease {
@@ -466,7 +466,7 @@ func (i *impl) StreamExecute(ctx context.Context, config workflowModel.ExecuteCo
 		return nil, err
 	}
 
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	isApplicationWorkflow := wfEntity.AppID != nil
 	if isApplicationWorkflow && config.Mode == workflowModel.ExecuteModeRelease {
@@ -832,7 +832,7 @@ func (i *impl) AsyncResume(ctx context.Context, req *entity.ResumeRequest, confi
 	config.AppID = wfExe.AppID
 	config.AgentID = wfExe.AgentID
 	config.CommitID = wfExe.CommitID
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	if config.ConnectorID == 0 {
 		config.ConnectorID = wfExe.ConnectorID
@@ -974,7 +974,7 @@ func (i *impl) StreamResume(ctx context.Context, req *entity.ResumeRequest, conf
 	config.AppID = wfExe.AppID
 	config.AgentID = wfExe.AgentID
 	config.CommitID = wfExe.CommitID
-	config.WorkflowMode = wfEntity.Mode
+	config.WorkflowMode = workflowModel.WorkflowMode(wfEntity.Mode)
 
 	if config.ConnectorID == 0 {
 		config.ConnectorID = wfExe.ConnectorID
@@ -1048,7 +1048,7 @@ func (i *impl) checkApplicationWorkflowReleaseVersion(ctx context.Context, appID
 		return err
 	}
 	if !ok {
-		return vo.WrapError(errno.ErrWorkflowSpecifiedVersionNotFound, fmt.Errorf("applcaition id %v, workflow id %v,connector id %v not have version %v", appID, workflowID, connectorID, version))
+		return vo.WrapError(errno.DeprecatedErrWorkflowSnapshotNotFound, fmt.Errorf("applcaition id %v, workflow id %v,connector id %v not have version %v", appID, workflowID, connectorID, version))
 	}
 
 	return nil

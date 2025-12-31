@@ -77,15 +77,15 @@ func (c *ClearConversationHistory) Invoke(ctx context.Context, in map[string]any
 	)
 
 	if agentID != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, query conversation list is not available"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("in the agent scenario, query conversation list is not available"))
 	}
 	if appID == nil {
-		return nil, vo.WrapError(errno.ErrConversationNodesNotAvailable, fmt.Errorf("query conversation list node, app id is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodesNotAvailable, fmt.Errorf("query conversation list node, app id is required"))
 	}
 
 	conversationName, ok := in["conversationName"].(string)
 	if !ok {
-		return nil, vo.WrapError(errno.ErrInvalidParameter, errors.New("conversation name is required"))
+		return nil, vo.WrapError(errno.DeprecatedErrInvalidParameter, errors.New("conversation name is required"))
 	}
 
 	t, existed, err := wf.GetRepository().GetConversationTemplate(ctx, env, vo.GetConversationTemplatePolicy{
@@ -95,14 +95,14 @@ func (c *ClearConversationHistory) Invoke(ctx context.Context, in map[string]any
 	})
 
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 	var conversationID int64
 	if existed {
 		var sc *entity.StaticConversation
 		sc, existed, err = wf.GetRepository().GetStaticConversationByTemplateID(ctx, env, userID, connectorID, t.TemplateID)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		if existed {
 			conversationID = sc.ConversationID
@@ -111,7 +111,7 @@ func (c *ClearConversationHistory) Invoke(ctx context.Context, in map[string]any
 		var dc *entity.DynamicConversation
 		dc, existed, err = wf.GetRepository().GetDynamicConversationByName(ctx, env, *appID, connectorID, userID, conversationName)
 		if err != nil {
-			return nil, vo.WrapError(errno.ErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+			return nil, vo.WrapError(errno.DeprecatedErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 		}
 		if existed {
 			conversationID = dc.ConversationID
@@ -128,10 +128,10 @@ func (c *ClearConversationHistory) Invoke(ctx context.Context, in map[string]any
 		ConversationID: conversationID,
 	})
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodeOperationFail, err, errorx.KV("cause", vo.UnwrapRootErr(err).Error()))
 	}
 	if resp == nil {
-		return nil, vo.WrapError(errno.ErrConversationNodeOperationFail, fmt.Errorf("clear conversation history failed, response is nil"))
+		return nil, vo.WrapError(errno.DeprecatedErrConversationNodeOperationFail, fmt.Errorf("clear conversation history failed, response is nil"))
 	}
 	if execCtx.ExeCfg.SectionID != nil {
 		atomic.StoreInt64(execCtx.ExeCfg.SectionID, resp.SectionID)

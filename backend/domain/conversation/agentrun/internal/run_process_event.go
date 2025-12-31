@@ -76,7 +76,7 @@ func (r *RunProcess) StepToComplete(ctx context.Context, srRecord *entity.ChunkR
 	if err != nil {
 		logs.CtxErrorf(ctx, "RunRecordRepo.UpdateByID error: %v", err)
 		r.event.SendErrEvent(entity.RunEventError, sw, &entity.RunError{
-			Code: errno.ErrConversationAgentRunError,
+			Code: errno.DeprecatedErrConversationAgentRunError,
 			Msg:  err.Error(),
 		})
 		return
@@ -103,7 +103,7 @@ func (r *RunProcess) StepToFailed(ctx context.Context, srRecord *entity.ChunkRun
 
 	if err != nil {
 		r.event.SendErrEvent(entity.RunEventError, sw, &entity.RunError{
-			Code: errno.ErrConversationAgentRunError,
+			Code: errno.DeprecatedErrConversationAgentRunError,
 			Msg:  err.Error(),
 		})
 		logs.CtxErrorf(ctx, "update run record failed, err: %v", err)

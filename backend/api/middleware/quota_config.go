@@ -13,8 +13,8 @@ const (
 	pathCacheTTL      = 10 * time.Minute
 )
 
-// QuotaCheckConfig 配额检查配置
-type QuotaCheckConfig struct {
+// QuotaMiddlewareConfig 配额中间件配置（性能和缓存相关）
+type QuotaMiddlewareConfig struct {
 	// 是否启用缓存
 	EnableCache bool
 	// 缓存TTL
@@ -28,7 +28,7 @@ type QuotaCheckConfig struct {
 }
 
 // DefaultConfig 默认配置
-var DefaultConfig = QuotaCheckConfig{
+var DefaultConfig = QuotaMiddlewareConfig{
 	EnableCache:         true,
 	CacheTTL:            60 * time.Second,
 	MaxCacheSize:        10000,
@@ -38,7 +38,7 @@ var DefaultConfig = QuotaCheckConfig{
 
 // DevelopmentConfig 开发环境配置
 // 开发环境关闭缓存，便于调试
-var DevelopmentConfig = QuotaCheckConfig{
+var DevelopmentConfig = QuotaMiddlewareConfig{
 	EnableCache:         false,
 	CacheTTL:            0,
 	MaxCacheSize:        0,
@@ -48,7 +48,7 @@ var DevelopmentConfig = QuotaCheckConfig{
 
 // ProductionConfig 生产环境配置
 // 生产环境启用所有优化
-var ProductionConfig = QuotaCheckConfig{
+var ProductionConfig = QuotaMiddlewareConfig{
 	EnableCache:         true,
 	CacheTTL:            60 * time.Second,
 	MaxCacheSize:        50000,
@@ -57,7 +57,7 @@ var ProductionConfig = QuotaCheckConfig{
 }
 
 // TestingConfig 测试环境配置
-var TestingConfig = QuotaCheckConfig{
+var TestingConfig = QuotaMiddlewareConfig{
 	EnableCache:         false,
 	CacheTTL:            0,
 	MaxCacheSize:        0,
@@ -66,7 +66,7 @@ var TestingConfig = QuotaCheckConfig{
 }
 
 // GetConfig 根据环境获取配置
-func GetConfig(env string) QuotaCheckConfig {
+func GetConfig(env string) QuotaMiddlewareConfig {
 	switch env {
 	case "production", "prod":
 		return ProductionConfig
@@ -80,7 +80,7 @@ func GetConfig(env string) QuotaCheckConfig {
 }
 
 // Validate 验证配置有效性
-func (c *QuotaCheckConfig) Validate() error {
+func (c *QuotaMiddlewareConfig) Validate() error {
 	if c.EnableCache {
 		if c.CacheTTL <= 0 {
 			c.CacheTTL = 60 * time.Second

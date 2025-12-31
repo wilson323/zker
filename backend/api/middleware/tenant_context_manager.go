@@ -20,7 +20,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 	"sync"
@@ -349,8 +348,8 @@ func TenantIdentificationMiddleware(config TenantIdentificationConfig) app.Handl
 		case "header":
 			// Header 模式：X-Tenant-ID
 			headers := make(map[string]string)
-			headers["X-Tenant-ID"] = c.GetHeader("X-Tenant-ID")
-			headers["X-Tenant-Id"] = c.GetHeader("X-Tenant-Id")
+			headers["X-Tenant-ID"] = string(c.GetHeader("X-Tenant-ID"))
+			headers["X-Tenant-Id"] = string(c.GetHeader("X-Tenant-Id"))
 			tenant, err = config.TenantManager.IdentifyFromHeader(ctx, headers)
 
 		case "auto":
@@ -366,8 +365,8 @@ func TenantIdentificationMiddleware(config TenantIdentificationConfig) app.Handl
 			if (err != nil || tenant == nil) && config.FallbackToHeader {
 				// 3. 回退到 Header
 				headers := make(map[string]string)
-				headers["X-Tenant-ID"] = c.GetHeader("X-Tenant-ID")
-				headers["X-Tenant-Id"] = c.GetHeader("X-Tenant-Id")
+				headers["X-Tenant-ID"] = string(c.GetHeader("X-Tenant-ID"))
+				headers["X-Tenant-Id"] = string(c.GetHeader("X-Tenant-Id"))
 				tenant, err = config.TenantManager.IdentifyFromHeader(ctx, headers)
 			}
 
@@ -406,7 +405,7 @@ func TenantIdentificationMiddleware(config TenantIdentificationConfig) app.Handl
 		ctx = config.TenantManager.SetTenantContext(ctx, tenant)
 
 		// 4. 将租户ID设置到 Header（供下游使用）
-		c.SetHeader("X-Tenant-ID", tenant.TenantID)
+		c.Response.Header.Set("X-Tenant-ID", tenant.TenantID)
 
 		// 5. 将租户上下文传递给 Hertz 的 Context
 		c.Set("tenant", tenant)

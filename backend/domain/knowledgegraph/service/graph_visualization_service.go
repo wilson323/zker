@@ -52,11 +52,6 @@ func NewGraphVisualizationService(config *GraphVisualizationServiceConfig) *Grap
 
 // GenerateGraphData 生成可视化数据
 func (s *GraphVisualizationService) GenerateGraphData(ctx context.Context, tenantID string, centerEntityID string, depth int) (*entity.VisualizationData, error) {
-	visData := &entity.VisualizationData{
-		Nodes: make([]*entity.VisNode, 0),
-		Links: make([]*entity.VisLink, 0),
-	}
-
 	if centerEntityID == "" {
 		// 生成整个租户的图谱
 		return s.generateFullGraph(ctx, tenantID, 100)

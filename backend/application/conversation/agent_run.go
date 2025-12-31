@@ -67,7 +67,7 @@ func (c *ConversationApplicationService) Run(ctx context.Context, sseSender *sse
 		}
 		if msgMeta != nil {
 			if msgMeta.UserID != conv.Int64ToStr(userID) {
-				return errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "message not match"))
+				return errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "message not match"))
 			}
 
 			err = c.AgentRunDomainSVC.Delete(ctx, []int64{msgMeta.RunID})
@@ -92,7 +92,7 @@ func (c *ConversationApplicationService) Run(ctx context.Context, sseSender *sse
 			return err
 		}
 		if cmdMeta.ObjectID > 0 && cmdMeta.ObjectID != agentInfo.AgentID {
-			return errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "agent not match"))
+			return errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "agent not match"))
 		}
 		shortcutCmd = cmdMeta
 	}
@@ -118,7 +118,7 @@ func (c *ConversationApplicationService) pullStream(ctx context.Context, sseSend
 			if errors.Is(recvErr, io.EOF) {
 				return
 			}
-			sseSender.Send(ctx, buildErrorEvent(errno.ErrConversationAgentRunError, recvErr.Error()))
+			sseSender.Send(ctx, buildErrorEvent(errno.ErrAgentRunFailed.Int32Code(), recvErr.Error()))
 			return
 		}
 
@@ -127,7 +127,7 @@ func (c *ConversationApplicationService) pullStream(ctx context.Context, sseSend
 		case entity.RunEventError:
 			id, err := c.GenID(ctx)
 			if err != nil {
-				sseSender.Send(ctx, buildErrorEvent(errno.ErrConversationAgentRunError, err.Error()))
+				sseSender.Send(ctx, buildErrorEvent(errno.ErrAgentRunFailed.Int32Code(), err.Error()))
 
 			} else {
 				sseSender.Send(ctx, buildMessageChunkEvent(run.RunEventMessage, buildErrMsg(ackMessageInfo, chunk.Error, id)))
@@ -283,7 +283,7 @@ func (c *ConversationApplicationService) checkConversation(ctx context.Context, 
 	}
 
 	if conversationData.CreatorID != userID {
-		return nil, errorx.New(errno.ErrConversationPermissionCode, errorx.KV("msg", "conversation not match"))
+		return nil, errorx.Wrap(errno.ErrConversationPermissionDenied, errorx.KV("msg", "conversation not match"))
 	}
 
 	return conversationData, nil
@@ -296,7 +296,7 @@ func (c *ConversationApplicationService) checkAgent(ctx context.Context, ar *run
 	}
 
 	if agentInfo == nil {
-		return nil, errorx.New(errno.ErrAgentNotExists)
+		return nil, errno.ErrAgentNotExists
 	}
 	return agentInfo, nil
 }

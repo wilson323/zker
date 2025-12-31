@@ -28,6 +28,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app/server"
 
 	coze "github.com/coze-dev/coze-studio/backend/api/router/coze"
+	developer "github.com/coze-dev/coze-studio/backend/api/router/developer"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 )
 
@@ -41,6 +42,8 @@ func GeneratedRegister(r *server.Hertz) {
 	tenantRegistrationRegister(r)
 	tenantManagementRegister(r)
 	tokenMeteringRegister(r)
+	developerPlatformRegister(r)
+	botStoreRegister(r)
 }
 
 // healthCheckRegister 健康检查路由注册
@@ -184,4 +187,16 @@ func tokenMeteringRegister(r *server.Hertz) {
 		_tokens.GET("/daily", coze.GetDailyUsageStats) // 获取每日使用趋势
 		_tokens.GET("/models", coze.GetModelUsageStats) // 获取模型使用统计
 	}
+}
+
+// developerPlatformRegister 开发者平台路由注册
+func developerPlatformRegister(r *server.Hertz) {
+	// 开发者平台路由组
+	developer.RegisterRoutes(r)
+}
+
+// botStoreRegister Bot商店路由注册
+func botStoreRegister(r *server.Hertz) {
+	// Bot商店路由组
+	coze.RegisterBotStoreRoutes(r)
 }

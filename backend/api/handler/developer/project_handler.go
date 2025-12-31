@@ -19,7 +19,6 @@ package developer
 import (
 	"context"
 	"net/http"
-	"strconv"
 
 	"github.com/cloudwego/hertz/pkg/app"
 
@@ -101,7 +100,7 @@ func (h *ProjectManagementHandler) ListProjects(ctx context.Context, c *app.Requ
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -169,7 +168,7 @@ func (h *ProjectManagementHandler) CreateProject(ctx context.Context, c *app.Req
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -212,7 +211,7 @@ func (h *ProjectManagementHandler) GetProject(ctx context.Context, c *app.Reques
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -225,7 +224,7 @@ func (h *ProjectManagementHandler) GetProject(ctx context.Context, c *app.Reques
 
 	// 验证租户隔离
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -244,7 +243,7 @@ func (h *ProjectManagementHandler) UpdateProject(ctx context.Context, c *app.Req
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -263,13 +262,13 @@ func (h *ProjectManagementHandler) UpdateProject(ctx context.Context, c *app.Req
 	}
 
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查项目状态（生产环境不可修改）
 	if project.IsProduction() {
-		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Code, berrno.ErrProjectInProduction.Message, berrno.ErrProjectInProduction.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Int32Code(), berrno.ErrProjectInProduction.Message(), berrno.ErrProjectInProduction.MessageZH(), nil)
 		return
 	}
 
@@ -305,7 +304,7 @@ func (h *ProjectManagementHandler) DeleteProject(ctx context.Context, c *app.Req
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -317,13 +316,13 @@ func (h *ProjectManagementHandler) DeleteProject(ctx context.Context, c *app.Req
 	}
 
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查项目状态（生产环境不可删除）
 	if project.IsProduction() {
-		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Code, berrno.ErrProjectInProduction.Message, berrno.ErrProjectInProduction.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Int32Code(), berrno.ErrProjectInProduction.Message(), berrno.ErrProjectInProduction.MessageZH(), nil)
 		return
 	}
 
@@ -351,7 +350,7 @@ func (h *ProjectManagementHandler) PublishProject(ctx context.Context, c *app.Re
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -363,7 +362,7 @@ func (h *ProjectManagementHandler) PublishProject(ctx context.Context, c *app.Re
 	}
 
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -392,7 +391,7 @@ func (h *ProjectManagementHandler) ArchiveProject(ctx context.Context, c *app.Re
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -404,13 +403,13 @@ func (h *ProjectManagementHandler) ArchiveProject(ctx context.Context, c *app.Re
 	}
 
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
 	// 检查项目状态（生产环境不可归档）
 	if project.IsProduction() {
-		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Code, berrno.ErrProjectInProduction.Message, berrno.ErrProjectInProduction.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectInProduction.Int32Code(), berrno.ErrProjectInProduction.Message(), berrno.ErrProjectInProduction.MessageZH(), nil)
 		return
 	}
 
@@ -439,7 +438,7 @@ func (h *ProjectManagementHandler) GetProjectStats(ctx context.Context, c *app.R
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -451,7 +450,7 @@ func (h *ProjectManagementHandler) GetProjectStats(ctx context.Context, c *app.R
 	}
 
 	if project == nil || project.TenantID != tenantID {
-		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Code, berrno.ErrProjectNotFound.Message, berrno.ErrProjectNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrProjectNotFound.Int32Code(), berrno.ErrProjectNotFound.Message(), berrno.ErrProjectNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -477,7 +476,7 @@ func (h *ProjectManagementHandler) GetDeveloperProjects(ctx context.Context, c *
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 
@@ -505,7 +504,7 @@ func (h *ProjectManagementHandler) GetTenantProjects(ctx context.Context, c *app
 	// 获取租户ID
 	tenantID := ctxcache.GetTenantIDFromCtx(ctx)
 	if tenantID == "" {
-		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Code, berrno.ErrTenantNotFound.Message, berrno.ErrTenantNotFound.MessageZH, nil)
+		httputil.BuildErrorResp(c, berrno.ErrTenantNotFound.Int32Code(), berrno.ErrTenantNotFound.Message(), berrno.ErrTenantNotFound.MessageZH(), nil)
 		return
 	}
 

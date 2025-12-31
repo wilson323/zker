@@ -379,6 +379,126 @@ groups:
           description: "租户 {{ $labels.tenant_id }} SLA类型 {{ $labels.sla_type }} 合规率低于90%，当前值: {{ $value }}%"
           runbook_url: "https://docs.coze-studio.com/runbooks/sla/violation"
 
+  # ==================== 租户业务告警增强 ====================
+  - name: tenant_business_enhanced
+    interval: 1m
+    rules:
+      # 租户配额接近上限
+      - alert: TenantQuotaNearLimit
+        expr: quota_usage_percent > 80
+        for: 1m
+        labels:
+          severity: warning
+          category: tenant
+          team: backend
+        annotations:
+          summary: "租户配额即将用完"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额使用率为 {{ $value }}%，建议升级订阅"
+
+      # 租户配额已超限
+      - alert: TenantQuotaExceeded
+        expr: quota_usage_percent >= 95
+        for: 1m
+        labels:
+          severity: critical
+          category: tenant
+          team: backend
+        annotations:
+          summary: "租户配额已超限"
+          description: "租户 {{ $labels.tenant_id }} 的 {{ $labels.resource_type }} 配额使用率为 {{ $value }}%，请立即处理"
+
+  # ==================== 路由性能告警 ====================
+  - name: routing_performance_alerts
+    interval: 1m
+    rules:
+      # 路由决策延迟过高
+      - alert: RoutingHighLatency
+        expr: histogram_quantile(0.95, rate(routing_decision_duration_seconds[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          category: routing
+          team: backend
+        annotations:
+          summary: "路由决策延迟过高"
+          description: "路由决策P95延迟为 {{ $value }}s，超过200ms阈值"
+
+      # Bot不健康
+      - alert: BotUnhealthy
+        expr: bot_health_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: routing
+          team: backend
+        annotations:
+          summary: "Bot不健康"
+          description: "Bot {{ $labels.bot_id }} 不健康，成功率过低或负载过高"
+
+      # 意图识别置信度过低
+      - alert: LowIntentConfidence
+        expr: avg_over_time(routing_intent_confidence[5m]) < 0.7
+        for: 5m
+        labels:
+          severity: warning
+          category: routing
+          team: backend
+        annotations:
+          summary: "意图识别置信度过低"
+          description: "平均意图置信度为 {{ $value }}，低于70%阈值"
+
+  # ==================== 数据库告警增强 ====================
+  - name: database_alerts_enhanced
+    interval: 30s
+    rules:
+      # MySQL连接数过高
+      - alert: MySQLHighConnections
+        expr: mysql_global_status_threads_connected / mysql_global_variables_max_connections * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: devops
+        annotations:
+          summary: "MySQL连接数过高"
+          description: "MySQL连接使用率为 {{ $value }}%"
+
+      # MySQL慢查询过多
+      - alert: MySQLSlowQueries
+        expr: rate(mysql_global_status_slow_queries[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: backend
+        annotations:
+          summary: "MySQL慢查询过多"
+          description: "MySQL慢查询率为 {{ $value }}/s"
+
+      # Redis内存使用率过高
+      - alert: RedisHighMemory
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: devops
+        annotations:
+          summary: "Redis内存使用率过高"
+          description: "Redis内存使用率为 {{ $value }}%"
+
+      # Redis连接数过高
+      - alert: RedisHighConnections
+        expr: redis_connected_clients / redis_config_maxclients * 100 > 80
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          team: devops
+        annotations:
+          summary: "Redis连接数过高"
+          description: "Redis连接使用率为 {{ $value }}%"
+
   # ==================== 订阅告警 ====================
   - name: subscription_alerts
     interval: 1h

@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
@@ -51,11 +50,11 @@ type DataPermissionDef struct {
 
 // FieldPermissionDef 字段权限定义
 type FieldPermissionDef struct {
-	ResourceType string                     // 资源类型
-	Fields       map[string]FieldPermissionDef // 字段名 -> 权限级别
+	ResourceType string                          // 资源类型
+	Fields       map[string]FieldPermissionLevel // 字段名 -> 权限级别
 }
 
-// FieldPermissionDef 字段权限级别定义
+// FieldPermissionLevel 字段权限级别定义
 type FieldPermissionLevel string
 
 const (
@@ -327,7 +326,6 @@ func InitializeSystemRoles(db *gorm.DB, tenantID string) error {
 			RoleName:    roleDef.RoleName,
 			Description: roleDef.Description,
 			IsSystem:    roleDef.IsSystem,
-			Permissions: roleDef.Permissions,
 		}
 
 		if err := db.Where("role_id = ?", role.RoleID).First(role).Error; err == gorm.ErrRecordNotFound {
@@ -349,11 +347,11 @@ func InitializeSystemRoles(db *gorm.DB, tenantID string) error {
 		// 2. 创建数据权限
 		for _, dpDef := range roleDef.DataPermissions {
 			dataPerm := &entity.DataPermission{
-				PermissionID:  generatePermissionID(role.RoleID, dpDef.ResourceType),
-				RoleID:        role.RoleID,
-				ResourceType:  entity.ResourceType(dpDef.ResourceType),
-				Scope:         entity.PermissionScope(dpDef.Scope),
-				CustomFilters: []string{dpDef.CustomFilter},
+				PermissionID: generatePermissionID(role.RoleID, dpDef.ResourceType),
+				RoleID:       role.RoleID,
+				ResourceType: entity.ResourceType(dpDef.ResourceType),
+				Scope:        entity.DataPermissionScope(dpDef.Scope),
+				CustomFilter: dpDef.CustomFilter,
 			}
 
 			if err := db.Where("permission_id = ?", dataPerm.PermissionID).First(dataPerm).Error; err == gorm.ErrRecordNotFound {
@@ -371,10 +369,10 @@ func InitializeSystemRoles(db *gorm.DB, tenantID string) error {
 		for _, fpDef := range roleDef.FieldPermissions {
 			for fieldName, permLevel := range fpDef.Fields {
 				fieldPerm := &entity.FieldPermission{
-					PermissionID:  generateFieldPermID(role.RoleID, fpDef.ResourceType, fieldName),
-					RoleID:        role.RoleID,
-					ResourceType:  fpDef.ResourceType,
-					FieldName:     fieldName,
+					PermissionID:    generateFieldPermID(role.RoleID, fpDef.ResourceType, fieldName),
+					RoleID:          role.RoleID,
+					ResourceType:    fpDef.ResourceType,
+					FieldName:       fieldName,
 					PermissionLevel: entity.FieldPermissionLevel(permLevel),
 				}
 

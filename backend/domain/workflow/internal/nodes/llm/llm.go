@@ -899,7 +899,7 @@ func jsonParse(ctx context.Context, data string, schema_ map[string]*vo.TypeInfo
 			rawOutputK := fmt.Sprintf(rawOutputKey, c.NodeCtx.NodeKey)
 			warningK := fmt.Sprintf(warningKey, c.NodeCtx.NodeKey)
 			ctxcache.Store(ctx, rawOutputK, data)
-			ctxcache.Store(ctx, warningK, vo.WrapWarn(errno.ErrLLMStructuredOutputParseFail, err))
+			ctxcache.Store(ctx, warningK, vo.WrapWarn(errno.DeprecatedErrLLMStructuredOutputParseFail, err))
 			return map[string]any{}, nil
 		}
 
@@ -908,7 +908,7 @@ func jsonParse(ctx context.Context, data string, schema_ map[string]*vo.TypeInfo
 
 	r, ws, err := nodes.ConvertInputs(ctx, result, schema_)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrLLMStructuredOutputParseFail, err)
+		return nil, vo.WrapError(errno.DeprecatedErrLLMStructuredOutputParseFail, err)
 	}
 
 	if ws != nil {

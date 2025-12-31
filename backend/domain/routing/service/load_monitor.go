@@ -22,8 +22,8 @@ import (
 	"time"
 )
 
-// LoadMonitor 负载监控器
-type LoadMonitor struct {
+// ServiceLoadMonitor 负载监控器实现
+type ServiceLoadMonitor struct {
 	mu           sync.RWMutex
 	loadData     map[string]*ServiceLoadData
 	maxCapacities map[string]int
@@ -45,16 +45,21 @@ type LoadSnapshot struct {
 	Timestamp  int64
 }
 
-// NewLoadMonitor 创建负载监控器
-func NewLoadMonitor() *LoadMonitor {
-	return &LoadMonitor{
+// NewServiceLoadMonitor 创建负载监控器
+func NewServiceLoadMonitor() *ServiceLoadMonitor {
+	return &ServiceLoadMonitor{
 		loadData:     make(map[string]*ServiceLoadData),
 		maxCapacities: make(map[string]int),
 	}
 }
 
+// NewLoadMonitor 创建负载监控器（别名）
+func NewLoadMonitor() LoadMonitor {
+	return NewServiceLoadMonitor()
+}
+
 // GetServiceLoad 获取服务负载
-func (m *LoadMonitor) GetServiceLoad(ctx context.Context, serviceID string) (*ServiceLoad, error) {
+func (m *ServiceLoadMonitor) GetServiceLoad(ctx context.Context, serviceID string) (*ServiceLoad, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -76,7 +81,7 @@ func (m *LoadMonitor) GetServiceLoad(ctx context.Context, serviceID string) (*Se
 }
 
 // IncrementLoad 增加负载
-func (m *LoadMonitor) IncrementLoad(serviceID string) {
+func (m *ServiceLoadMonitor) IncrementLoad(serviceID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -121,7 +126,7 @@ func (m *LoadMonitor) IncrementLoad(serviceID string) {
 }
 
 // DecrementLoad 减少负载
-func (m *LoadMonitor) DecrementLoad(serviceID string) {
+func (m *ServiceLoadMonitor) DecrementLoad(serviceID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -142,7 +147,7 @@ func (m *LoadMonitor) DecrementLoad(serviceID string) {
 }
 
 // SetMaxCapacity 设置最大容量
-func (m *LoadMonitor) SetMaxCapacity(serviceID string, capacity int) {
+func (m *ServiceLoadMonitor) SetMaxCapacity(serviceID string, capacity int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -157,7 +162,7 @@ func (m *LoadMonitor) SetMaxCapacity(serviceID string, capacity int) {
 }
 
 // GetLoadTrend 获取负载趋势（最近5分钟）
-func (m *LoadMonitor) GetLoadTrend(serviceID string) []LoadSnapshot {
+func (m *ServiceLoadMonitor) GetLoadTrend(serviceID string) []LoadSnapshot {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
@@ -181,7 +186,7 @@ func (m *LoadMonitor) GetLoadTrend(serviceID string) []LoadSnapshot {
 }
 
 // GetLoadPercent 获取负载百分比
-func (m *LoadMonitor) GetLoadPercent(serviceID string) float64 {
+func (m *ServiceLoadMonitor) GetLoadPercent(serviceID string) float64 {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 

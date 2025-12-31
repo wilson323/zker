@@ -128,17 +128,17 @@ func (i *impl) Create(ctx context.Context, meta *vo.MetaCreate) (int64, error) {
 func (i *impl) Save(ctx context.Context, id int64, schema string) (err error) {
 	var draft vo.Canvas
 	if err = sonic.UnmarshalString(schema, &draft); err != nil {
-		return vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return vo.WrapError(errno.ErrSerializationFailedCode, err)
 	}
 
 	var inputParams, outputParams string
 	inputs, outputs := extractInputsAndOutputsNamedInfoList(&draft)
 	if inputParams, err = sonic.MarshalString(inputs); err != nil {
-		return vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return vo.WrapError(errno.ErrSerializationFailedCode, err)
 	}
 
 	if outputParams, err = sonic.MarshalString(outputs); err != nil {
-		return vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return vo.WrapError(errno.ErrSerializationFailedCode, err)
 	}
 
 	testRunSuccess, err := i.calculateTestRunSuccess(ctx, &draft, id)
@@ -148,7 +148,7 @@ func (i *impl) Save(ctx context.Context, id int64, schema string) (err error) {
 
 	commitID, err := i.repo.GenID(ctx) // generate a new commit ID for this draft version
 	if err != nil {
-		return vo.WrapError(errno.ErrIDGenError, err)
+		return vo.WrapError(errno.ErrNodeCreateFailedCode, err)
 	}
 
 	return i.repo.CreateOrUpdateDraft(ctx, id, &vo.DraftInfo{
@@ -328,7 +328,7 @@ func (i *impl) ValidateTree(ctx context.Context, id int64, validateConfig vo.Val
 	c := &vo.Canvas{}
 	err = sonic.UnmarshalString(validateConfig.CanvasSchema, &c)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail,
+		return nil, vo.WrapError(errno.ErrSerializationFailedCode,
 			fmt.Errorf("failed to unmarshal canvas schema: %w", err))
 	}
 
@@ -392,7 +392,7 @@ func (i *impl) QueryNodeProperties(ctx context.Context, wfID int64) (map[string]
 	mainCanvas := &vo.Canvas{}
 	err = sonic.UnmarshalString(canvasSchema, mainCanvas)
 	if err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.ErrSerializationFailedCode, err)
 	}
 
 	mainCanvas.Nodes, mainCanvas.Edges = adaptor.PruneIsolatedNodes(mainCanvas.Nodes, mainCanvas.Edges, nil)
@@ -435,7 +435,7 @@ func (i *impl) collectNodePropertyMap(ctx context.Context, canvas *vo.Canvas) (m
 			nodePropertyMap[string(nodeSchema.Key)] = prop
 			wid, err := strconv.ParseInt(n.Data.Inputs.WorkflowID, 10, 64)
 			if err != nil {
-				return nil, vo.WrapError(errno.ErrSchemaConversionFail, err)
+				return nil, vo.WrapError(errno.ErrSchemaValidationFailedCode, err)
 			}
 
 			var canvasSchema string
@@ -445,7 +445,7 @@ func (i *impl) collectNodePropertyMap(ctx context.Context, canvas *vo.Canvas) (m
 					return nil, err
 				}
 				if !existed {
-					return nil, vo.WrapError(errno.ErrWorkflowNotFound, fmt.Errorf("workflow version %s not found for ID %d: %w", n.Data.Inputs.WorkflowVersion, wid, err), errorx.KV("id", strconv.FormatInt(wid, 10)))
+					return nil, vo.WrapError(errno.ErrWorkflowNotFoundCode, fmt.Errorf("workflow version %s not found for ID %d: %w", n.Data.Inputs.WorkflowVersion, wid, err), errorx.KV("id", strconv.FormatInt(wid, 10)))
 				}
 				canvasSchema = versionInfo.Canvas
 			} else {
@@ -463,7 +463,7 @@ func (i *impl) collectNodePropertyMap(ctx context.Context, canvas *vo.Canvas) (m
 			c := &vo.Canvas{}
 			err = sonic.UnmarshalString(canvasSchema, c)
 			if err != nil {
-				return nil, vo.WrapError(errno.ErrSchemaConversionFail, err)
+				return nil, vo.WrapError(errno.ErrSchemaValidationFailedCode, err)
 			}
 			ret, err := i.collectNodePropertyMap(ctx, c)
 			if err != nil {
@@ -595,7 +595,7 @@ func (i *impl) DeleteChatFlowRole(ctx context.Context, id int64, workflowID int6
 func (i *impl) PublishChatFlowRole(ctx context.Context, policy *vo.PublishRolePolicy) error {
 	if policy.WorkflowID == 0 || policy.CreatorID == 0 || policy.Version == "" {
 		logs.CtxErrorf(ctx, "invalid publish role policy, workflow id %v, creator id %v should not be zero, version %v should not be empty", policy.WorkflowID, policy.CreatorID, policy.Version)
-		return vo.WrapError(errno.ErrInvalidParameter, fmt.Errorf("invalid publish role policy, workflow id %v, creator id %v should not be zero, version %v should not be empty", policy.WorkflowID, policy.CreatorID, policy.Version))
+		return vo.WrapError(errno.ErrWorkflowInvalidParamCode, fmt.Errorf("invalid publish role policy, workflow id %v, creator id %v should not be zero, version %v should not be empty", policy.WorkflowID, policy.CreatorID, policy.Version))
 	}
 	wf, err := i.repo.GetEntity(ctx, &vo.GetPolicy{
 		ID:       policy.WorkflowID,
@@ -604,16 +604,16 @@ func (i *impl) PublishChatFlowRole(ctx context.Context, policy *vo.PublishRolePo
 	if err != nil {
 		return err
 	}
-	if wf.Mode != cloudworkflow.WorkflowMode_ChatFlow {
-		return vo.WrapError(errno.ErrChatFlowRoleOperationFail, fmt.Errorf("workflow id %v, mode %v is not a chatflow", policy.WorkflowID, wf.Mode))
+	if vo.WorkflowMode(wf.Mode) != vo.WorkflowMode(cloudworkflow.WorkflowMode_ChatFlow) {
+		return vo.WrapError(errno.ErrWorkflowInvalidParamCode, fmt.Errorf("workflow id %v, mode %v is not a chatflow", policy.WorkflowID, wf.Mode))
 	}
 	role, err, isExist := i.repo.GetChatFlowRoleConfig(ctx, policy.WorkflowID, "")
 	if !isExist {
 		logs.CtxErrorf(ctx, "get draft chat flow role nil, workflow id %v", policy.WorkflowID)
-		return vo.WrapError(errno.ErrChatFlowRoleOperationFail, fmt.Errorf("get draft chat flow role nil, workflow id %v", policy.WorkflowID))
+		return vo.WrapError(errno.ErrWorkflowInvalidParamCode, fmt.Errorf("get draft chat flow role nil, workflow id %v", policy.WorkflowID))
 	}
 	if err != nil {
-		return vo.WrapIfNeeded(errno.ErrChatFlowRoleOperationFail, err)
+		return vo.WrapIfNeeded(errno.ErrWorkflowInvalidParamCode, err)
 	}
 
 	_, err = i.repo.CreateChatFlowRoleConfig(ctx, &entity.ChatFlowRole{
@@ -639,7 +639,7 @@ func (i *impl) PublishChatFlowRole(ctx context.Context, policy *vo.PublishRolePo
 func canvasToRefs(referringID int64, canvasStr string) (map[entity.WorkflowReferenceKey]struct{}, error) {
 	var canvas vo.Canvas
 	if err := sonic.UnmarshalString(canvasStr, &canvas); err != nil {
-		return nil, vo.WrapError(errno.ErrSerializationDeserializationFail, err)
+		return nil, vo.WrapError(errno.ErrSerializationFailedCode, err)
 	}
 
 	wfRefs := map[entity.WorkflowReferenceKey]struct{}{}
@@ -649,7 +649,7 @@ func canvasToRefs(referringID int64, canvasStr string) (map[entity.WorkflowRefer
 			if node.Type == entity.NodeTypeSubWorkflow.IDStr() {
 				referredID, err := strconv.ParseInt(node.Data.Inputs.WorkflowID, 10, 64)
 				if err != nil {
-					return vo.WrapError(errno.ErrSchemaConversionFail, err)
+					return vo.WrapError(errno.ErrSchemaValidationFailedCode, err)
 				}
 				wfRefs[entity.WorkflowReferenceKey{
 					ReferredID:       referredID,
@@ -663,7 +663,7 @@ func canvasToRefs(referringID int64, canvasStr string) (map[entity.WorkflowRefer
 						for _, w := range node.Data.Inputs.FCParam.WorkflowFCParam.WorkflowList {
 							referredID, err := strconv.ParseInt(w.WorkflowID, 10, 64)
 							if err != nil {
-								return vo.WrapError(errno.ErrSchemaConversionFail, err)
+								return vo.WrapError(errno.ErrSchemaValidationFailedCode, err)
 							}
 							wfRefs[entity.WorkflowReferenceKey{
 								ReferredID:       referredID,
@@ -754,7 +754,7 @@ func (i *impl) UpdateMeta(ctx context.Context, id int64, metaUpdate *vo.MetaUpda
 		return err
 	}
 
-	if metaUpdate.WorkflowMode != nil && *metaUpdate.WorkflowMode == cloudworkflow.WorkflowMode_ChatFlow {
+	if metaUpdate.WorkflowMode != nil && vo.WorkflowMode(*metaUpdate.WorkflowMode) == vo.WorkflowMode(cloudworkflow.WorkflowMode_ChatFlow) {
 		err = i.adaptToChatFlow(ctx, id)
 		if err != nil {
 			return err
@@ -770,15 +770,15 @@ func (i *impl) CopyWorkflow(ctx context.Context, workflowID int64, policy vo.Cop
 		return nil, err
 	}
 	// chat flow should copy role config
-	if wf.Mode == cloudworkflow.WorkflowMode_ChatFlow {
+	if vo.WorkflowMode(wf.Mode) == vo.WorkflowMode(cloudworkflow.WorkflowMode_ChatFlow) {
 		role, err, isExist := i.repo.GetChatFlowRoleConfig(ctx, workflowID, "")
 		if !isExist {
 			logs.CtxErrorf(ctx, "get draft chat flow role nil, workflow id %v", workflowID)
-			return nil, vo.WrapError(errno.ErrChatFlowRoleOperationFail, fmt.Errorf("get draft chat flow role nil, workflow id %v", workflowID))
+			return nil, vo.WrapError(errno.ErrWorkflowInvalidParamCode, fmt.Errorf("get draft chat flow role nil, workflow id %v", workflowID))
 		}
 
 		if err != nil {
-			return nil, vo.WrapIfNeeded(errno.ErrChatFlowRoleOperationFail, err)
+			return nil, vo.WrapIfNeeded(errno.ErrWorkflowInvalidParamCode, err)
 		}
 		_, err = i.repo.CreateChatFlowRoleConfig(ctx, &entity.ChatFlowRole{
 			Name:                role.Name,
@@ -947,7 +947,7 @@ func (i *impl) ReleaseApplicationWorkflows(ctx context.Context, appID int64, con
 	}
 
 	for _, wf := range willPublishWorkflows {
-		if wf.Mode == cloudworkflow.WorkflowMode_ChatFlow {
+		if vo.WorkflowMode(wf.Mode) == vo.WorkflowMode(cloudworkflow.WorkflowMode_ChatFlow) {
 			err = i.PublishChatFlowRole(ctx, &vo.PublishRolePolicy{
 				WorkflowID: wf.ID,
 				CreatorID:  wf.CreatorID,
@@ -1877,7 +1877,7 @@ func (i *impl) MGet(ctx context.Context, policy *vo.MGetPolicy) ([]*entity.Workf
 				return nil, total, err
 			}
 			if !existed {
-				return nil, total, vo.WrapError(errno.ErrWorkflowNotFound, fmt.Errorf("workflow version %s not found for ID %d: %w", version, id, err), errorx.KV("id", strconv.FormatInt(id, 10)))
+				return nil, total, vo.WrapError(errno.ErrWorkflowNotFoundCode, fmt.Errorf("workflow version %s not found for ID %d: %w", version, id, err), errorx.KV("id", strconv.FormatInt(id, 10)))
 			}
 			inputs, outputs, err := ioF(v.InputParamsStr, v.OutputParamsStr)
 			if err != nil {

@@ -1,0 +1,198 @@
+# ZKER Alertmanager 配置
+# 版本: v1.0.0
+# 说明: 告警路由和通知配置
+
+global:
+  # 全局解析超时
+  resolve_timeout: 5m
+
+  # Slack全局配置
+  slack_api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+
+  # PagerDuty全局配置
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# 路由配置
+route:
+  # 按标签分组告警
+  group_by: ['alertname', 'cluster', 'service', 'category']
+
+  # 同一组告警等待时间
+  group_wait: 10s
+
+  # 同一组告警发送间隔
+  group_interval: 10s
+
+  # 重复告警发送间隔
+  repeat_interval: 12h
+
+  # 默认接收器
+  receiver: 'default'
+
+  # 子路由
+  routes:
+    # Critical告警立即通知
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      continue: true
+
+    # Backend告警发送到后端团队
+    - match:
+        team: backend
+      receiver: 'backend-team'
+
+    # DevOps告警发送到DevOps团队
+    - match:
+        team: devops
+      receiver: 'devops-team'
+
+    # 系统资源告警发送到DevOps团队
+    - match:
+        category: system
+      receiver: 'devops-team'
+
+    # 数据库告警同时发送到DevOps和Backend
+    - match:
+        category: database
+      receiver: 'database-alerts'
+
+# 接收器配置
+receivers:
+  # 默认接收器
+  - name: 'default'
+    slack_configs:
+      - channel: '#alerts'
+        send_resolved: true
+        title: '{{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        link_settings: true
+
+  # Critical告警接收器
+  - name: 'critical-alerts'
+    slack_configs:
+      - channel: '#critical-alerts'
+        send_resolved: true
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *告警*: {{ .GroupLabels.alertname }}
+          *严重性*: {{ .CommonLabels.severity }}
+          *分类*: {{ .CommonLabels.category }}
+          *描述*:
+          {{ range .Alerts }}
+          - {{ .Annotations.description }}
+          {{ end }}
+        color: 'danger'
+        username: 'ZKER Critical Alert Bot'
+        icon_emoji: ':rotating_light:'
+    pagerduty_configs:
+      - service: 'coze-studio-critical'
+        description: '{{ .GroupLabels.alertname }}'
+        severity: 'critical'
+        client: 'ZKER AlertManager'
+        client_url: 'https://alerts.zker.example.com'
+
+  # Backend团队接收器
+  - name: 'backend-team'
+    slack_configs:
+      - channel: '#backend-alerts'
+        send_resolved: true
+        title: 'Backend Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          *告警*: {{ .GroupLabels.alertname }}
+          *描述*: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook*: {{ range .Alerts }}{{ .Annotations.runbook_url }}{{ end }}
+        username: 'ZKER Backend Bot'
+        icon_emoji: ':gear:'
+
+  # DevOps团队接收器
+  - name: 'devops-team'
+    slack_configs:
+      - channel: '#devops-alerts'
+        send_resolved: true
+        title: 'DevOps Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          *告警*: {{ .GroupLabels.alertname }}
+          *描述*: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *实例*: {{ range .Alerts }}{{ .Labels.instance }}{{ end }}
+        username: 'ZKER DevOps Bot'
+        icon_emoji: ':construction:'
+
+  # 数据库告警接收器
+  - name: 'database-alerts'
+    slack_configs:
+      - channel: '#database-alerts'
+        send_resolved: true
+        title: 'Database Alert: {{ .GroupLabels.alertname }}'
+        text: |
+          *告警*: {{ .GroupLabels.alertname }}
+          *数据库*: {{ range .Alerts }}{{ .Labels.database }}{{ end }}
+          *描述*: {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+        username: 'ZKER Database Bot'
+        icon_emoji: ':database:'
+
+# 抑制规则（抑制重复告警）
+inhibit_rules:
+  # 如果有Critical级别的API错误，抑制Warning级别的API错误
+  - source_match:
+      severity: 'critical'
+      category: 'api'
+    target_match:
+      severity: 'warning'
+      category: 'api'
+    equal: ['alertname', 'instance']
+
+  # 如果有磁盘严重告警，抑制磁盘空间告警
+  - source_match:
+      alertname: 'DiskSpaceCritical'
+    target_match:
+      alertname: 'HighDiskUsage'
+    equal: ['instance', 'mountpoint']
+
+  # 如果有Critical级别的租户配额告警，抑制Warning级别的租户配额告警
+  - source_match:
+      severity: 'critical'
+      alertname: 'TenantQuotaExceeded'
+    target_match:
+      severity: 'warning'
+      alertname: 'TenantQuotaNearLimit'
+    equal: ['tenant_id']
+
+# 时间间隔配置（用于减少夜间告警）
+time_intervals:
+  - name: 'off-hours'
+    time_intervals:
+      - times:
+          - start_time: '18:00'
+            end_time: '09:00'
+      weekdays: ['monday:friday']
+
+  - name: 'weekends'
+    time_intervals:
+      - weekdays: ['saturday', 'sunday']
+
+# 路由特定时间配置
+routes:
+  # 非紧急告警在非工作时间降级
+  - match:
+      severity: 'warning'
+      category: 'system'
+    receiver: 'devops-team-offhours'
+    active_time_intervals: ['off-hours', 'weekends']
+    continue: false
+
+# 静默规则示例（可手动配置）
+# mute_config_name: 'planned-maintenance'
+# mute_configurations:
+#   - matchers:
+#       - name: 'alertname'
+#         value: 'HighCPUUsage'
+#         isRegex: false
+#     start: '2025-01-02T02:00:00Z'
+#     end: '2025-01-02T04:00:00Z'
+#     comments:
+#       - 'Planned maintenance window'
+
+# 模板配置（可选）
+# templates:
+#   - '/etc/alertmanager/templates/*.tmpl'

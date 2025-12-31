@@ -98,7 +98,7 @@ func CanvasVariableToTypeInfo(v *vo.Variable) (*vo.TypeInfo, error) {
 func CanvasBlockInputToTypeInfo(b *vo.BlockInput) (tInfo *vo.TypeInfo, err error) {
 	defer func() {
 		if err != nil {
-			err = vo.WrapIfNeeded(errno.ErrSchemaConversionFail, err)
+			err = vo.WrapIfNeeded(errno.DeprecatedErrSchemaConversionFail, err)
 		}
 	}()
 

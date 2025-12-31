@@ -18,12 +18,12 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/domain/org/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/org/repository"
 	"github.com/coze-dev/coze-studio/backend/types/errno"
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 )
 
 // MatrixOrganizationService 矩阵组织服务
@@ -50,42 +50,61 @@ func NewMatrixOrganizationService(
 func (s *MatrixOrganizationService) CreateReporting(ctx context.Context, reporting *entity.MatrixReporting) error {
 	// 1. 验证参数
 	if reporting.UserID == "" || reporting.SupervisorID == "" || reporting.OrganizationID == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 	if reporting.ReportingType == "" {
-		return errno.ErrInvalidParam
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidParam"),
+                )
 	}
 
 	// 2. 验证用户存在
 	user, err := s.empRepo.GetByID(ctx, reporting.UserID)
 	if err != nil {
-		return fmt.Errorf("failed to get user: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get user"),
+            )
 	}
 	if user == nil {
-		return errno.ErrEmployeeNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "EmployeeNotFound"),
+                )
 	}
 
 	// 3. 验证上级存在
 	supervisor, err := s.empRepo.GetByID(ctx, reporting.SupervisorID)
 	if err != nil {
-		return fmt.Errorf("failed to get supervisor: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get supervisor"),
+            )
 	}
 	if supervisor == nil {
-		return errno.ErrEmployeeNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "EmployeeNotFound"),
+                )
 	}
 
 	// 4. 验证组织存在
 	org, err := s.orgRepo.GetByID(ctx, reporting.OrganizationID)
 	if err != nil {
-		return fmt.Errorf("failed to get organization: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get organization"),
+            )
 	}
 	if org == nil {
-		return errno.ErrOrgNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                errorx.KV("reason", "organization not found"),
+                errorx.KV("resource_type", "organization"),
+            )
 	}
 
 	// 5. 验证日期逻辑
 	if reporting.ExpiryDate != nil && *reporting.ExpiryDate <= reporting.EffectiveDate {
-		return errno.ErrInvalidDateRange
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidDateRange"),
+                )
 	}
 
 	// 6. 如果设置为主要汇报关系,先取消其他主要关系
@@ -94,7 +113,9 @@ func (s *MatrixOrganizationService) CreateReporting(ctx context.Context, reporti
 		if err == nil && primary != nil {
 			primary.IsPrimary = false
 			if err := s.reportingRepo.Update(ctx, primary); err != nil {
-				return fmt.Errorf("failed to update old primary: %w", err)
+				return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update old primary"),
+            )
 			}
 		}
 	}
@@ -103,7 +124,9 @@ func (s *MatrixOrganizationService) CreateReporting(ctx context.Context, reporti
 	reporting.CreatedAt = time.Now().UnixMilli()
 	reporting.UpdatedAt = time.Now().UnixMilli()
 	if err := s.reportingRepo.Create(ctx, reporting); err != nil {
-		return fmt.Errorf("failed to create reporting: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "create reporting"),
+            )
 	}
 
 	return nil
@@ -114,22 +137,30 @@ func (s *MatrixOrganizationService) UpdateReporting(ctx context.Context, id int6
 	// 1. 获取现有记录
 	existing, err := s.reportingRepo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("failed to get reporting: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get reporting"),
+            )
 	}
 	if existing == nil {
-		return errno.ErrReportingNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ReportingNotFound"),
+                )
 	}
 
 	// 2. 验证日期逻辑
 	if reporting.ExpiryDate != nil && *reporting.ExpiryDate <= reporting.EffectiveDate {
-		return errno.ErrInvalidDateRange
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "InvalidDateRange"),
+                )
 	}
 
 	// 3. 更新
 	reporting.ID = id
 	reporting.UpdatedAt = time.Now().UnixMilli()
 	if err := s.reportingRepo.Update(ctx, reporting); err != nil {
-		return fmt.Errorf("failed to update reporting: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "update reporting"),
+            )
 	}
 
 	return nil
@@ -140,15 +171,21 @@ func (s *MatrixOrganizationService) DeleteReporting(ctx context.Context, id int6
 	// 1. 获取现有记录
 	existing, err := s.reportingRepo.GetByID(ctx, id)
 	if err != nil {
-		return fmt.Errorf("failed to get reporting: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get reporting"),
+            )
 	}
 	if existing == nil {
-		return errno.ErrReportingNotFound
+		return errorx.New(errno.ErrPermissionInvalidParamCode,
+                    errorx.KV("reason", "ReportingNotFound"),
+                )
 	}
 
 	// 2. 删除
 	if err := s.reportingRepo.Delete(ctx, id); err != nil {
-		return fmt.Errorf("failed to delete reporting: %w", err)
+		return errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "delete reporting"),
+            )
 	}
 
 	return nil
@@ -157,12 +194,14 @@ func (s *MatrixOrganizationService) DeleteReporting(ctx context.Context, id int6
 // GetReportings 获取用户的所有汇报关系
 func (s *MatrixOrganizationService) GetReportings(ctx context.Context, userID string) ([]*entity.MatrixReporting, error) {
 	if userID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	reportings, err := s.reportingRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list reportings: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list reportings"),
+            )
 	}
 
 	return reportings, nil
@@ -171,13 +210,15 @@ func (s *MatrixOrganizationService) GetReportings(ctx context.Context, userID st
 // GetSubordinates 获取下属(包括矩阵式)
 func (s *MatrixOrganizationService) GetSubordinates(ctx context.Context, supervisorID string, includeMatrix bool) ([]*entity.Employee, error) {
 	if supervisorID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取所有汇报关系
 	reportings, err := s.reportingRepo.ListBySupervisorID(ctx, supervisorID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list reportings: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list reportings"),
+            )
 	}
 
 	// 2. 提取下级用户ID
@@ -206,13 +247,15 @@ func (s *MatrixOrganizationService) GetSubordinates(ctx context.Context, supervi
 // GetSupervisors 获取所有上级(包括矩阵式)
 func (s *MatrixOrganizationService) GetSupervisors(ctx context.Context, userID string) ([]*entity.SupervisorInfo, error) {
 	if userID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取所有汇报关系
 	reportings, err := s.reportingRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list reportings: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list reportings"),
+            )
 	}
 
 	// 2. 构建上级信息
@@ -248,23 +291,27 @@ func (s *MatrixOrganizationService) GenerateOrgChart(ctx context.Context, orgID 
 	// 1. 获取组织
 	org, err := s.orgRepo.GetByID(ctx, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get org: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get org"),
+            )
 	}
 	if org == nil {
-		return nil, errno.ErrOrgNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgNotFound)
 	}
 
 	// 2. 获取组织负责人作为根节点
 	if org.LeaderID == nil {
-		return nil, errno.ErrOrgLeaderNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrOrgLeaderNotFound)
 	}
 
 	leader, err := s.empRepo.GetByID(ctx, *org.LeaderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get leader: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "get leader"),
+            )
 	}
 	if leader == nil {
-		return nil, errno.ErrEmployeeNotFound
+		return nil, errorx.NewByErrorCode(errno.ErrEmployeeNotFound)
 	}
 
 	// 3. 构建组织架构图
@@ -278,7 +325,9 @@ func (s *MatrixOrganizationService) GenerateOrgChart(ctx context.Context, orgID 
 	// 4. 递归获取下属
 	subordinates, err := s.buildOrgChartRecursive(ctx, *org.LeaderID, orgID, 2)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build org chart: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "build org chart"),
+            )
 	}
 	orgChart.Subordinates = subordinates
 
@@ -324,13 +373,15 @@ func (s *MatrixOrganizationService) buildOrgChartRecursive(ctx context.Context, 
 // CalculatePermissionPaths 计算权限路径
 func (s *MatrixOrganizationService) CalculatePermissionPaths(ctx context.Context, userID string) ([]*entity.PermissionPath, error) {
 	if userID == "" {
-		return nil, errno.ErrInvalidParam
+		return nil, errorx.NewByErrorCode(errno.ErrInvalidParam)
 	}
 
 	// 1. 获取所有汇报关系
 	reportings, err := s.reportingRepo.ListActiveByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to list reportings: %w", err)
+		return nil, errorx.WrapByCode(err, errno.ErrPermissionCheckFailedCode,
+                errorx.KV("operation", "list reportings"),
+            )
 	}
 
 	// 2. 构建权限路径
@@ -346,9 +397,4 @@ func (s *MatrixOrganizationService) CalculatePermissionPaths(ctx context.Context
 	}
 
 	return paths, nil
-}
-
-// generateUUID 生成UUID（简化实现）
-func generateUUID() string {
-	return fmt.Sprintf("%d", time.Now().UnixNano())
 }

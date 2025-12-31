@@ -19,17 +19,16 @@ package middleware
 import (
 	"context"
 	"encoding/json"
-	"io"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
-	"github.com/cloudwego/hertz/pkg/protocol/consts"
+	hertzconsts "github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/domain/audit/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/audit/service"
 	securitysvc "github.com/coze-dev/coze-studio/backend/domain/security/service"
-	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
 	"github.com/coze-dev/coze-studio/backend/types/consts"
 )
@@ -149,18 +148,22 @@ func (m *AuditLoggingMiddleware) shouldLogRequestBody(path string) bool {
 // getUserInfo 获取用户信息
 func (m *AuditLoggingMiddleware) getUserInfo(ctx *app.RequestContext) (userID, username, userEmail, tenantID string) {
 	// 从上下文获取session信息
-	session, ok := ctxcache.Get[*SessionData](c, consts.SessionDataKeyInCtx)
-	if ok {
-		userID = session.UserID
-		username = session.Username
-		userEmail = session.UserEmail
-		tenantID = session.TenantID
+	sessionData, exists := ctx.Get(consts.SessionDataKeyInCtx)
+	if exists {
+		if session, ok := sessionData.(*SessionData); ok {
+			userID = session.UserID
+			username = session.Username
+			userEmail = session.UserEmail
+			tenantID = session.TenantID
+		}
 	}
 
 	// 从上下文获取租户ID
 	if tenantID == "" {
 		if tid, ok := ctx.Get("tenant_id"); ok {
-			tenantID = string(tid)
+			if tidStr, ok := tid.(string); ok {
+				tenantID = tidStr
+			}
 		}
 	}
 
@@ -206,7 +209,7 @@ func (m *AuditLoggingMiddleware) logAudit(
 		RequestMethod: string(ctx.Request.Method()),
 		RequestPath:   string(ctx.Request.URI().Path()),
 		RequestIP:     m.getClientIP(ctx),
-		UserAgent:     string(ctx.Request.UserAgent()),
+		UserAgent:     string(ctx.Request.Header.Get("User-Agent")),
 
 		RequestData:  requestData,
 		ResponseData: m.getResponseData(ctx),
@@ -338,7 +341,10 @@ func (m *AuditLoggingMiddleware) getClientIP(ctx *app.RequestContext) string {
 	}
 
 	// 从RemoteAddr获取
-	return ctx.RemoteAddr()
+	if addr := ctx.RemoteAddr(); addr != nil {
+		return addr.String()
+	}
+	return ""
 }
 
 // getResponseData 获取响应数据
@@ -400,7 +406,7 @@ func (m *AuditLoggingMiddleware) getErrorMsg(ctx *app.RequestContext) string {
 				return fmt.Sprintf("%v", msg)
 			}
 		}
-		return consts.StatusMessage(statusCode)
+		return hertzconsts.StatusMessage(statusCode)
 	}
 	return ""
 }
@@ -448,6 +454,6 @@ func StatusMessage(statusCode int) string {
 	case 500:
 		return "Internal Server Error"
 	default:
-		return consts.StatusMessage(statusCode)
+		return hertzconsts.StatusMessage(statusCode)
 	}
 }

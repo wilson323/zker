@@ -34,30 +34,26 @@ import (
 // 职责: 创建测试用的租户数据
 func CreateTestTenant(t *testing.T, db *sql.DB, name string) *entity.Tenant {
 	tenant := &entity.Tenant{
-		TenantID:         fmt.Sprintf("tenant-%d", time.Now().UnixNano()),
-		Name:             name,
-		Status:           entity.TenantStatusActive,
-		SubscriptionID:   fmt.Sprintf("sub-%d", time.Now().UnixNano()),
-		PlanTier:         entity.PlanTierFree,
-		BillingCycle:     entity.BillingCycleMonthly,
-		MaxUsers:         5,
-		MaxBots:          3,
-		MaxMessages:      1000,
-		MaxStorage:       1024, // 1GB
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		TenantID:          fmt.Sprintf("tenant-%d", time.Now().UnixNano()),
+		TenantName:        name,
+		Status:            entity.TenantStatusActive,
+		SubscriptionTier:  entity.SubscriptionTierFree,
+		IsolationStrategy: entity.IsolationStrategyRowLevel,
+		ContactEmail:      fmt.Sprintf("%s@example.com", name),
+		CreatedAt:         time.Now().Unix(),
+		UpdatedAt:         time.Now().Unix(),
 	}
 
 	query := `
 		INSERT INTO tenants (
-			tenant_id, name, status, subscription_id, plan_tier, billing_cycle,
-			max_users, max_bots, max_messages, max_storage, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			tenant_id, tenant_name, tenant_type, subdomain, status, subscription_tier, isolation_strategy,
+			contact_email, created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 	_, err := db.Exec(query,
-		tenant.TenantID, tenant.Name, tenant.Status, tenant.SubscriptionID,
-		tenant.PlanTier, tenant.BillingCycle, tenant.MaxUsers, tenant.MaxBots,
-		tenant.MaxMessages, tenant.MaxStorage, tenant.CreatedAt, tenant.UpdatedAt,
+		tenant.TenantID, tenant.TenantName, "individual", "test-"+name, tenant.Status,
+		tenant.SubscriptionTier, tenant.IsolationStrategy, tenant.ContactEmail,
+		tenant.CreatedAt, tenant.UpdatedAt,
 	)
 	assert.NoError(t, err, "创建测试租户失败")
 

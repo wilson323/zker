@@ -18,6 +18,7 @@ package ctxutil
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/coze-dev/coze-studio/backend/domain/openauth/openapiauth/entity"
 	"github.com/coze-dev/coze-studio/backend/pkg/ctxcache"
@@ -33,10 +34,24 @@ func GetApiAuthFromCtx(ctx context.Context) *entity.ApiKey {
 	return data
 }
 
-func MustGetUIDFromApiAuthCtx(ctx context.Context) int64 {
+// GetUIDFromApiAuthCtx 从API Auth上下文获取用户ID
+// 这是新的推荐方法，返回error而不是panic
+func GetUIDFromApiAuthCtx(ctx context.Context) (int64, error) {
 	apiKeyInfo := GetApiAuthFromCtx(ctx)
 	if apiKeyInfo == nil {
-		panic("mustGetUIDFromApiAuthCtx: apiKeyInfo is nil")
+		return 0, fmt.Errorf("api auth info is required")
 	}
-	return apiKeyInfo.UserID
+	return apiKeyInfo.UserID, nil
+}
+
+// MustGetUIDFromApiAuthCtx 获取用户ID，失败则panic
+// Deprecated: 使用 GetUIDFromApiAuthCtx 替代以获得更好的错误处理
+func MustGetUIDFromApiAuthCtx(ctx context.Context) int64 {
+	userID, err := GetUIDFromApiAuthCtx(ctx)
+	if err != nil {
+		// 记录日志后panic（向后兼容）
+		// 生产环境应该使用 GetUIDFromApiAuthCtx 并处理error
+		panic(fmt.Errorf("MustGetUIDFromApiAuthCtx: %w", err))
+	}
+	return userID
 }

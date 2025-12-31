@@ -33,12 +33,30 @@ export const routes: RouteObject[] = [
         },
       },
       {
+        path: 'tenants/create',
+        lazy: async () => {
+          const { default: TenantCreate } = await import(
+            '@coze-studio/studio/src/pages/tenant/TenantCreate/TenantCreate'
+          );
+          return { Component: TenantCreate };
+        },
+      },
+      {
         path: 'tenants/:tenantId',
         lazy: async () => {
           const { default: TenantDetail } = await import(
             '@coze-studio/studio/src/pages/tenant/TenantDetail/TenantDetail'
           );
           return { Component: TenantDetail };
+        },
+      },
+      {
+        path: 'tenants/:tenantId/edit',
+        lazy: async () => {
+          const { default: TenantEdit } = await import(
+            '@coze-studio/studio/src/pages/tenant/TenantEdit/TenantEdit'
+          );
+          return { Component: TenantEdit };
         },
       },
 
@@ -79,6 +97,163 @@ export const routes: RouteObject[] = [
             '@coze-studio/studio/src/pages/routing/IntentMatcher/IntentMatcher'
           );
           return { Component: IntentMatcher };
+        },
+      },
+
+      // 计费管理
+      {
+        path: 'billing/token-usage',
+        lazy: async () => {
+          const { default: TokenUsagePage } = await import(
+            '../pages/billing/TokenUsagePage'
+          );
+          return { Component: TokenUsagePage };
+        },
+      },
+      {
+        path: 'billing/budget',
+        lazy: async () => {
+          const { default: BudgetManagementPage } = await import(
+            '../pages/billing/BudgetManagementPage'
+          );
+          return { Component: BudgetManagementPage };
+        },
+      },
+
+      // 组织管理
+      {
+        path: 'org/virtual',
+        lazy: async () => {
+          const { default: VirtualOrganizationPage } = await import(
+            '@coze-studio/studio/src/pages/org/VirtualOrganization'
+          );
+          return { Component: VirtualOrganizationPage };
+        },
+      },
+      {
+        path: 'org/delegate',
+        lazy: async () => {
+          const { default: OrgDelegatePage } = await import(
+            '@coze-studio/studio/src/pages/org/OrgDelegate'
+          );
+          return { Component: OrgDelegatePage };
+        },
+      },
+
+      // 审计日志
+      {
+        path: 'audit/logs',
+        lazy: async () => {
+          const { default: AuditLogsPage } = await import(
+            '@coze-studio/studio/src/pages/audit/AuditLogs'
+          );
+          return { Component: AuditLogsPage };
+        },
+      },
+
+      // 审核工作台
+      {
+        path: 'audit/queue',
+        lazy: async () => {
+          const { default: ReviewQueue } = await import(
+            '@coze-studio/studio/src/pages/audit/ReviewQueue/ReviewQueue'
+          );
+          return { Component: ReviewQueue };
+        },
+      },
+      {
+        path: 'audit/tasks/:taskId',
+        lazy: async () => {
+          const { default: TaskDetail } = await import(
+            '@coze-studio/studio/src/pages/audit/TaskDetail/TaskDetail'
+          );
+          return { Component: TaskDetail };
+        },
+      },
+      {
+        path: 'audit/history',
+        lazy: async () => {
+          const { default: ReviewHistory } = await import(
+            '@coze-studio/studio/src/pages/audit/ReviewHistory/ReviewHistory'
+          );
+          return { Component: ReviewHistory };
+        },
+      },
+
+      // 性能监控
+      {
+        path: 'monitoring/performance',
+        lazy: async () => {
+          const { default: PerformancePage } = await import(
+            '@coze-studio/studio/src/pages/monitoring/Performance'
+          );
+          return { Component: PerformancePage };
+        },
+      },
+
+      // 智能路由管理
+      {
+        path: 'routing/management',
+        lazy: async () => {
+          const { default: RoutingManagementPage } = await import(
+            '@coze-studio/studio/src/pages/routing/Management'
+          );
+          return { Component: RoutingManagementPage };
+        },
+      },
+
+      // A/B测试
+      {
+        path: 'routing/abtest',
+        lazy: async () => {
+          const { default: ABTestList } = await import(
+            '@coze-studio/studio/src/pages/routing/ABTest/ABTestList'
+          );
+          return { Component: ABTestList };
+        },
+      },
+
+      // 开发者平台 - 用户管理
+      {
+        path: 'developer/users',
+        lazy: async () => {
+          const { default: Users } = await import(
+            '@coze-studio/studio/src/pages/developer/Users/Users'
+          );
+          return { Component: Users };
+        },
+      },
+
+      // 开发者平台 - CLI下载
+      {
+        path: 'developer/cli',
+        lazy: async () => {
+          const { default: CLIDownload } = await import(
+            '@coze-studio/studio/src/pages/developer/CLI/CLIDownload'
+          );
+          return { Component: CLIDownload };
+        },
+      },
+
+      // 开发者平台 - SDK示例
+      {
+        path: 'developer/sdk',
+        lazy: async () => {
+          const { default: SDKExamples } = await import(
+            '@coze-studio/studio/src/pages/developer/SDK/SDKExamples'
+          );
+          return { Component: SDKExamples };
+        },
+      },
+
+      // 开发者平台
+      {
+        path: 'developer',
+        lazy: async () => {
+          const { default: DeveloperPlatformPage } = await import(
+            '@coze-studio/developer-platform'
+          );
+          return { Component: DeveloperPlatformPage };
         },
       },
 

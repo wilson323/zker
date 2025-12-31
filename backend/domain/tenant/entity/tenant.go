@@ -73,6 +73,8 @@ type Tenant struct {
 	Status             TenantStatus       `json:"status" gorm:"type:enum('active','suspended','deleted');default:'active'"`
 	SubscriptionTier   SubscriptionTier   `json:"subscription_tier" gorm:"type:enum('free','pro','enterprise');default:'free'"`
 	IsolationStrategy  IsolationStrategy  `json:"isolation_strategy" gorm:"type:enum('row_level','schema_level','database_level');default:'row_level'"` // 隔离策略
+	ContactEmail       string             `json:"contact_email,omitempty" gorm:"type:varchar(255)"`            // 联系邮箱
+	ContactPhone       string             `json:"contact_phone,omitempty" gorm:"type:varchar(32)"`             // 联系电话
 	CreatedAt          int64              `json:"created_at" gorm:"not null;default:0"`
 	UpdatedAt          int64              `json:"updated_at" gorm:"not null;default:0"`
 	DeletedAt          *int64             `json:"deleted_at,omitempty" gorm:"index"`

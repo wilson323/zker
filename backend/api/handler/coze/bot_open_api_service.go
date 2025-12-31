@@ -32,6 +32,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
 	"github.com/coze-dev/coze-studio/backend/api/model/app/bot_open_api"
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 )
 
 // OauthAuthorizationCode .
@@ -41,28 +42,28 @@ func OauthAuthorizationCode(ctx context.Context, c *app.RequestContext) {
 	var req bot_open_api.OauthAuthorizationCodeReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	if req.Code == "" {
-		invalidParamRequestResponse(c, "authorization failed, code is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "authorization failed, code is required", "参数验证失败", nil)
 		return
 	}
 	if req.State == "" {
-		invalidParamRequestResponse(c, "state is required")
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, "state is required", "参数验证失败", nil)
 		return
 	}
 
 	_, err = plugin.PluginApplicationSVC.OauthAuthorizationCode(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
 	host, err := config.Base().GetServerHost(ctx)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
@@ -78,18 +79,18 @@ func UploadFileOpen(ctx context.Context, c *app.RequestContext) {
 	var req bot_open_api.UploadFileOpenRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp := new(bot_open_api.UploadFileOpenResponse)
 	resp, err = upload.SVC.UploadFileOpen(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // GetBotOnlineInfo .
@@ -99,17 +100,17 @@ func GetBotOnlineInfo(ctx context.Context, c *app.RequestContext) {
 	var req bot_open_api.GetBotOnlineInfoReq
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.GetAgentOnlineInfo(ctx, &req)
 
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // ImpersonateCozeUser .
@@ -119,18 +120,18 @@ func ImpersonateCozeUser(ctx context.Context, c *app.RequestContext) {
 	var req bot_open_api.ImpersonateCozeUserRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := openapiauthApp.OpenAuthApplication.ImpersonateCozeUserAccessToken(ctx, &req)
 
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // OpenGetBotInfo .
@@ -140,14 +141,14 @@ func OpenGetBotInfo(ctx context.Context, c *app.RequestContext) {
 	var req bot_open_api.OpenGetBotInfoRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(, "参数验证失败", nil))
 		return
 	}
 
 	resp, err := singleagent.SingleAgentSVC.OpenGetBotInfo(ctx, &req)
 	if err != nil {
-		internalServerErrorResponse(ctx, c, err)
+		httputil.BuildErrorRespFromEnhanced(c, errno.NewInternalError(ctx, err))
 		return
 	}
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

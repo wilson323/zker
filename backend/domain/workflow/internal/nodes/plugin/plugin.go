@@ -23,7 +23,6 @@ import (
 
 	"github.com/cloudwego/eino/compose"
 
-	"github.com/coze-dev/coze-studio/backend/api/model/app/bot_common"
 	workflowModel "github.com/coze-dev/coze-studio/backend/crossdomain/workflow/model"
 	"github.com/coze-dev/coze-studio/backend/domain/workflow/entity"
 	"github.com/coze-dev/coze-studio/backend/domain/workflow/entity/vo"
@@ -41,7 +40,7 @@ type Config struct {
 	PluginID      int64
 	ToolID        int64
 	PluginVersion string
-	PluginFrom    *bot_common.PluginFrom
+	PluginFrom    *vo.PluginFrom
 }
 
 func (c *Config) Adapt(ctx context.Context, n *vo.Node, opts ...nodes.AdaptOption) (*schema.NodeSchema, error) {
@@ -111,7 +110,7 @@ type Plugin struct {
 	pluginID      int64
 	toolID        int64
 	pluginVersion string
-	pluginFrom    *bot_common.PluginFrom
+	pluginFrom    *vo.PluginFrom
 }
 
 func (p *Plugin) Invoke(ctx context.Context, parameters map[string]any) (ret map[string]any, err error) {
@@ -128,7 +127,7 @@ func (p *Plugin) Invoke(ctx context.Context, parameters map[string]any) (ret map
 		if extra, ok := compose.IsInterruptRerunError(err); ok {
 			// TODO: temporarily replace interrupt with real error, because frontend cannot handle interrupt for now
 			interruptData := extra.(*entity.InterruptEvent).InterruptData
-			return nil, vo.NewError(errno.ErrAuthorizationRequired, errorx.KV("extra", interruptData))
+			return nil, vo.NewError(errno.DeprecatedErrAuthorizationRequired, errorx.KV("extra", interruptData))
 		}
 		return nil, err
 	}

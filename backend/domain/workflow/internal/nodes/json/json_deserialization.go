@@ -124,7 +124,7 @@ func (jd *Deserializer) Invoke(ctx context.Context, input map[string]any) (map[s
 func (jd *Deserializer) ToCallbackOutput(ctx context.Context, out map[string]any) (*nodes.StructuredCallbackOutput, error) {
 	var wfe vo.WorkflowError
 	if warnings, ok := ctxcache.Get[nodes.ConversionWarnings](ctx, warningsKey); ok {
-		wfe = vo.WrapWarn(errno.ErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
+		wfe = vo.WrapWarn(errno.DeprecatedErrNodeOutputParseFail, warnings, errorx.KV("warnings", warnings.Error()))
 	}
 	return &nodes.StructuredCallbackOutput{
 		Output: out,

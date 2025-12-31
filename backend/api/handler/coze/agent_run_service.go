@@ -27,6 +27,7 @@ import (
 	"github.com/cloudwego/hertz/pkg/app"
 	"github.com/cloudwego/hertz/pkg/protocol/consts"
 
+	"github.com/coze-dev/coze-studio/backend/api/internal/httputil"
 	"github.com/coze-dev/coze-studio/backend/api/model/conversation/run"
 
 	"github.com/coze-dev/coze-studio/backend/application/conversation"
@@ -44,12 +45,14 @@ func AgentRun(ctx context.Context, c *app.RequestContext) {
 
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(),
+			"参数验证失败", map[string]interface{}{"field": err.Error()})
 		return
 	}
 
 	if checkErr := checkParams(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(),
+			checkErr.Error(), nil)
 		return
 	}
 
@@ -60,7 +63,7 @@ func AgentRun(ctx context.Context, c *app.RequestContext) {
 	err = conversation.ConversationSVC.Run(ctx, sseSender, &req)
 	if err != nil {
 		errData := run.ErrorData{
-			Code: errno.ErrConversationAgentRunError,
+			Code: errno.ErrAgentRunFailedCode,
 			Msg:  err.Error(),
 		}
 		ed, _ := json.Marshal(errData)
@@ -94,17 +97,20 @@ func ChatV3(ctx context.Context, c *app.RequestContext) {
 
 	// Pre-process parameters field: convert JSON object to string if needed
 	if err = preprocessChatV3Parameters(c); err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(),
+			"参数预处理失败", nil)
 		return
 	}
 
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(),
+			"参数验证失败", map[string]interface{}{"field": err.Error()})
 		return
 	}
 	if checkErr := checkParamsV3(ctx, &req); checkErr != nil {
-		invalidParamRequestResponse(c, checkErr.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, checkErr.Error(),
+			checkErr.Error(), nil)
 		return
 	}
 
@@ -112,10 +118,11 @@ func ChatV3(ctx context.Context, c *app.RequestContext) {
 
 		resp, err := conversation.ConversationOpenAPISVC.OpenapiAgentRunSync(ctx, &req)
 		if err != nil {
-			invalidParamRequestResponse(c, err.Error())
+			httputil.BuildErrorResp(c, errno.ErrConversationAgentRunError, err.Error(),
+				"Agent运行失败", nil)
 			return
 		}
-		c.JSON(consts.StatusOK, resp)
+		httputil.BuildSuccessResp(c, resp)
 		return
 	}
 
@@ -126,7 +133,7 @@ func ChatV3(ctx context.Context, c *app.RequestContext) {
 	err = conversation.ConversationOpenAPISVC.OpenapiAgentRun(ctx, sseSender, &req)
 	if err != nil {
 		errData := run.ErrorData{
-			Code: errno.ErrConversationAgentRunError,
+			Code: errno.ErrAgentRunFailedCode,
 			Msg:  err.Error(),
 		}
 		ed, _ := json.Marshal(errData)
@@ -152,17 +159,19 @@ func CancelChatApi(ctx context.Context, c *app.RequestContext) {
 	var req run.CancelChatApiRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(),
+			"参数验证失败", map[string]interface{}{"field": err.Error()})
 		return
 	}
 
 	resp, err := conversation.ConversationOpenAPISVC.CancelRun(ctx, &req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrConversationCancelError, err.Error(),
+			"取消对话失败", nil)
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }
 
 // preprocessChatV3Parameters handles the conversion of parameters field from JSON object to string
@@ -215,15 +224,17 @@ func RetrieveChatOpen(ctx context.Context, c *app.RequestContext) {
 	var req run.RetrieveChatOpenRequest
 	err = c.BindAndValidate(&req)
 	if err != nil {
-		invalidParamRequestResponse(c, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrInvalidParamCode, err.Error(),
+			"参数验证失败", map[string]interface{}{"field": err.Error()})
 		return
 	}
 
 	resp, err := conversation.ConversationOpenAPISVC.RetrieveRunRecord(ctx, &req)
 	if err != nil {
-		c.String(consts.StatusInternalServerError, err.Error())
+		httputil.BuildErrorResp(c, errno.ErrConversationRetrieveError, err.Error(),
+			"获取对话记录失败", nil)
 		return
 	}
 
-	c.JSON(consts.StatusOK, resp)
+	httputil.BuildSuccessResp(c, resp)
 }

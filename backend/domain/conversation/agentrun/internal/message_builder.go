@@ -143,10 +143,10 @@ func parseInterruptData(_ context.Context, interruptData *singleagent.InterruptI
 		if singleagent.InterruptEventType(toolInterruptEvent.EventType) == singleagent.InterruptEventType_Question {
 			return processQuestionInterruptData(data)
 		}
-		return "", defaultContentType, errorx.New(errno.ErrUnknowInterruptType)
+		return "", defaultContentType, errorx.New(errno.DeprecatedErrUnknowInterruptType)
 
 	}
-	return "", defaultContentType, errorx.New(errno.ErrUnknowInterruptType)
+	return "", defaultContentType, errorx.New(errno.DeprecatedErrUnknowInterruptType)
 }
 
 func processQuestionInterruptData(data string) (string, message.ContentType, error) {
@@ -157,7 +157,7 @@ func processQuestionInterruptData(data string) (string, message.ContentType, err
 		return "", defaultContentType, err
 	}
 	if len(iData["messages"]) == 0 {
-		return "", defaultContentType, errorx.New(errno.ErrInterruptDataEmpty)
+		return "", defaultContentType, errorx.New(errno.DeprecatedErrInterruptDataEmpty)
 	}
 	interruptMsg := iData["messages"][0]
 
@@ -170,7 +170,7 @@ func processQuestionInterruptData(data string) (string, message.ContentType, err
 		}
 		return string(iMarshalData), message.ContentTypeCard, nil
 	}
-	return "", defaultContentType, errorx.New(errno.ErrUnknowInterruptType)
+	return "", defaultContentType, errorx.New(errno.DeprecatedErrUnknowInterruptType)
 }
 
 func processInputNodeInterruptData(data string) (string, message.ContentType, error) {
@@ -429,9 +429,9 @@ func handlerWfInterruptEvent(_ context.Context, interruptEventData *crossworkflo
 		if singleagent.InterruptEventType(interruptEventData.EventType) == singleagent.InterruptEventType_Question {
 			return processQuestionInterruptData(data)
 		}
-		return "", defaultContentType, errorx.New(errno.ErrUnknowInterruptType)
+		return "", defaultContentType, errorx.New(errno.DeprecatedErrUnknowInterruptType)
 	}
-	return "", defaultContentType, errorx.New(errno.ErrUnknowInterruptType)
+	return "", defaultContentType, errorx.New(errno.DeprecatedErrUnknowInterruptType)
 }
 
 func historyPairs(historyMsg []*message.Message) []*message.Message {

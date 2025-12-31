@@ -1,0 +1,332 @@
+# ================================================================================
+# Coze Studio - NSQ & etcd Deployments
+# ================================================================================
+# NSQ: 实时分布式消息平台
+# etcd: 分布式键值存储（配置中心）
+# 作者：ZKER DevOps Team
+# 创建时间：2025-01-01
+# ================================================================================
+
+---
+# ================================================================================
+# NSQ Lookupd（服务发现）
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsqlookupd
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: nsqlookupd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: nsqlookupd
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: nsqlookupd
+    spec:
+      containers:
+      - name: nsqlookupd
+        image: nsqio/nsq:v1.2.1
+        command:
+        - /nsqlookupd
+        - --broadcast-address=nsqlookupd.coze-studio.svc.cluster.local
+        ports:
+        - name: http
+          containerPort: 4161
+        - name: tcp
+          containerPort: 4160
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nsqlookupd
+  namespace: coze-studio
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: coze-studio
+    component: nsqlookupd
+  ports:
+  - name: http
+    port: 4161
+    targetPort: 4161
+  - name: tcp
+    port: 4160
+    targetPort: 4160
+
+---
+# ================================================================================
+# NSQD（消息队列守护进程）
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsqd
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: nsqd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: nsqd
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: nsqd
+    spec:
+      containers:
+      - name: nsqd
+        image: nsqio/nsq:v1.2.1
+        command:
+        - /nsqd
+        - --broadcast-address=nsqd.coze-studio.svc.cluster.local
+        - --lookupd-tcp-address=nsqlookupd.coze-studio.svc.cluster.local:4160
+        ports:
+        - name: http
+          containerPort: 4151
+        - name: tcp
+          containerPort: 4150
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: nsqd-pvc
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nsqd-pvc
+  namespace: coze-studio
+spec:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nsqd
+  namespace: coze-studio
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: coze-studio
+    component: nsqd
+  ports:
+  - name: http
+    port: 4151
+    targetPort: 4151
+  - name: tcp
+    port: 4150
+    targetPort: 4150
+
+---
+# ================================================================================
+# NSQ Admin（Web 管理界面）
+# ================================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nsqadmin
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: nsqadmin
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: nsqadmin
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: nsqadmin
+    spec:
+      containers:
+      - name: nsqadmin
+        image: nsqio/nsq:v1.2.1
+        command:
+        - /nsqadmin
+        - --lookupd-http-address=nsqlookupd.coze-studio.svc.cluster.local:4161
+        ports:
+        - name: http
+          containerPort: 4171
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nsqadmin
+  namespace: coze-studio
+spec:
+  type: ClusterIP
+  selector:
+    app: coze-studio
+    component: nsqadmin
+  ports:
+  - name: http
+    port: 4171
+    targetPort: 4171
+
+---
+# ================================================================================
+# etcd StatefulSet（配置中心）
+# ================================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+  namespace: coze-studio
+  labels:
+    app: coze-studio
+    component: etcd
+spec:
+  serviceName: etcd
+  replicas: 3
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: etcd
+  template:
+    metadata:
+      labels:
+        app: coze-studio
+        component: etcd
+    spec:
+      containers:
+      - name: etcd
+        image: quay.io/coreos/etcd:v3.5.13
+        command:
+        - /usr/local/bin/etcd
+        - --name
+        - $(ETCD_NAME)
+        - --data-dir
+        - /var/lib/etcd
+        - --listen-client-urls
+        - http://0.0.0.0:2379
+        - --advertise-client-urls
+        - http://$(ETCD_NAME).etcd.coze-studio.svc.cluster.local:2379
+        - --listen-peer-urls
+        - http://0.0.0.0:2380
+        - --initial-advertise-peer-urls
+        - http://$(ETCD_NAME).etcd.coze-studio.svc.cluster.local:2380
+        - --initial-cluster
+        - etcd-0=http://etcd-0.etcd.coze-studio.svc.cluster.local:2380,etcd-1=http://etcd-1.etcd.coze-studio.svc.cluster.local:2380,etcd-2=http://etcd-2.etcd.coze-studio.svc.cluster.local:2380
+        - --initial-cluster-state
+        - new
+        - --initial-cluster-token
+        - coze-studio-etcd-cluster
+        env:
+        - name: ETCD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: TZ
+          value: "Asia/Shanghai"
+        ports:
+        - name: client
+          containerPort: 2379
+        - name: peer
+          containerPort: 2380
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/etcd
+        resources:
+          requests:
+            cpu: 200m
+            memory: 256Mi
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 50Gi
+
+---
+# ================================================================================
+# etcd Service
+# ================================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: etcd
+  namespace: coze-studio
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: coze-studio
+    component: etcd
+  ports:
+  - name: client
+    port: 2379
+    targetPort: 2379
+  - name: peer
+    port: 2380
+    targetPort: 2380
+
+---
+# ================================================================================
+# PodDisruptionBudget
+# ================================================================================
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: etcd-pdb
+  namespace: coze-studio
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: coze-studio
+      component: etcd

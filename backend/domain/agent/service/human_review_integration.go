@@ -18,7 +18,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -31,12 +30,20 @@ import (
 // 这个服务展示了如何在现有业务中集成人机协同功能
 type HumanReviewService struct {
 	orchestrator hilservice.CollaborationOrchestrator
+	botRepo      BotRepository     // Bot仓储，需要注入
+	configRepo   ConfigRepository  // 配置仓储，需要注入
 }
 
 // NewHumanReviewService 创建人工审核服务
-func NewHumanReviewService(orchestrator hilservice.CollaborationOrchestrator) *HumanReviewService {
+func NewHumanReviewService(
+	orchestrator hilservice.CollaborationOrchestrator,
+	botRepo BotRepository,
+	configRepo ConfigRepository,
+) *HumanReviewService {
 	return &HumanReviewService{
 		orchestrator: orchestrator,
+		botRepo:      botRepo,
+		configRepo:   configRepo,
 	}
 }
 
@@ -392,6 +399,18 @@ type BotRepository interface {
 	Create(ctx context.Context, bot *Bot) error
 	Update(ctx context.Context, bot *Bot) error
 	UpdateStatus(ctx context.Context, botID, status string) error
+}
+
+// ConfigRepository 配置仓储接口（示例）
+type ConfigRepository interface {
+	GetByTenantID(ctx context.Context, tenantID string) (*TenantConfig, error)
+}
+
+// TenantConfig 租户配置（示例）
+type TenantConfig struct {
+	TenantID             string  `json:"tenant_id"`
+	AutoReviewThreshold  float64 `json:"auto_review_threshold"` // 自动审核阈值
+	// ... 其他配置字段
 }
 
 // getTenantID 从上下文获取租户ID（示例）

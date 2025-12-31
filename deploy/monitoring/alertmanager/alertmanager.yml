@@ -1,0 +1,177 @@
+# AlertManager配置文件
+# ZKER企业级告警通知配置
+
+global:
+  # 全局SMTP配置
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@coze-studio.com'
+  smtp_auth_username: 'alerts@coze-studio.com'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+  # 全局Slack配置
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # 全局解析超时
+  resolve_timeout: 5m
+
+# 告警路由配置
+route:
+  # 默认接收器
+  receiver: 'default'
+
+  # 分组等待时间
+  group_wait: 10s
+
+  # 分组间隔
+  group_interval: 10s
+
+  # 重复告警间隔
+  repeat_interval: 12h
+
+  # 路由树
+  routes:
+    # Critical级别告警 -> 发送到critical接收器
+    - match:
+        severity: critical
+      receiver: 'critical'
+      continue: true
+
+    # Warning级别告警 -> 发送到warning接收器
+    - match:
+        severity: warning
+      receiver: 'warning'
+      continue: true
+
+    # API类告警 -> 发送到api-team接收器
+    - match:
+        category: api
+      receiver: 'api-team'
+      group_by: ['alertname', 'category']
+
+    # 数据库类告警 -> 发送到db-team接收器
+    - match:
+        category: database
+      receiver: 'db-team'
+      group_by: ['alertname', 'category']
+
+    # 租户类告警 -> 发送到tenant-team接收器
+    - match:
+        category: tenant
+      receiver: 'tenant-team'
+
+    # 业务类告警 -> 发送到business-team接收器
+    - match:
+        category: business
+      receiver: 'business-team'
+
+# 告警接收器配置
+receivers:
+  # 默认接收器
+  - name: 'default'
+    email_configs:
+      - to: 'ops@coze-studio.com'
+        headers:
+          Subject: '[ZKER] {{ .GroupLabels.alertname }}'
+
+  # Critical级别接收器
+  - name: 'critical'
+    email_configs:
+      - to: 'oncall@coze-studio.com'
+        headers:
+          Subject: '[CRITICAL] [ZKER] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#alerts-critical'
+        title: '[CRITICAL] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        color: 'danger'
+        send_resolved: true
+    webhook_configs:
+      - url: 'http://pagerduty-webhook/generic'
+        send_resolved: true
+
+  # Warning级别接收器
+  - name: 'warning'
+    email_configs:
+      - to: 'ops@coze-studio.com'
+        headers:
+          Subject: '[WARNING] [ZKER] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#alerts-warning'
+        title: '[WARNING] {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        color: 'warning'
+        send_resolved: true
+
+  # API团队接收器
+  - name: 'api-team'
+    email_configs:
+      - to: 'api-team@coze-studio.com'
+        headers:
+          Subject: '[API Alert] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#api-team-alerts'
+        title: '[API] {{ .GroupLabels.alertname }}'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook:* {{ range .Alerts }}{{ .Annotations.runbook_url }}{{ end }}
+
+  # 数据库团队接收器
+  - name: 'db-team'
+    email_configs:
+      - to: 'db-team@coze-studio.com'
+        headers:
+          Subject: '[Database Alert] {{ .GroupLabels.alertname }}'
+    slack_configs:
+      - channel: '#db-team-alerts'
+        title: '[Database] {{ .GroupLabels.alertname }}'
+        text: |
+          *Alert:* {{ .GroupLabels.alertname }}
+          *Severity:* {{ .CommonLabels.severity }}
+          *Description:* {{ range .Alerts }}{{ .Annotations.description }}{{ end }}
+          *Runbook:* {{ range .Alerts }}{{ .Annotations.runbook_url }}{{ end }}
+
+  # 租户团队接收器
+  - name: 'tenant-team'
+    email_configs:
+      - to: 'tenant-team@coze-studio.com'
+        headers:
+          Subject: '[Tenant Alert] {{ .GroupLabels.alertname }}'
+
+  # 业务团队接收器
+  - name: 'business-team'
+    email_configs:
+      - to: 'business-team@coze-studio.com'
+        headers:
+          Subject: '[Business Alert] {{ .GroupLabels.alertname }}'
+
+# 告警抑制规则
+inhibit_rules:
+  # 如果有Critical级别的API错误，抑制Warning级别的API延迟告警
+  - source_match:
+      severity: 'critical'
+      category: 'api'
+    target_match:
+      severity: 'warning'
+      category: 'api'
+    equal: ['alertname']
+
+  # 如果数据库连接失败，抑制慢查询告警
+  - source_match:
+      alertname: 'DatabaseConnectionFailure'
+    target_match:
+      alertname: 'SlowDatabaseQuery'
+    equal: ['instance']
+
+  # 如果租户配额已超限，抑制配额即将耗尽的告警
+  - source_match:
+      alertname: 'TenantQuotaExceeded'
+    target_match:
+      alertname: 'TenantQuotaNearLimit'
+    equal: ['tenant_id']
+
+# 告警模板配置
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'

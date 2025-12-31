@@ -57,8 +57,8 @@ func (s *SingleAgentApplicationService) CreateSingleAgentDraft(ctx context.Conte
 	err = s.appContext.EventBus.PublishProject(ctx, &searchEntity.ProjectDomainEvent{
 		OpType: searchEntity.Created,
 		Project: &searchEntity.ProjectDocument{
-			Status:  intelligence.IntelligenceStatus_Using,
-			Type:    intelligence.IntelligenceType_Bot,
+			Status:  ConvertIntelligenceStatusFromAPI(intelligence.IntelligenceStatus_Using),
+			Type:    ConvertIntelligenceTypeFromAPI(intelligence.IntelligenceType_Bot),
 			ID:      agentID,
 			SpaceID: &req.SpaceID,
 			OwnerID: &userID,

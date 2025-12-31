@@ -11,6 +11,7 @@ import (
 	"github.com/coze-dev/coze-studio/backend/domain/tenant/migration"
 	"github.com/coze-dev/coze-studio/backend/infra/database"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 )
 
@@ -39,18 +40,25 @@ func main() {
 	// 命令行参数
 	command := flag.String("cmd", "help", "命令: start, validate, rollback, stats")
 	table := flag.String("table", "", "表名（不指定则迁移所有表）")
-	batchSize := flag.Int("batch", 1000, "批次大小")
+	_ = flag.Int("batch", 1000, "批次大小") // 预留参数，暂未使用
 	flag.Parse()
 
-	// 初始化日志
-	logger.Init("migration")
+	// 初始化数据库连接配置
+	// 注意：需要从环境变量或配置文件读取数据库DSN
+	dsn := os.Getenv("MYSQL_DSN")
+	if dsn == "" {
+		dsn = "root:123456@tcp(127.0.0.1:3306)/coze_studio?charset=utf8mb4&parseTime=True&loc=Local"
+	}
 
 	// 初始化数据库
-	db, err := database.InitDB()
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
-		logger.Errorf("Failed to init database: %v", err)
+		logs.Errorf("Failed to init database: %v", err)
 		os.Exit(1)
 	}
+
+	// 设置全局数据库实例
+	database.InitDB(db)
 
 	// 创建迁移器
 	migrator := migration.NewTenantIDMigrator(db)
@@ -72,14 +80,14 @@ func main() {
 	}
 
 	if err != nil {
-		logger.Errorf("Command failed: %v", err)
+		logs.Errorf("Command failed: %v", err)
 		os.Exit(1)
 	}
 }
 
 // doMigrate 执行迁移
 func doMigrate(ctx context.Context, migrator *migration.TenantIDMigrator, tableName string) error {
-	logger.Infof("=== Starting tenant_id migration ===")
+	logs.Infof("=== Starting tenant_id migration ===")
 
 	var tables []TableConfig
 	if tableName != "" {
@@ -102,13 +110,13 @@ func doMigrate(ctx context.Context, migrator *migration.TenantIDMigrator, tableN
 
 	// 逐表迁移
 	for i, tableConfig := range tables {
-		logger.Infof("========================================")
-		logger.Infof("[%d/%d] Migrating table: %s (%s)",
+		logs.Infof("========================================")
+		logs.Infof("[%d/%d] Migrating table: %s (%s)",
 			i+1, len(tables), tableConfig.TableName, tableConfig.Description)
-		logger.Infof("========================================")
+		logs.Infof("========================================")
 
 		if tableConfig.UserIDField == "" {
-			logger.Warnf("Table %s has no user_id_field, skipping direct migration",
+			logs.Warnf("Table %s has no user_id_field, skipping direct migration",
 				tableConfig.TableName)
 			// 这些表通过关联表迁移，不需要直接处理
 			continue
@@ -119,32 +127,32 @@ func doMigrate(ctx context.Context, migrator *migration.TenantIDMigrator, tableN
 		duration := time.Since(startTime)
 
 		if err != nil {
-			logger.Errorf("Failed to migrate table %s: %v (duration: %s)",
+			logs.Errorf("Failed to migrate table %s: %v (duration: %s)",
 				tableConfig.TableName, err, duration)
 			// 继续迁移下一张表，不中断
 			continue
 		}
 
-		logger.Infof("✓ Table %s migration completed successfully (duration: %s)",
+		logs.Infof("✓ Table %s migration completed successfully (duration: %s)",
 			tableConfig.TableName, duration)
 
 		// 验证迁移结果
 		err = migrator.ValidateMigration(ctx, tableConfig.TableName)
 		if err != nil {
-			logger.Errorf("Validation failed for table %s: %v",
+			logs.Errorf("Validation failed for table %s: %v",
 				tableConfig.TableName, err)
 		} else {
-			logger.Infof("✓ Validation passed for table %s", tableConfig.TableName)
+			logs.Infof("✓ Validation passed for table %s", tableConfig.TableName)
 		}
 	}
 
-	logger.Infof("=== Migration completed ===")
+	logs.Infof("=== Migration completed ===")
 	return nil
 }
 
 // doValidate 验证迁移结果
 func doValidate(ctx context.Context, migrator *migration.TenantIDMigrator, tableName string) error {
-	logger.Infof("=== Validating tenant_id migration ===")
+	logs.Infof("=== Validating tenant_id migration ===")
 
 	var tables []TableConfig
 	if tableName != "" {
@@ -160,22 +168,22 @@ func doValidate(ctx context.Context, migrator *migration.TenantIDMigrator, table
 
 	validationPassed := true
 	for _, tableConfig := range tables {
-		logger.Infof("Validating table: %s...", tableConfig.TableName)
+		logs.Infof("Validating table: %s...", tableConfig.TableName)
 
 		err := migrator.ValidateMigration(ctx, tableConfig.TableName)
 		if err != nil {
-			logger.Errorf("✗ Table %s validation failed: %v",
+			logs.Errorf("✗ Table %s validation failed: %v",
 				tableConfig.TableName, err)
 			validationPassed = false
 		} else {
-			logger.Infof("✓ Table %s validation passed", tableConfig.TableName)
+			logs.Infof("✓ Table %s validation passed", tableConfig.TableName)
 		}
 	}
 
 	if validationPassed {
-		logger.Infof("=== All validations passed ===")
+		logs.Infof("=== All validations passed ===")
 	} else {
-		logger.Errorf("=== Some validations failed ===")
+		logs.Errorf("=== Some validations failed ===")
 	}
 
 	return nil
@@ -183,7 +191,7 @@ func doValidate(ctx context.Context, migrator *migration.TenantIDMigrator, table
 
 // doRollback 回滚迁移
 func doRollback(ctx context.Context, migrator *migration.TenantIDMigrator, tableName string) error {
-	logger.Warnf("=== Rolling back tenant_id migration ===")
+	logs.Warnf("=== Rolling back tenant_id migration ===")
 
 	fmt.Print("⚠️  WARNING: This will clear all migrated tenant_id data!\n")
 	fmt.Print("Are you sure? (type 'yes' to continue): ")
@@ -191,7 +199,7 @@ func doRollback(ctx context.Context, migrator *migration.TenantIDMigrator, table
 	var confirm string
 	fmt.Scanln(&confirm)
 	if confirm != "yes" {
-		logger.Infof("Rollback cancelled")
+		logs.Infof("Rollback cancelled")
 		return nil
 	}
 
@@ -208,25 +216,25 @@ func doRollback(ctx context.Context, migrator *migration.TenantIDMigrator, table
 	}
 
 	for _, tableConfig := range tables {
-		logger.Infof("Rolling back table: %s...", tableConfig.TableName)
+		logs.Infof("Rolling back table: %s...", tableConfig.TableName)
 
 		err := migrator.RollbackMigration(ctx, tableConfig.TableName)
 		if err != nil {
-			logger.Errorf("Failed to rollback table %s: %v",
+			logs.Errorf("Failed to rollback table %s: %v",
 				tableConfig.TableName, err)
 			continue
 		}
 
-		logger.Infof("✓ Table %s rollback completed", tableConfig.TableName)
+		logs.Infof("✓ Table %s rollback completed", tableConfig.TableName)
 	}
 
-	logger.Infof("=== Rollback completed ===")
+	logs.Infof("=== Rollback completed ===")
 	return nil
 }
 
 // doStats 显示迁移统计
 func doStats(ctx context.Context, migrator *migration.TenantIDMigrator, tableName string) error {
-	logger.Infof("=== Migration Statistics ===")
+	logs.Infof("=== Migration Statistics ===")
 
 	var tables []TableConfig
 	if tableName != "" {
@@ -243,7 +251,7 @@ func doStats(ctx context.Context, migrator *migration.TenantIDMigrator, tableNam
 	for _, tableConfig := range tables {
 		stats, err := migrator.GetMigrationStats(ctx, tableConfig.TableName)
 		if err != nil {
-			logger.Errorf("Failed to get stats for table %s: %v",
+			logs.Errorf("Failed to get stats for table %s: %v",
 				tableConfig.TableName, err)
 			continue
 		}

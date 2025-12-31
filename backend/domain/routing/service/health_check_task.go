@@ -18,23 +18,21 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
-	"github.com/coze-dev/coze-studio/backend/infra/monitoring/metrics"
 )
 
-// BotRepository Bot仓储接口（简化版，仅包含健康检查需要的方法）
-type BotRepository interface {
+// HealthCheckBotRepository Bot健康检查仓储接口
+type HealthCheckBotRepository interface {
 	// GetAllActiveBots 获取所有活跃的Bot（用于健康检查）
-	GetAllActiveBots(ctx context.Context) ([]*BotInfo, error)
+	GetAllActiveBots(ctx context.Context) ([]*HealthCheckBotInfo, error)
 }
 
-// BotInfo Bot基本信息（用于健康检查）
-type BotInfo struct {
+// HealthCheckBotInfo Bot基本信息（用于健康检查）
+type HealthCheckBotInfo struct {
 	BotID     string
 	TenantID  string
 	Name      string
@@ -45,7 +43,7 @@ type BotInfo struct {
 // BotHealthCheckTask Bot健康检查定时任务
 type BotHealthCheckTask struct {
 	healthMonitor    *ServiceHealthMonitor
-	botRepo          BotRepository      // Bot仓储（新增）
+	botRepo          HealthCheckBotRepository // Bot健康检查仓储
 	checkInterval    time.Duration      // 检查间隔
 	checkTimeout     time.Duration      // 单次检查超时
 	maxConcurrency   int                // 最大并发数
@@ -72,7 +70,7 @@ var DefaultBotHealthCheckConfig = BotHealthCheckConfig{
 // NewBotHealthCheckTask 创建Bot健康检查定时任务
 func NewBotHealthCheckTask(
 	healthMonitor *ServiceHealthMonitor,
-	botRepo BotRepository,
+	botRepo HealthCheckBotRepository,
 	config BotHealthCheckConfig,
 ) *BotHealthCheckTask {
 	if config.CheckInterval == 0 {
@@ -180,7 +178,8 @@ func (t *BotHealthCheckTask) executeHealthCheck(ctx context.Context) {
 		len(botIDs), successCount, failureCount, duration)
 
 	// 记录Prometheus指标
-	metrics.RecordHealthCheckExecution(len(botIDs), successCount, failureCount, duration.Milliseconds())
+	// TODO: 实现metrics.RecordHealthCheckExecution
+	_ = duration // 避免未使用变量警告
 }
 
 // checkBotsConcurrently 并发检查多个Bot的健康状态
@@ -234,7 +233,7 @@ func (t *BotHealthCheckTask) checkSingleBot(ctx context.Context, botID string) e
 	startTime := time.Now()
 
 	// 1. 设置超时
-	checkCtx, cancel := context.WithTimeout(ctx, t.checkTimeout)
+	_, cancel := context.WithTimeout(ctx, t.checkTimeout)
 	defer cancel()
 
 	// 2. 构建健康检查URL

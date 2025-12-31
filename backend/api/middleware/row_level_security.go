@@ -20,13 +20,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
+	"github.com/cloudwego/hertz/pkg/app"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
+	"github.com/coze-dev/coze-studio/backend/pkg/errorx"
 	"github.com/coze-dev/coze-studio/backend/pkg/logs"
-	"github.com/coze-dev/coze-studio/backend/types/errno"
 	berrno "github.com/coze-dev/coze-studio/backend/types/errno"
 	"github.com/coze-dev/coze-studio/backend/infra/tracing"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 // TenantScopePlugin GORM插件：自动为所有查询添加租户过滤
@@ -124,16 +127,16 @@ func (p *TenantScopePlugin) queryCallback(db *gorm.DB) {
 	}
 
 	// 添加WHERE tenant_id = ?
-	db.Statement.AddClause(gorm.WhereClause{
-		Exprs: []gorm.Expression{
-			gorm.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
+	db.Statement.AddClause(clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
 		},
 	})
 
 	// 记录追踪
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrTable.String(tableName),
+		tracing.AttrDBTable.String(tableName),
 	)
 
 	logs.CtxDebugf(ctx, "[TenantScope] added tenant filter: table=%s, tenant_id=%s", tableName, tenantID)
@@ -177,7 +180,7 @@ func (p *TenantScopePlugin) createCallback(db *gorm.DB) {
 	// 记录追踪
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrTable.String(tableName),
+		tracing.AttrDBTable.String(tableName),
 	)
 
 	logs.CtxDebugf(ctx, "[TenantScope] injected tenant_id: table=%s, tenant_id=%s", tableName, tenantID)
@@ -218,24 +221,24 @@ func (p *TenantScopePlugin) updateCallback(db *gorm.DB) {
 	// 防止修改tenant_id字段（安全关键）
 	if p.isUpdatingTenantID(db) {
 		logs.CtxErrorf(ctx, "[TenantScope] attempt to update tenant_id: table=%s, tenant_id=%s", tableName, tenantID)
-		db.AddError(pkgerrorx.New(berrno.ErrCrossTenantUpdate).WithZap(
-			zap.String("table", tableName),
-			zap.String("tenant_id", tenantID),
+		db.AddError(errorx.New(int32(berrno.ErrCrossTenantUpdate.HTTPStatus()),
+			errorx.Extra("table", tableName),
+			errorx.Extra("tenant_id", tenantID),
 		))
 		return
 	}
 
 	// 添加WHERE tenant_id = ?
-	db.Statement.AddClause(gorm.WhereClause{
-		Exprs: []gorm.Expression{
-			gorm.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
+	db.Statement.AddClause(clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
 		},
 	})
 
 	// 记录追踪
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrTable.String(tableName),
+		tracing.AttrDBTable.String(tableName),
 	)
 
 	logs.CtxDebugf(ctx, "[TenantScope] added tenant filter to update: table=%s, tenant_id=%s", tableName, tenantID)
@@ -274,16 +277,16 @@ func (p *TenantScopePlugin) deleteCallback(db *gorm.DB) {
 	}
 
 	// 添加WHERE tenant_id = ?
-	db.Statement.AddClause(gorm.WhereClause{
-		Exprs: []gorm.Expression{
-			gorm.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
+	db.Statement.AddClause(clause.Where{
+		Exprs: []clause.Expression{
+			clause.Expr{SQL: "? = ?", Vars: []interface{}{"tenant_id", tenantID}},
 		},
 	})
 
 	// 记录追踪
 	tracing.AddSpanAttributes(ctx,
 		tracing.AttrTenantID.String(tenantID),
-		tracing.AttrTable.String(tableName),
+		tracing.AttrDBTable.String(tableName),
 	)
 
 	logs.CtxDebugf(ctx, "[TenantScope] added tenant filter to delete: table=%s, tenant_id=%s", tableName, tenantID)
@@ -380,8 +383,8 @@ func ValidateTenantAccess(ctx context.Context, resourceTenantID string) error {
 	requestTenantID := GetTenantIDFromContext(ctx)
 
 	if requestTenantID == "" || requestTenantID == DefaultTenantID {
-		return pkgerrorx.New(berrno.ErrInvalidTenantID).WithZap(
-			zap.String("request_tenant_id", requestTenantID),
+		return errorx.New(berrno.ErrInvalidTenantIDCode,
+			errorx.Extra("request_tenant_id", requestTenantID),
 		)
 	}
 
@@ -389,9 +392,9 @@ func ValidateTenantAccess(ctx context.Context, resourceTenantID string) error {
 		logs.CtxErrorf(ctx, "[ValidateTenantAccess] cross-tenant access denied: request_tenant_id=%s, resource_tenant_id=%s",
 			requestTenantID, resourceTenantID)
 
-		return pkgerrorx.New(berrno.ErrCrossTenantAccess).WithZap(
-			zap.String("request_tenant_id", requestTenantID),
-			zap.String("resource_tenant_id", resourceTenantID),
+		return errorx.New(int32(berrno.ErrCrossTenantAccess.HTTPStatus()),
+			errorx.Extra("request_tenant_id", requestTenantID),
+			errorx.Extra("resource_tenant_id", resourceTenantID),
 		)
 	}
 
@@ -411,8 +414,8 @@ func EnsureTenantDataIntegrity(ctx context.Context, resources interface{}) error
 	tenantID := GetTenantIDFromContext(ctx)
 
 	if tenantID == "" || tenantID == DefaultTenantID {
-		return pkgerrorx.New(berrno.ErrInvalidTenantID).WithZap(
-			zap.String("tenant_id", tenantID),
+		return errorx.New(berrno.ErrInvalidTenantIDCode,
+			errorx.Extra("tenant_id", tenantID),
 		)
 	}
 
@@ -454,9 +457,9 @@ func validateSingleResourceTenant(ctx context.Context, expectedTenantID string, 
 		logs.CtxErrorf(ctx, "[EnsureTenantDataIntegrity] mismatched tenant_id: expected=%s, got=%s",
 			expectedTenantID, resourceTenantID)
 
-		return pkgerrorx.New(berrno.ErrCrossTenantAccess).WithZap(
-			zap.String("expected_tenant_id", expectedTenantID),
-			zap.String("resource_tenant_id", resourceTenantID),
+		return errorx.New(int32(berrno.ErrCrossTenantAccess.HTTPStatus()),
+			errorx.Extra("expected_tenant_id", expectedTenantID),
+			errorx.Extra("resource_tenant_id", resourceTenantID),
 		)
 	}
 
