@@ -491,6 +491,9 @@ func (k *knowledgeSVC) ListDocument(ctx context.Context, request *ListDocumentRe
 	if request.KnowledgeID != 0 {
 		opts.KnowledgeIDs = []int64{request.KnowledgeID}
 	}
+	if request.Keyword != nil {
+		opts.Name = request.Keyword
+	}
 	if request.SelectAll {
 		opts.SelectAll = true
 	}

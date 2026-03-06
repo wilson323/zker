@@ -1661,41 +1661,79 @@ func _listchatmessageapiMw() []app.HandlerFunc {
 }
 
 func _permissionsMw() []app.HandlerFunc {
+func _open_apiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _temporary_grantsMw() []app.HandlerFunc {
+func _knowledge1Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _createtemporarygrantMw() []app.HandlerFunc {
+func _document0Mw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _usetemporarygrantMw() []app.HandlerFunc {
+func _createdocumentopenapiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _revoketemporarygrantMw() []app.HandlerFunc {
+func _listdocumentopenapiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _gettemporarygrantMw() []app.HandlerFunc {
+func _updatedocumentopenapiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _listtemporarygrantsMw() []app.HandlerFunc {
+func _datasetsMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
 
 func _getgranthistoryMw() []app.HandlerFunc {
+func _listdatasetopenapiMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _dataset_idMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _deletedatasetopenapiMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _listphotodocumentopenapiMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _getdocumentprogressopenapiMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _updatedatasetopenapiMw() []app.HandlerFunc {
+	// your code...
+	return nil
+}
+
+func _createdatasetopenapiMw() []app.HandlerFunc {
 	// your code...
 	return nil
 }
